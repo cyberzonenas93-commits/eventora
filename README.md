@@ -1,17 +1,31 @@
-# eventora_app
+# Eventora
 
-A new Flutter project.
+Eventora is a Flutter event platform with:
 
-## Getting Started
+- attendee discovery, RSVP, tickets, reminders, and sharing
+- organizer workflows through Eventora Studio
+- admin and superadmin console features
+- Firebase-backed payments, SMS, push notifications, and organizer approvals
 
-This project is a starting point for a Flutter application.
+## Firebase project
 
-A few resources to get you started if this is your first Flutter project:
+- Project ID: `eventora-10063`
+- Functions are already wired through `firebase.json` and `.firebaserc`
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Main workspace commands
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Run these from `/Users/angelonartey/Desktop/eventora_app`:
+
+- `flutter analyze`
+- `flutter test`
+- `npm run functions:lint`
+- `npm run functions:list`
+- `npm run functions:deploy`
+
+## Functions workflow
+
+Repo-root Firebase Functions scripts are defined in `package.json`.
+
+For the full workflow, targeted deploy commands, and config notes, see:
+
+- `docs/functions_workflow.md`

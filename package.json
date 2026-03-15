@@ -1,0 +1,15 @@
+{
+  "name": "eventora-workspace",
+  "private": true,
+  "scripts": {
+    "functions:lint": "npm --prefix functions run lint",
+    "functions:list": "firebase functions:list --project eventora-10063",
+    "functions:logs": "firebase functions:log --project eventora-10063",
+    "functions:serve": "firebase emulators:start --only functions --project eventora-10063",
+    "functions:shell": "firebase functions:shell --project eventora-10063",
+    "functions:deploy": "npm run functions:lint && firebase deploy --only functions --project eventora-10063",
+    "functions:deploy:notifications": "npm run functions:lint && firebase deploy --only functions:processPushQueue,functions:launchEventNotificationCampaign,functions:processNotificationJobs,functions:processEventReminderNotifications,functions:onEventRsvpCreated,functions:onEventTicketOrderCreated,functions:onEventTicketOrderUpdated,functions:sendTestEventSms,functions:sendTestEventPush --project eventora-10063",
+    "functions:deploy:payments": "npm run functions:lint && firebase deploy --only functions:createEventTicketPaymentForOrder,functions:checkHubtelTicketStatus,functions:createWebEventTicketOrder,functions:hubtelCallback,functions:hubtelReturn --project eventora-10063",
+    "functions:deploy:organizers": "npm run functions:lint && firebase deploy --only functions:reviewOrganizerApplication --project eventora-10063"
+  }
+}

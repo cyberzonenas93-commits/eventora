@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "872808273884",
+    "project_id": "eventora-10063",
+    "storage_bucket": "eventora-10063.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:872808273884:android:1c19ea85767aa0d88c2119",
+        "android_client_info": {
+          "package_name": "com.eventora.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_1Baw7fcXLtG4WutG4OeUfQNSCZDRpJ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

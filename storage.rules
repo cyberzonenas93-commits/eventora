@@ -1,0 +1,33 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && firestore.get(
+          /databases/(default)/documents/admins/$(request.auth.uid)
+        ).exists();
+    }
+
+    function isOrgMember(organizationId) {
+      return isSignedIn()
+        && firestore.get(
+          /databases/(default)/documents/organization_members/$(organizationId + '_' + request.auth.uid)
+        ).exists()
+        && firestore.get(
+          /databases/(default)/documents/organization_members/$(organizationId + '_' + request.auth.uid)
+        ).data.status == 'active';
+    }
+
+    match /organizer-applications/{userId}/{allPaths=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /organizations/{organizationId}/{allPaths=**} {
+      allow read, write: if isAdmin() || isOrgMember(organizationId);
+    }
+  }
+}

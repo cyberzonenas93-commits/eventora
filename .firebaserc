@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "eventora-10063"
+  },
+  "targets": {
+    "eventora-10063": {
+      "hosting": {
+        "studio": [
+          "eventora-studio"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

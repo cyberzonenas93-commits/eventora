@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function adminDoc() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && adminDoc().exists();
+    }
+
+    function memberDoc(organizationId) {
+      return get(
+        /databases/$(database)/documents/organization_members/$(organizationId + '_' + request.auth.uid)
+      );
+    }
+
+    function isOrgMember(organizationId) {
+      return isSignedIn()
+        && organizationId is string
+        && memberDoc(organizationId).exists()
+        && memberDoc(organizationId).data.status == 'active';
+    }
+
+    function isEventManager(organizationId) {
+      return isAdmin() || isOrgMember(organizationId);
+    }
+
+    function canWriteOwnOrganizerApplication(applicationId) {
+      return isSignedIn()
+        && request.auth.uid == applicationId
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status in ['draft', 'submitted'];
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+    }
+
+    match /organizer_applications/{applicationId} {
+      allow read: if isSignedIn() && (request.auth.uid == applicationId || isAdmin());
+      allow create: if canWriteOwnOrganizerApplication(applicationId);
+      allow update: if canWriteOwnOrganizerApplication(applicationId)
+        && (!resource.data.keys().hasAny(['organizationId']) || request.resource.data.organizationId == resource.data.organizationId);
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if isEventManager(organizationId);
+      allow create, update: if isEventManager(organizationId);
+    }
+
+    match /organization_members/{membershipId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.userId
+          || isAdmin()
+          || isOrgMember(resource.data.organizationId)
+        );
+      allow create, update: if isAdmin() || isOrgMember(request.resource.data.organizationId);
+    }
+
+    match /events/{eventId} {
+      allow read: if resource.data.visibility == 'public'
+        || isEventManager(resource.data.organizationId);
+      allow create: if isEventManager(request.resource.data.organizationId);
+      allow update: if isEventManager(resource.data.organizationId)
+        || isEventManager(request.resource.data.organizationId);
+    }
+
+    match /event_occurrences/{occurrenceId} {
+      allow read: if resource.data.visibility == 'public'
+        || isEventManager(resource.data.organizationId);
+      allow create, update: if isEventManager(request.resource.data.organizationId)
+        || isEventManager(resource.data.organizationId);
+    }
+
+    match /event_rsvps/{rsvpId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.userId
+          || isEventManager(resource.data.organizationId)
+        );
+      allow create, update: if isSignedIn()
+        && (
+          request.resource.data.userId == request.auth.uid
+          || isEventManager(request.resource.data.organizationId)
+        );
+    }
+
+    match /event_ticket_orders/{orderId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.buyerId
+          || isEventManager(resource.data.organizationId)
+        );
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow update: if isEventManager(resource.data.organizationId)
+        || isEventManager(request.resource.data.organizationId);
+    }
+
+    match /event_ticket_lookups/{lookupId} {
+      allow read, update: if isEventManager(resource.data.organizationId)
+        || isEventManager(request.resource.data.organizationId);
+      allow create: if isEventManager(request.resource.data.organizationId);
+    }
+
+    match /event_reminders/{reminderId} {
+      allow read, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create, update: if isSignedIn()
+        && request.auth.uid == request.resource.data.userId;
+    }
+
+    match /share_links/{shareLinkId} {
+      allow read: if resource.data.status == 'active'
+        || isEventManager(resource.data.organizationId);
+      allow create, update: if isEventManager(request.resource.data.organizationId)
+        || isEventManager(resource.data.organizationId);
+    }
+
+    match /promotion_campaigns/{campaignId} {
+      allow read: if isEventManager(resource.data.organizationId);
+      allow create, update: if isEventManager(request.resource.data.organizationId)
+        || isEventManager(resource.data.organizationId);
+    }
+
+    match /notification_jobs/{jobId} {
+      allow read: if isAdmin();
+    }
+
+    match /push_queue/{queueId} {
+      allow read: if isAdmin();
+    }
+  }
+}

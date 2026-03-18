@@ -22,17 +22,36 @@ class TicketsScreen extends StatelessWidget {
     final orders = repository.orders;
     final admittedCount = orders.fold<int>(
       0,
-      (sum, order) => sum + order.tickets.where((ticket) => ticket.status == TicketStatus.admitted).length,
+      (sum, order) =>
+          sum +
+          order.tickets
+              .where((ticket) => ticket.status == TicketStatus.admitted)
+              .length,
     );
     final openGateCount = orders.fold<int>(
       0,
-      (sum, order) => sum + order.tickets.where((ticket) => ticket.status != TicketStatus.admitted).length,
+      (sum, order) =>
+          sum +
+          order.tickets
+              .where((ticket) => ticket.status != TicketStatus.admitted)
+              .length,
     );
+    final paidCount = orders
+        .where((order) => order.status == TicketOrderStatus.paid)
+        .length;
+    final reservedCount = orders
+        .where((order) => order.status == TicketOrderStatus.reserved)
+        .length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
       children: [
-        _TicketsHero(ticketCount: orders.length, isGuest: session.isGuest),
+        _TicketsHero(
+          ticketCount: orders.length,
+          paidCount: paidCount,
+          reservedCount: reservedCount,
+          isGuest: session.isGuest,
+        ),
         const SizedBox(height: 22),
         Wrap(
           spacing: 14,
@@ -44,13 +63,13 @@ class TicketsScreen extends StatelessWidget {
               icon: Icons.shopping_bag_outlined,
             ),
             MetricTile(
-              label: 'Admitted',
+              label: 'Used already',
               value: '$admittedCount',
               icon: Icons.verified_outlined,
               highlight: context.palette.teal,
             ),
             MetricTile(
-              label: 'Waiting at gate',
+              label: 'Ready or waiting',
               value: '$openGateCount',
               icon: Icons.qr_code_scanner_outlined,
               highlight: context.palette.coral,
@@ -59,16 +78,17 @@ class TicketsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 28),
         SectionHeading(
-          title: 'Gate desk',
+          title: 'Ready at the door',
           subtitle: session.isGuest
-              ? 'Sign in before you start validating tickets or collecting pay-at-gate reservations.'
-              : 'Simulate QR validation and pay-at-gate collection from the same order model.',
+              ? 'Sign in to keep your tickets, reservations, and entry links in one place.'
+              : 'See which tickets are ready to use and which ones still need payment at the door.',
         ),
         const SizedBox(height: 14),
         if (session.isGuest)
           EmptyStateCard(
-            title: 'Ticket operations need an account',
-            body: 'Sign in to access attendee orders, gate validation, and public ticket links.',
+            title: 'Save your tickets to your account',
+            body:
+                'Sign in to keep every order, reservation, and ticket link together in your Eventora wallet.',
             icon: Icons.qr_code_scanner_outlined,
             actionLabel: 'Sign in',
             onAction: () => _promptForAccess(context),
@@ -77,16 +97,18 @@ class TicketsScreen extends StatelessWidget {
           _GateQueue(),
         const SizedBox(height: 26),
         SectionHeading(
-          title: 'Orders & ticket links',
-          subtitle: 'Public ticket links stay attached to each order, which makes web and app flows consistent.',
+          title: 'Saved orders',
+          subtitle:
+              'Every order keeps the details, attendee names, and shareable link together so reopening it later is effortless.',
         ),
         const SizedBox(height: 14),
         if (session.isGuest)
           const SizedBox.shrink()
         else if (orders.isEmpty)
           const EmptyStateCard(
-            title: 'No ticket orders yet',
-            body: 'Once a checkout happens, orders and issued tickets will show up here.',
+            title: 'No orders yet',
+            body:
+                'As soon as you reserve or buy a ticket, it will show up here with all of the details you need.',
             icon: Icons.receipt_long_outlined,
           )
         else
@@ -103,8 +125,9 @@ class TicketsScreen extends StatelessWidget {
   void _promptForAccess(BuildContext context) {
     showAuthPromptSheet(
       context,
-      title: 'Ticket desks live behind sign-in',
-      body: 'Create an Eventora account to see attendee orders, validate QR codes, and manage pay-at-gate entries.',
+      title: 'Tickets are easier to manage with an account',
+      body:
+          'Create an Eventora account to save orders, ticket links, and reservations in one place.',
     );
   }
 }
@@ -112,10 +135,14 @@ class TicketsScreen extends StatelessWidget {
 class _TicketsHero extends StatelessWidget {
   const _TicketsHero({
     required this.ticketCount,
+    required this.paidCount,
+    required this.reservedCount,
     required this.isGuest,
   });
 
   final int ticketCount;
+  final int paidCount;
+  final int reservedCount;
   final bool isGuest;
 
   @override
@@ -125,37 +152,58 @@ class _TicketsHero extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(28),
         gradient: LinearGradient(
-          colors: [palette.gold, palette.coral],
+          colors: [palette.primaryStart, palette.gold, palette.primaryEnd],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: palette.primaryStart.withValues(alpha: 0.18),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Ticket operations',
+            'Your tickets and reservations',
             style: context.text.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.84),
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Guest access stops before gate operations, so reviewers can browse safely without touching live attendee data.'
-                : '$ticketCount orders live in your wallet and gate flow.',
+                ? 'Sign in once and keep every RSVP, order, and ticket link together.'
+                : '$ticketCount orders are saved in your wallet right now.',
             style: context.text.headlineSmall?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Sign in when you are ready to manage ticket orders, QR validation, and pay-at-gate reservations.'
-                : 'The same order object handles paid tickets, complimentary issues later, and cash-at-gate reservations.',
-            style: context.text.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.86)),
+                ? 'You can keep browsing as a guest. When you are ready, sign in to save tickets and open them quickly at the door.'
+                : 'Open any order to see who it is for, whether it is paid, and what is ready to scan at entry.',
+            style: context.text.bodyLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.86),
+            ),
           ),
+          if (!isGuest) ...[
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _InfoPill(label: '$paidCount paid'),
+                _InfoPill(label: '$reservedCount pay-at-door'),
+                _InfoPill(label: '$ticketCount saved orders'),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -169,13 +217,14 @@ class _GateQueue extends StatelessWidget {
     final entries = [
       for (final order in repository.orders)
         for (final ticket in order.tickets)
-          if (ticket.status != TicketStatus.admitted) _GateEntry(order: order, ticket: ticket),
+          if (ticket.status != TicketStatus.admitted)
+            _GateEntry(order: order, ticket: ticket),
     ];
 
     if (entries.isEmpty) {
       return const EmptyStateCard(
-        title: 'Gate queue is clear',
-        body: 'Every ticket in the current local dataset has already been admitted.',
+        title: 'Nothing needs attention right now',
+        body: 'Every saved ticket in your account has already been checked in.',
         icon: Icons.check_circle_outline,
       );
     }
@@ -197,9 +246,17 @@ class _GateQueue extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(entry.ticket.attendeeName, style: context.text.titleLarge?.copyWith(fontSize: 20)),
+                                Text(
+                                  entry.ticket.attendeeName,
+                                  style: context.text.titleLarge?.copyWith(
+                                    fontSize: 20,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
-                                Text(entry.order.eventTitle, style: context.text.bodyMedium),
+                                Text(
+                                  entry.order.eventTitle,
+                                  style: context.text.bodyMedium,
+                                ),
                               ],
                             ),
                           ),
@@ -217,8 +274,12 @@ class _GateQueue extends StatelessWidget {
                         runSpacing: 10,
                         children: [
                           _InfoPill(label: entry.ticket.tierName),
-                          _InfoPill(label: _paymentStatusLabel(entry.order.paymentStatus)),
-                          _InfoPill(label: entry.ticket.qrToken),
+                          _InfoPill(
+                            label: _paymentStatusLabel(
+                              entry.order.paymentStatus,
+                            ),
+                          ),
+                          _InfoPill(label: 'Code ${entry.ticket.qrToken}'),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -227,15 +288,21 @@ class _GateQueue extends StatelessWidget {
                         child: ElevatedButton(
                           onPressed: () {
                             context.read<EventoraRepository>().admitTicket(
-                                  entry.order.id,
-                                  entry.ticket.ticketId,
-                                );
+                              entry.order.id,
+                              entry.ticket.ticketId,
+                            );
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${entry.ticket.attendeeName} admitted.')),
+                              SnackBar(
+                                content: Text(
+                                  '${entry.ticket.attendeeName} is now checked in.',
+                                ),
+                              ),
                             );
                           },
                           child: Text(
-                            entry.ticket.status == TicketStatus.unpaid ? 'Collect and admit' : 'Admit ticket',
+                            entry.ticket.status == TicketStatus.unpaid
+                                ? 'Pay at door and check in'
+                                : 'Mark as checked in',
                           ),
                         ),
                       ),
@@ -273,15 +340,23 @@ class _OrderCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(order.eventTitle, style: context.text.titleLarge?.copyWith(fontSize: 22)),
+                      Text(
+                        order.eventTitle,
+                        style: context.text.titleLarge?.copyWith(fontSize: 22),
+                      ),
                       const SizedBox(height: 6),
-                      Text(order.buyerName, style: context.text.bodyMedium),
+                      Text(
+                        'Booked by ${order.buyerName}',
+                        style: context.text.bodyMedium,
+                      ),
                     ],
                   ),
                 ),
                 _StatusPill(
                   label: _orderStatusLabel(order.status),
-                  color: order.status == TicketOrderStatus.paid ? context.palette.teal : context.palette.coral,
+                  color: order.status == TicketOrderStatus.paid
+                      ? context.palette.teal
+                      : context.palette.coral,
                 ),
               ],
             ),
@@ -301,8 +376,16 @@ class _OrderCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    Expanded(child: Text(selection.name, style: context.text.bodyLarge)),
-                    Text('x${selection.quantity}', style: context.text.bodyMedium),
+                    Expanded(
+                      child: Text(
+                        selection.name,
+                        style: context.text.bodyLarge,
+                      ),
+                    ),
+                    Text(
+                      'x${selection.quantity}',
+                      style: context.text.bodyMedium,
+                    ),
                   ],
                 ),
               ),
@@ -318,7 +401,10 @@ class _OrderCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Issued tickets', style: context.text.titleLarge?.copyWith(fontSize: 18)),
+                  Text(
+                    'Tickets in this order',
+                    style: context.text.titleLarge?.copyWith(fontSize: 18),
+                  ),
                   const SizedBox(height: 10),
                   ...order.tickets.map(
                     (ticket) => Padding(
@@ -330,9 +416,15 @@ class _OrderCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(ticket.attendeeName, style: context.text.bodyLarge),
+                                Text(
+                                  ticket.attendeeName,
+                                  style: context.text.bodyLarge,
+                                ),
                                 const SizedBox(height: 4),
-                                Text('${ticket.tierName} • ${ticket.qrToken}', style: context.text.bodyMedium),
+                                Text(
+                                  '${ticket.tierName} • Code ${ticket.qrToken}',
+                                  style: context.text.bodyMedium,
+                                ),
                               ],
                             ),
                           ),
@@ -359,12 +451,12 @@ class _OrderCard extends StatelessWidget {
                     await Clipboard.setData(ClipboardData(text: publicLink));
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Public ticket link copied.')),
+                        const SnackBar(content: Text('Order link copied.')),
                       );
                     }
                   },
                   icon: const Icon(Icons.copy_outlined),
-                  label: const Text('Copy ticket link'),
+                  label: const Text('Copy order link'),
                 ),
               ],
             ),
@@ -376,10 +468,7 @@ class _OrderCard extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.label,
-    required this.color,
-  });
+  const _StatusPill({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -416,39 +505,39 @@ class _InfoPill extends StatelessWidget {
         color: context.palette.canvas,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(label, style: context.text.bodyMedium?.copyWith(color: context.palette.ink)),
+      child: Text(
+        label,
+        style: context.text.bodyMedium?.copyWith(color: context.palette.ink),
+      ),
     );
   }
 }
 
 class _GateEntry {
-  const _GateEntry({
-    required this.order,
-    required this.ticket,
-  });
+  const _GateEntry({required this.order, required this.ticket});
 
   final TicketOrder order;
   final EventTicket ticket;
 }
 
 String _orderStatusLabel(TicketOrderStatus status) => switch (status) {
-      TicketOrderStatus.pending => 'Pending',
-      TicketOrderStatus.reserved => 'Reserved',
-      TicketOrderStatus.paid => 'Paid',
-    };
+  TicketOrderStatus.pending => 'On the way',
+  TicketOrderStatus.reserved => 'Reserved',
+  TicketOrderStatus.paid => 'Paid',
+};
 
 String _paymentStatusLabel(TicketPaymentStatus status) => switch (status) {
-      TicketPaymentStatus.initiated => 'Initiated',
-      TicketPaymentStatus.pending => 'Pending',
-      TicketPaymentStatus.paid => 'Paid',
-      TicketPaymentStatus.cashAtGate => 'Cash at gate',
-      TicketPaymentStatus.cashAtGatePaid => 'Cash collected',
-      TicketPaymentStatus.complimentary => 'Complimentary',
-      TicketPaymentStatus.failed => 'Failed',
-    };
+  TicketPaymentStatus.initiated => 'Started',
+  TicketPaymentStatus.pending => 'Pending',
+  TicketPaymentStatus.paid => 'Paid',
+  TicketPaymentStatus.cashAtGate => 'Pay at door',
+  TicketPaymentStatus.cashAtGatePaid => 'Paid at door',
+  TicketPaymentStatus.complimentary => 'Free pass',
+  TicketPaymentStatus.failed => 'Failed',
+};
 
 String _ticketStatusLabel(TicketStatus status) => switch (status) {
-      TicketStatus.issued => 'Issued',
-      TicketStatus.unpaid => 'Unpaid',
-      TicketStatus.admitted => 'Admitted',
-    };
+  TicketStatus.issued => 'Ready to use',
+  TicketStatus.unpaid => 'Pay at door',
+  TicketStatus.admitted => 'Checked in',
+};

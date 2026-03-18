@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/eventora_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
@@ -16,6 +18,7 @@ import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
+import 'event_share_sheet.dart';
 import '../tickets/eventora_ticket_payment_status_screen.dart';
 
 class EventDetailScreen extends StatelessWidget {
@@ -38,7 +41,7 @@ class EventDetailScreen extends StatelessWidget {
           child: EmptyStateCard(
             title: 'Event not found',
             body:
-                'This event may have been removed or is no longer available in the local workspace.',
+                'This event may have been removed or is no longer available right now.',
             icon: Icons.event_busy_outlined,
           ),
         ),
@@ -48,6 +51,14 @@ class EventDetailScreen extends StatelessWidget {
     final reminder = repository.reminderFor(event.id);
     final hasRsvp = repository.hasRsvp(event.id);
     final campaigns = repository.campaignsForEvent(event.id);
+    PromotionCampaign? premiumCampaign;
+    for (final campaign in campaigns) {
+      if (campaign.channels.contains(PromotionChannel.featured) ||
+          campaign.channels.contains(PromotionChannel.announcement)) {
+        premiumCampaign = campaign;
+        break;
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -78,7 +89,7 @@ class EventDetailScreen extends StatelessWidget {
                     onPressed: hasRsvp
                         ? null
                         : () => _openRsvpFlow(context, event),
-                    child: Text(hasRsvp ? 'RSVP saved' : 'RSVP'),
+                    child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
                   ),
                 ),
               if (event.ticketing.enabled)
@@ -89,7 +100,7 @@ class EventDetailScreen extends StatelessWidget {
                     child: Text(
                       event.ticketing.requireTicket
                           ? 'Get tickets'
-                          : 'Support with ticket',
+                          : 'Buy support ticket',
                     ),
                   ),
                 )
@@ -100,7 +111,7 @@ class EventDetailScreen extends StatelessWidget {
                     onPressed: hasRsvp
                         ? null
                         : () => _openRsvpFlow(context, event),
-                    child: Text(hasRsvp ? 'RSVP saved' : 'RSVP to event'),
+                    child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
                   ),
                 ),
             ],
@@ -110,7 +121,7 @@ class EventDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          _HeroBanner(event: event),
+          _HeroBanner(event: event, campaign: premiumCampaign),
           const SizedBox(height: 20),
           Wrap(
             spacing: 14,
@@ -136,6 +147,10 @@ class EventDetailScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (premiumCampaign != null) ...[
+            const SizedBox(height: 20),
+            _PremiumPlacementPanel(event: event, campaign: premiumCampaign),
+          ],
           const SizedBox(height: 20),
           Wrap(
             spacing: 10,
@@ -145,29 +160,29 @@ class EventDetailScreen extends StatelessWidget {
                 onPressed: () {
                   context.read<EventoraRepository>().toggleLike(event.id);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Added to your saved events.'),
-                    ),
+                    const SnackBar(content: Text('Saved to your events.')),
                   );
                 },
                 icon: const Icon(Icons.favorite_border),
-                label: const Text('Like'),
+                label: const Text('Save'),
               ),
               OutlinedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   if (session.isGuest) {
-                    showAuthPromptSheet(
+                    final authenticated = await showAuthPromptSheet(
                       context,
                       title: 'Reminders need an account',
                       body:
                           'Sign in to save event reminders and keep them attached to your Eventora profile.',
                     );
-                    return;
+                    if (!context.mounted || !authenticated) {
+                      return;
+                    }
                   }
                   _showReminderSheet(context, event, reminder);
                 },
                 icon: const Icon(Icons.notifications_active_outlined),
-                label: Text(reminder == null ? 'Set reminder' : reminder.label),
+                label: Text(reminder == null ? 'Remind me' : reminder.label),
               ),
               OutlinedButton.icon(
                 onPressed: event.allowSharing
@@ -180,8 +195,9 @@ class EventDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 28),
           SectionHeading(
-            title: 'About',
-            subtitle: 'Everything your attendees need to know.',
+            title: 'Why people are showing up',
+            subtitle:
+                'The key details, mood, and format so you can decide quickly.',
           ),
           const SizedBox(height: 14),
           Card(
@@ -191,7 +207,11 @@ class EventDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          SectionHeading(title: 'Schedule & Venue'),
+          SectionHeading(
+            title: 'Plan the night',
+            subtitle:
+                'Everything you need before you leave home or send it to friends.',
+          ),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -223,7 +243,24 @@ class EventDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          SectionHeading(title: 'Lineup & Hosting'),
+          if (event.location != null) ...[
+            SectionHeading(
+              title: 'Location and directions',
+              subtitle:
+                  'Preview the venue on a live map and open turn-by-turn directions in one tap.',
+            ),
+            const SizedBox(height: 14),
+            _EventMapCard(
+              event: event,
+              onOpenDirections: () => _openDirections(event),
+            ),
+            const SizedBox(height: 24),
+          ],
+          SectionHeading(
+            title: 'Lineup and hosting',
+            subtitle:
+                'Artists, hosts, and special guests attached to this event.',
+          ),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -254,19 +291,19 @@ class EventDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           SectionHeading(
-            title: 'Tickets & Entry',
+            title: 'Entry options',
             subtitle: event.ticketing.enabled
                 ? (event.ticketing.requireTicket
-                      ? 'This event requires a ticket to enter.'
-                      : 'This event supports both RSVPs and optional tickets.')
-                : 'This event uses RSVP flow only.',
+                      ? 'A ticket is required before entry.'
+                      : 'Guests can RSVP first or buy a support ticket before the event.')
+                : 'This event uses RSVP only.',
           ),
           const SizedBox(height: 14),
           if (!event.ticketing.enabled)
             const EmptyStateCard(
-              title: 'No ticketing enabled',
+              title: 'No tickets required',
               body:
-                  'This event can still collect RSVPs and reminder opt-ins even without paid checkout.',
+                  'You can still reserve a spot and set reminders even though this event is not selling tickets.',
               icon: Icons.event_available_outlined,
             )
           else
@@ -280,7 +317,11 @@ class EventDetailScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 24),
-          SectionHeading(title: 'Distribution settings'),
+          SectionHeading(
+            title: 'Guest settings',
+            subtitle:
+                'Helpful reminders about sharing, visibility, and guest updates.',
+          ),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -290,20 +331,24 @@ class EventDetailScreen extends StatelessWidget {
                 runSpacing: 10,
                 children: [
                   _SettingPill(
-                    label: event.sendPushNotification ? 'Push on' : 'Push off',
+                    label: event.sendPushNotification
+                        ? 'Push reminders available'
+                        : 'No push reminders',
                   ),
                   _SettingPill(
-                    label: event.sendSmsNotification ? 'SMS on' : 'SMS off',
+                    label: event.sendSmsNotification
+                        ? 'SMS updates available'
+                        : 'No SMS updates',
                   ),
                   _SettingPill(
                     label: event.allowSharing
-                        ? 'Share links on'
-                        : 'Share links off',
+                        ? 'Sharing is on'
+                        : 'Sharing is off',
                   ),
                   _SettingPill(
                     label: event.isPrivate
-                        ? 'Private visibility'
-                        : 'Public visibility',
+                        ? 'Invite-only event'
+                        : 'Public listing',
                   ),
                 ],
               ),
@@ -312,9 +357,8 @@ class EventDetailScreen extends StatelessWidget {
           if (campaigns.isNotEmpty) ...[
             const SizedBox(height: 24),
             SectionHeading(
-              title: 'Promotion history',
-              subtitle:
-                  'This event already has campaign activity attached to it.',
+              title: 'Updates from the host',
+              subtitle: 'Recent campaign messages connected to this event.',
             ),
             const SizedBox(height: 14),
             ...campaigns.map(
@@ -342,7 +386,7 @@ class EventDetailScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 12),
-            Text('Choose reminder timing', style: context.text.titleLarge),
+            Text('When should we remind you?', style: context.text.titleLarge),
             const SizedBox(height: 12),
             ...ReminderTiming.values.map(
               (timing) => ListTile(
@@ -358,7 +402,7 @@ class EventDetailScreen extends StatelessWidget {
             if (currentReminder != null)
               ListTile(
                 leading: const Icon(Icons.clear),
-                title: const Text('Remove reminder'),
+                title: const Text('Turn reminder off'),
                 onTap: () => Navigator.of(context).pop('clear'),
               ),
             const SizedBox(height: 12),
@@ -390,76 +434,21 @@ class EventDetailScreen extends StatelessWidget {
   }
 
   Future<void> _showShareSheet(BuildContext context, EventModel event) async {
-    final repository = context.read<EventoraRepository>();
-    final shareLink = repository.buildShareLink(event.id);
-
-    final copied = await showModalBottomSheet<bool>(
-      context: context,
-      useSafeArea: true,
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Share event', style: context.text.titleLarge),
-              const SizedBox(height: 10),
-              Text(
-                event.allowSharing
-                    ? 'This share link can route guests into your event detail and ticket flow.'
-                    : 'Sharing is disabled for this event.',
-                style: context.text.bodyMedium,
-              ),
-              const SizedBox(height: 18),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: context.palette.canvas,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Text(shareLink, style: context.text.bodyLarge),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: event.allowSharing
-                      ? () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: shareLink),
-                          );
-                          if (context.mounted) Navigator.of(context).pop(true);
-                        }
-                      : null,
-                  icon: const Icon(Icons.copy_all_outlined),
-                  label: const Text('Copy share link'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (context.mounted && copied == true) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Share link copied.')));
-    }
+    await showEventShareSheet(context, event: event);
   }
 
   Future<void> _openRsvpFlow(BuildContext context, EventModel event) async {
     final session = context.read<EventoraSessionController>();
     if (session.isGuest) {
-      await showAuthPromptSheet(
+      final authenticated = await showAuthPromptSheet(
         context,
-        title: 'RSVPs need an account',
+        title: 'Save your RSVP with an account',
         body:
-            'Create an Eventora account to save your RSVP, guest count, and table requests.',
+            'Create an Eventora account to save your RSVP, guest count, and any table request for this event.',
       );
-      return;
+      if (!context.mounted || !authenticated) {
+        return;
+      }
     }
 
     final record = await showModalBottomSheet<RsvpRecord>(
@@ -472,7 +461,7 @@ class EventDetailScreen extends StatelessWidget {
 
     if (record != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('RSVP saved for ${record.eventTitle}.')),
+        SnackBar(content: Text('Your spot is saved for ${record.eventTitle}.')),
       );
     }
   }
@@ -480,13 +469,15 @@ class EventDetailScreen extends StatelessWidget {
   Future<void> _openCheckoutFlow(BuildContext context, EventModel event) async {
     final session = context.read<EventoraSessionController>();
     if (session.isGuest) {
-      await showAuthPromptSheet(
+      final authenticated = await showAuthPromptSheet(
         context,
-        title: 'Ticket checkout starts after sign-in',
+        title: 'Checkout is easier with an account',
         body:
-            'Sign in to reserve tickets, pay at the gate, and keep order links in your Eventora wallet.',
+            'Sign in to reserve tickets, pay at the door if needed, and keep your order links in one place.',
       );
-      return;
+      if (!context.mounted || !authenticated) {
+        return;
+      }
     }
 
     final result = await showModalBottomSheet<_CheckoutResult>(
@@ -538,8 +529,8 @@ class EventDetailScreen extends StatelessWidget {
             children: [
               Text(
                 order.totalAmount == 0
-                    ? 'Your order is reserved for payment at the gate.'
-                    : 'Your order is marked paid and ready for entry.',
+                    ? 'Your reservation is saved and waiting for payment at the door.'
+                    : 'Your order is paid and ready to use at entry.',
               ),
               const SizedBox(height: 12),
               Text('Order link', style: context.text.bodyMedium),
@@ -598,7 +589,7 @@ class EventDetailScreen extends StatelessWidget {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Thanks. The report was submitted.')),
+        const SnackBar(content: Text('Thanks. Your report has been sent.')),
       );
     } catch (_) {
       if (!context.mounted) {
@@ -606,66 +597,130 @@ class EventDetailScreen extends StatelessWidget {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('We could not submit the report right now.'),
+          content: Text('We could not send your report right now.'),
         ),
       );
     }
   }
+
+  Future<void> _openDirections(EventModel event) async {
+    final location = event.location;
+    if (location == null) {
+      return;
+    }
+
+    final mapsUri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}',
+    );
+    await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
+  }
 }
 
 class _HeroBanner extends StatelessWidget {
-  const _HeroBanner({required this.event});
+  const _HeroBanner({required this.event, this.campaign});
 
   final EventModel event;
+  final PromotionCampaign? campaign;
 
   @override
   Widget build(BuildContext context) {
+    final minPrice = event.ticketing.minimumPrice;
+    final priceLabel = minPrice == null
+        ? 'Free entry'
+        : 'From ${formatMoney(minPrice)}';
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(28),
         gradient: LinearGradient(
-          colors: event.mood.colors,
+          colors: [
+            context.palette.primaryStart,
+            event.mood.colors.first.withValues(alpha: 0.92),
+            context.palette.primaryEnd,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: context.palette.primaryStart.withValues(alpha: 0.18),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _HeroPill(
-                label: event.isPrivate ? 'Private event' : 'Public event',
+          Positioned(
+            top: -32,
+            right: -10,
+            child: Container(
+              width: 128,
+              height: 128,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.12),
               ),
-              if (event.ticketing.enabled)
-                _HeroPill(
-                  label: event.ticketing.requireTicket
-                      ? 'Ticket required'
-                      : 'Optional ticket',
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _HeroPill(
+                    label: event.isPrivate ? 'Invite only' : 'Public event',
+                  ),
+                  if (event.ticketing.enabled)
+                    _HeroPill(
+                      label: event.ticketing.requireTicket
+                          ? 'Ticket required'
+                          : 'RSVP or optional ticket',
+                    ),
+                  if (campaign?.channels.contains(
+                        PromotionChannel.announcement,
+                      ) ??
+                      false)
+                    const _HeroPill(label: 'Live spotlight'),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Text(
+                event.title,
+                style: context.text.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  height: 1.02,
                 ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                event.description,
+                style: context.text.bodyLarge?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _HeroMeta(label: '${event.venue}, ${event.city}'),
+                  _HeroMeta(label: formatShortDate(event.startDate)),
+                  _HeroMeta(label: priceLabel),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                formatEventWindow(event.startDate, event.endDate),
+                style: context.text.bodyLarge?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            event.title,
-            style: context.text.headlineMedium?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '${event.venue}, ${event.city}',
-            style: context.text.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.9),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            formatEventWindow(event.startDate, event.endDate),
-            style: context.text.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.88),
-            ),
           ),
         ],
       ),
@@ -697,6 +752,82 @@ class _HeroPill extends StatelessWidget {
   }
 }
 
+class _HeroMeta extends StatelessWidget {
+  const _HeroMeta({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: context.text.bodyMedium?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumPlacementPanel extends StatelessWidget {
+  const _PremiumPlacementPanel({required this.event, required this.campaign});
+
+  final EventModel event;
+  final PromotionCampaign campaign;
+
+  @override
+  Widget build(BuildContext context) {
+    final placementLabels = <String>[
+      if (campaign.channels.contains(PromotionChannel.featured))
+        'Featured banner',
+      if (campaign.channels.contains(PromotionChannel.announcement))
+        'Fullscreen announcement',
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: placementLabels
+                  .map((label) => _SettingPill(label: label))
+                  .toList(),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'This event is currently in Eventora spotlight.',
+              style: context.text.titleLarge?.copyWith(fontSize: 20),
+            ),
+            const SizedBox(height: 8),
+            Text(campaign.message, style: context.text.bodyLarge),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _SettingPill(label: 'Budget ${formatMoney(campaign.budget)}'),
+                _SettingPill(label: '${event.likesCount} likes'),
+                _SettingPill(label: '${event.rsvpCount} RSVPs'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DetailRow extends StatelessWidget {
   const _DetailRow({
     required this.icon,
@@ -710,6 +841,8 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedBody = body.trim().isEmpty ? 'To be announced.' : body;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -724,7 +857,7 @@ class _DetailRow extends StatelessWidget {
                 style: context.text.titleLarge?.copyWith(fontSize: 18),
               ),
               const SizedBox(height: 4),
-              Text(body, style: context.text.bodyMedium),
+              Text(resolvedBody, style: context.text.bodyMedium),
             ],
           ),
         ),
@@ -842,6 +975,83 @@ class _PromotionCard extends StatelessWidget {
   }
 }
 
+class _EventMapCard extends StatelessWidget {
+  const _EventMapCard({required this.event, required this.onOpenDirections});
+
+  final EventModel event;
+  final Future<void> Function() onOpenDirections;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = event.location;
+    if (location == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: SizedBox(
+                height: 220,
+                width: double.infinity,
+                child: gmaps.GoogleMap(
+                  initialCameraPosition: gmaps.CameraPosition(
+                    target: gmaps.LatLng(location.latitude, location.longitude),
+                    zoom: 15,
+                  ),
+                  markers: {
+                    gmaps.Marker(
+                      markerId: const gmaps.MarkerId('event_location'),
+                      position: gmaps.LatLng(
+                        location.latitude,
+                        location.longitude,
+                      ),
+                      infoWindow: gmaps.InfoWindow(
+                        title: event.venue,
+                        snippet: event.city,
+                      ),
+                    ),
+                  },
+                  liteModeEnabled: true,
+                  zoomControlsEnabled: false,
+                  mapToolbarEnabled: false,
+                  compassEnabled: false,
+                  myLocationButtonEnabled: false,
+                  scrollGesturesEnabled: false,
+                  rotateGesturesEnabled: false,
+                  tiltGesturesEnabled: false,
+                  zoomGesturesEnabled: false,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              event.venue,
+              style: context.text.titleLarge?.copyWith(fontSize: 20),
+            ),
+            const SizedBox(height: 6),
+            Text(location.address, style: context.text.bodyMedium),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onOpenDirections,
+                icon: const Icon(Icons.directions_outlined),
+                label: const Text('Open directions'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _RsvpSheet extends StatefulWidget {
   const _RsvpSheet({required this.event});
 
@@ -886,92 +1096,93 @@ class _RsvpSheetState extends State<_RsvpSheet> {
           20,
           MediaQuery.of(context).viewInsets.bottom + 24,
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'RSVP to ${widget.event.title}',
-                style: context.text.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'RSVPs can also feed your future SMS audience and reminder flow.',
-                style: context.text.bodyMedium,
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Name'),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Phone'),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Guest count',
-                style: context.text.titleLarge?.copyWith(fontSize: 20),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: _guestCount > 1
-                        ? () => setState(() => _guestCount -= 1)
-                        : null,
-                    icon: const Icon(Icons.remove_circle_outline),
-                  ),
-                  Text('$_guestCount', style: context.text.headlineSmall),
-                  IconButton(
-                    onPressed: () => setState(() => _guestCount += 1),
-                    icon: const Icon(Icons.add_circle_outline),
-                  ),
-                ],
-              ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: _bookTable,
-                onChanged: (value) => setState(() => _bookTable = value),
-                title: const Text('Book a table'),
-                subtitle: const Text(
-                  'Use this when the event offers table reservations.',
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Reserve your spot', style: context.text.titleLarge),
+                const SizedBox(height: 8),
+                Text(
+                  'Add your details so the host knows you are coming and can send event updates if needed.',
+                  style: context.text.bodyMedium,
                 ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    final name = _nameController.text.trim();
-                    final phone = _phoneController.text.trim();
-                    if (name.isEmpty || phone.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Add your name and phone number.'),
-                        ),
-                      );
-                      return;
-                    }
-                    final record = context
-                        .read<EventoraRepository>()
-                        .createRsvp(
-                          eventId: widget.event.id,
-                          eventTitle: widget.event.title,
-                          name: name,
-                          phone: phone,
-                          guestCount: _guestCount,
-                          bookTable: _bookTable,
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Phone'),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Guest count',
+                  style: context.text.titleLarge?.copyWith(fontSize: 20),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: _guestCount > 1
+                          ? () => setState(() => _guestCount -= 1)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    Text('$_guestCount', style: context.text.headlineSmall),
+                    IconButton(
+                      onPressed: () => setState(() => _guestCount += 1),
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _bookTable,
+                  onChanged: (value) => setState(() => _bookTable = value),
+                  title: const Text('Book a table'),
+                  subtitle: const Text(
+                    'Use this when the event offers table reservations.',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      final name = _nameController.text.trim();
+                      final phone = _phoneController.text.trim();
+                      if (name.isEmpty || phone.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Add your name and phone number.'),
+                          ),
                         );
-                    Navigator.of(context).pop(record);
-                  },
-                  child: const Text('Confirm RSVP'),
+                        return;
+                      }
+                      final record = context
+                          .read<EventoraRepository>()
+                          .createRsvp(
+                            eventId: widget.event.id,
+                            eventTitle: widget.event.title,
+                            name: name,
+                            phone: phone,
+                            guestCount: _guestCount,
+                            bookTable: _bookTable,
+                          );
+                      Navigator.of(context).pop(record);
+                    },
+                    child: const Text('Save my RSVP'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1025,222 +1236,231 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
           20,
           MediaQuery.of(context).viewInsets.bottom + 24,
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Checkout', style: context.text.titleLarge),
-              const SizedBox(height: 8),
-              Text(
-                'Choose ticket tiers. Free reservations become pay-at-gate holds.',
-                style: context.text.bodyMedium,
-              ),
-              const SizedBox(height: 20),
-              ...widget.event.ticketing.tiers.map(
-                (tier) => Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0x1410212A)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Checkout', style: context.text.titleLarge),
+                const SizedBox(height: 8),
+                Text(
+                  'Pick the ticket types you want. Free options become pay-at-door reservations.',
+                  style: context.text.bodyMedium,
+                ),
+                const SizedBox(height: 20),
+                ...widget.event.ticketing.tiers.map(
+                  (tier) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: const Color(0x1410212A)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tier.name,
+                                      style: context.text.titleLarge?.copyWith(
+                                        fontSize: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      tier.price == 0
+                                          ? 'Free or pay at door'
+                                          : formatMoney(tier.price),
+                                      style: context.text.bodyLarge,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
                                 children: [
-                                  Text(
-                                    tier.name,
-                                    style: context.text.titleLarge?.copyWith(
-                                      fontSize: 20,
+                                  IconButton(
+                                    onPressed:
+                                        (_selections[tier.tierId] ?? 0) > 0
+                                        ? () => setState(
+                                            () => _selections[tier.tierId] =
+                                                (_selections[tier.tierId] ??
+                                                    0) -
+                                                1,
+                                          )
+                                        : null,
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
                                   Text(
-                                    tier.price == 0
-                                        ? 'Free / at gate'
-                                        : formatMoney(tier.price),
-                                    style: context.text.bodyLarge,
+                                    '${_selections[tier.tierId] ?? 0}',
+                                    style: context.text.titleLarge,
+                                  ),
+                                  IconButton(
+                                    onPressed:
+                                        tier.soldOut ||
+                                            (_selections[tier.tierId] ?? 0) >=
+                                                tier.remaining
+                                        ? null
+                                        : () => setState(
+                                            () => _selections[tier.tierId] =
+                                                (_selections[tier.tierId] ??
+                                                    0) +
+                                                1,
+                                          ),
+                                    icon: const Icon(Icons.add_circle_outline),
                                   ),
                                 ],
                               ),
-                            ),
-                            Row(
-                              children: [
-                                IconButton(
-                                  onPressed: (_selections[tier.tierId] ?? 0) > 0
-                                      ? () => setState(
-                                          () => _selections[tier.tierId] =
-                                              (_selections[tier.tierId] ?? 0) -
-                                              1,
-                                        )
-                                      : null,
-                                  icon: const Icon(Icons.remove_circle_outline),
-                                ),
-                                Text(
-                                  '${_selections[tier.tierId] ?? 0}',
-                                  style: context.text.titleLarge,
-                                ),
-                                IconButton(
-                                  onPressed:
-                                      tier.soldOut ||
-                                          (_selections[tier.tierId] ?? 0) >=
-                                              tier.remaining
-                                      ? null
-                                      : () => setState(
-                                          () => _selections[tier.tierId] =
-                                              (_selections[tier.tierId] ?? 0) +
-                                              1,
-                                        ),
-                                  icon: const Icon(Icons.add_circle_outline),
-                                ),
-                              ],
+                            ],
+                          ),
+                          if (tier.description != null &&
+                              tier.description!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              tier.description!,
+                              style: context.text.bodyMedium,
                             ),
                           ],
-                        ),
-                        if (tier.description != null &&
-                            tier.description!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Text(
-                            tier.description!,
+                            '${tier.remaining} remaining',
                             style: context.text.bodyMedium,
                           ),
                         ],
-                        const SizedBox(height: 10),
-                        Text(
-                          '${tier.remaining} remaining',
-                          style: context.text.bodyMedium,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: context.palette.canvas,
-                  borderRadius: BorderRadius.circular(22),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: context.palette.canvas,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Summary',
+                        style: context.text.titleLarge?.copyWith(fontSize: 20),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Tickets: $_ticketCount',
+                        style: context.text.bodyLarge,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Total: ${formatMoney(_total)}',
+                        style: context.text.bodyLarge,
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Summary',
-                      style: context.text.titleLarge?.copyWith(fontSize: 20),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Tickets: $_ticketCount',
-                      style: context.text.bodyLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Total: ${formatMoney(_total)}',
-                      style: context.text.bodyLarge,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _submitting
-                      ? null
-                      : () async {
-                          if (_ticketCount == 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Select at least one ticket tier.',
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _submitting
+                        ? null
+                        : () async {
+                            if (_ticketCount == 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Choose at least one ticket option.',
+                                  ),
                                 ),
-                              ),
-                            );
-                            return;
-                          }
-                          setState(() => _submitting = true);
-                          try {
-                            final repository = context
-                                .read<EventoraRepository>();
-                            final session = context
-                                .read<EventoraSessionController>();
-
-                            if (_total <= 0 || !session.firebaseEnabled) {
-                              final order = repository.checkout(
-                                event: widget.event,
-                                selections: _selections,
                               );
+                              return;
+                            }
+                            setState(() => _submitting = true);
+                            try {
+                              final repository = context
+                                  .read<EventoraRepository>();
+                              final session = context
+                                  .read<EventoraSessionController>();
+
+                              if (_total <= 0 || !session.firebaseEnabled) {
+                                final order = repository.checkout(
+                                  event: widget.event,
+                                  selections: _selections,
+                                );
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                Navigator.of(
+                                  context,
+                                ).pop(_CheckoutResult.reservation(order));
+                                return;
+                              }
+
+                              final checkoutSession =
+                                  await EventoraPaymentService.startPaidCheckout(
+                                    event: widget.event,
+                                    selections: _selections,
+                                    viewer: session.viewer,
+                                  );
+                              repository.upsertOrder(checkoutSession.order);
                               if (!context.mounted) {
                                 return;
                               }
-                              Navigator.of(
-                                context,
-                              ).pop(_CheckoutResult.reservation(order));
-                              return;
-                            }
-
-                            final checkoutSession =
-                                await EventoraPaymentService.startPaidCheckout(
-                                  event: widget.event,
-                                  selections: _selections,
-                                  viewer: session.viewer,
-                                );
-                            repository.upsertOrder(checkoutSession.order);
-                            if (!context.mounted) {
-                              return;
-                            }
-                            Navigator.of(context).pop(
-                              _CheckoutResult.payment(
-                                checkoutSession.order,
-                                checkoutSession.checkoutUrl,
-                                checkoutSession.launched,
-                              ),
-                            );
-                          } on EventoraPaymentException catch (error) {
-                            if (!context.mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(error.message)),
-                            );
-                          } on FirebaseFunctionsException catch (error) {
-                            if (!context.mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  error.message ??
-                                      'Could not start Hubtel checkout.',
+                              Navigator.of(context).pop(
+                                _CheckoutResult.payment(
+                                  checkoutSession.order,
+                                  checkoutSession.checkoutUrl,
+                                  checkoutSession.launched,
                                 ),
-                              ),
-                            );
-                          } finally {
-                            if (mounted) {
-                              setState(() => _submitting = false);
+                              );
+                            } on EventoraPaymentException catch (error) {
+                              if (!context.mounted) {
+                                return;
+                              }
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(error.message)),
+                              );
+                            } on FirebaseFunctionsException catch (error) {
+                              if (!context.mounted) {
+                                return;
+                              }
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    error.message ??
+                                        'Could not start Hubtel checkout.',
+                                  ),
+                                ),
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _submitting = false);
+                              }
                             }
-                          }
-                        },
-                  child: Text(
-                    _submitting
-                        ? 'Starting checkout...'
-                        : _total == 0
-                        ? 'Reserve tickets'
-                        : 'Pay ${formatMoney(_total)}',
+                          },
+                    child: Text(
+                      _submitting
+                          ? 'Getting checkout ready...'
+                          : _total == 0
+                          ? 'Reserve now'
+                          : 'Pay ${formatMoney(_total)}',
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1346,67 +1566,73 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
           20,
           MediaQuery.of(context).viewInsets.bottom + 24,
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Report event', style: context.text.titleLarge),
-              const SizedBox(height: 8),
-              Text(
-                'Tell us what looks wrong about "${widget.eventTitle}".',
-                style: context.text.bodyMedium,
-              ),
-              const SizedBox(height: 18),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedReason,
-                decoration: const InputDecoration(labelText: 'Reason'),
-                items: _reasons
-                    .map(
-                      (reason) => DropdownMenuItem<String>(
-                        value: reason,
-                        child: Text(reason),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedReason = value ?? _selectedReason),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _detailsController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Details',
-                  hintText:
-                      'Share any context that would help a moderator review this event.',
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Report event', style: context.text.titleLarge),
+                const SizedBox(height: 8),
+                Text(
+                  'Tell us what feels wrong about "${widget.eventTitle}".',
+                  style: context.text.bodyMedium,
                 ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Contact email (optional)',
+                const SizedBox(height: 18),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedReason,
+                  decoration: const InputDecoration(labelText: 'Reason'),
+                  items: _reasons
+                      .map(
+                        (reason) => DropdownMenuItem<String>(
+                          value: reason,
+                          child: Text(reason),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(
+                    () => _selectedReason = value ?? _selectedReason,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(
-                      _EventReportPayload(
-                        reason: _selectedReason,
-                        details: _detailsController.text.trim(),
-                        email: _emailController.text.trim(),
-                      ),
-                    );
-                  },
-                  child: const Text('Submit report'),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _detailsController,
+                  minLines: 4,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Details',
+                    hintText:
+                        'Share any details that would help our team review this event.',
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact email (optional)',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(
+                        _EventReportPayload(
+                          reason: _selectedReason,
+                          details: _detailsController.text.trim(),
+                          email: _emailController.text.trim(),
+                        ),
+                      );
+                    },
+                    child: const Text('Submit report'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

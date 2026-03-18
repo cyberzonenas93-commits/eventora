@@ -81,6 +81,7 @@ class TicketOrder {
     required this.id,
     required this.eventId,
     required this.eventTitle,
+    this.buyerUserId,
     required this.buyerName,
     required this.buyerPhone,
     required this.buyerEmail,
@@ -97,6 +98,7 @@ class TicketOrder {
   final String id;
   final String eventId;
   final String eventTitle;
+  final String? buyerUserId;
   final String buyerName;
   final String buyerPhone;
   final String buyerEmail;
@@ -118,6 +120,8 @@ class TicketOrder {
         );
 
   TicketOrder copyWith({
+    String? buyerUserId,
+    bool clearBuyerUserId = false,
     TicketOrderStatus? status,
     TicketPaymentStatus? paymentStatus,
     DateTime? updatedAt,
@@ -127,6 +131,7 @@ class TicketOrder {
       id: id,
       eventId: eventId,
       eventTitle: eventTitle,
+      buyerUserId: clearBuyerUserId ? null : buyerUserId ?? this.buyerUserId,
       buyerName: buyerName,
       buyerPhone: buyerPhone,
       buyerEmail: buyerEmail,

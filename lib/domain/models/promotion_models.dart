@@ -1,6 +1,6 @@
 enum PromotionStatus { draft, scheduled, live, completed }
 
-enum PromotionChannel { push, sms, shareLink, featured }
+enum PromotionChannel { push, sms, shareLink, featured, announcement }
 
 class PromotionCampaign {
   const PromotionCampaign({
@@ -8,6 +8,7 @@ class PromotionCampaign {
     required this.eventId,
     required this.eventTitle,
     required this.name,
+    this.createdByUserId,
     required this.status,
     required this.channels,
     required this.scheduledAt,
@@ -23,6 +24,7 @@ class PromotionCampaign {
   final String eventId;
   final String eventTitle;
   final String name;
+  final String? createdByUserId;
   final PromotionStatus status;
   final List<PromotionChannel> channels;
   final DateTime? scheduledAt;
@@ -34,6 +36,8 @@ class PromotionCampaign {
   final DateTime createdAt;
 
   PromotionCampaign copyWith({
+    String? createdByUserId,
+    bool clearCreatedByUserId = false,
     PromotionStatus? status,
     DateTime? scheduledAt,
     List<PromotionChannel>? channels,
@@ -48,6 +52,9 @@ class PromotionCampaign {
       eventId: eventId,
       eventTitle: eventTitle,
       name: name,
+      createdByUserId: clearCreatedByUserId
+          ? null
+          : createdByUserId ?? this.createdByUserId,
       status: status ?? this.status,
       channels: channels ?? this.channels,
       scheduledAt: scheduledAt ?? this.scheduledAt,
@@ -66,6 +73,7 @@ class RsvpRecord {
     required this.id,
     required this.eventId,
     required this.eventTitle,
+    this.attendeeUserId,
     required this.name,
     required this.phone,
     required this.guestCount,
@@ -76,6 +84,7 @@ class RsvpRecord {
   final String id;
   final String eventId;
   final String eventTitle;
+  final String? attendeeUserId;
   final String name;
   final String phone;
   final int guestCount;

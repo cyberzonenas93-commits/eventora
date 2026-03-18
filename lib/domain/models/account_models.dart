@@ -3,6 +3,7 @@ enum EventoraWorkspaceFace { attendee, admin }
 enum OrganizerApplicationStatus {
   notStarted,
   draft,
+  active,
   submitted,
   underReview,
   approved,
@@ -43,6 +44,8 @@ class EventoraViewer {
     this.uid,
     this.email,
     this.phone,
+    this.dateOfBirth,
+    this.photoUrl,
     this.adminRole,
     this.defaultOrganizationId,
     this.organizerApplicationStatus = OrganizerApplicationStatus.notStarted,
@@ -60,6 +63,8 @@ class EventoraViewer {
       uid = null,
       email = null,
       phone = null,
+      dateOfBirth = null,
+      photoUrl = null,
       adminRole = null,
       defaultOrganizationId = null,
       organizerApplicationStatus = OrganizerApplicationStatus.notStarted,
@@ -71,6 +76,8 @@ class EventoraViewer {
   final String displayName;
   final String? email;
   final String? phone;
+  final DateTime? dateOfBirth;
+  final String? photoUrl;
   final bool isAuthenticated;
   final EventoraNotificationPrefs notificationPrefs;
   final List<String> roles;
@@ -86,11 +93,17 @@ class EventoraViewer {
   bool get isAdminWorkspace => activeFace == EventoraWorkspaceFace.admin;
   bool get hasOrganizerAccess =>
       _hasRole('organizer') ||
+      organizerApplicationStatus == OrganizerApplicationStatus.active ||
       organizerApplicationStatus == OrganizerApplicationStatus.approved;
   bool get hasAdminAccess =>
       hasAdminProfile || _hasRole('admin') || _hasRole('superadmin');
   bool get hasSuperAdminAccess =>
       (adminRole ?? '').toLowerCase() == 'superadmin' || _hasRole('superadmin');
+  bool get hasMainAppAccess =>
+      isGuest ||
+      _hasRole('attendee') ||
+      hasOrganizerAccess ||
+      (hasCustomerProfile && !hasAdminAccess);
   bool get hasPendingOrganizerApplication =>
       organizerApplicationStatus == OrganizerApplicationStatus.submitted ||
       organizerApplicationStatus == OrganizerApplicationStatus.underReview;
@@ -100,16 +113,16 @@ class EventoraViewer {
           organizerApplicationStatus == OrganizerApplicationStatus.draft ||
           organizerApplicationStatus == OrganizerApplicationStatus.rejected);
   String get organizerStatusLabel => switch (organizerApplicationStatus) {
-        OrganizerApplicationStatus.notStarted => 'Not started',
-        OrganizerApplicationStatus.draft => 'Draft in progress',
-        OrganizerApplicationStatus.submitted => 'Submitted',
-        OrganizerApplicationStatus.underReview => 'Under review',
-        OrganizerApplicationStatus.approved => 'Approved',
-        OrganizerApplicationStatus.rejected => 'Needs changes',
-      };
-  bool get canUseAttendeeWorkspace =>
-      isGuest || hasCustomerProfile || hasOrganizerAccess || !hasAdminAccess;
-  bool get canChooseWorkspace => hasAdminAccess && canUseAttendeeWorkspace;
+    OrganizerApplicationStatus.notStarted => 'Not started',
+    OrganizerApplicationStatus.draft => 'Draft in progress',
+    OrganizerApplicationStatus.active => 'Live',
+    OrganizerApplicationStatus.submitted => 'Submitted',
+    OrganizerApplicationStatus.underReview => 'Under review',
+    OrganizerApplicationStatus.approved => 'Approved',
+    OrganizerApplicationStatus.rejected => 'Needs changes',
+  };
+  bool get canUseAttendeeWorkspace => hasMainAppAccess;
+  bool get canChooseWorkspace => hasAdminAccess && hasMainAppAccess;
 
   String get badgeLabel {
     if (isGuest) {
@@ -119,9 +132,9 @@ class EventoraViewer {
       return hasSuperAdminAccess ? 'Superadmin console' : 'Admin console';
     }
     if (hasOrganizerAccess) {
-      return 'Organizer workspace';
+      return 'Organizer app';
     }
-    return 'Attendee workspace';
+    return 'Eventora app';
   }
 
   String get faceTitle {
@@ -138,6 +151,8 @@ class EventoraViewer {
     String? displayName,
     String? email,
     String? phone,
+    DateTime? dateOfBirth,
+    String? photoUrl,
     bool? isAuthenticated,
     EventoraNotificationPrefs? notificationPrefs,
     List<String>? roles,
@@ -157,6 +172,8 @@ class EventoraViewer {
       displayName: displayName ?? this.displayName,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      photoUrl: photoUrl ?? this.photoUrl,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       notificationPrefs: notificationPrefs ?? this.notificationPrefs,
       roles: roles ?? this.roles,

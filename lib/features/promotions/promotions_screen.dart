@@ -10,6 +10,7 @@ import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
+import '../manage/host_access_screen.dart';
 import 'campaign_composer_sheet.dart';
 
 class PromotionsScreen extends StatefulWidget {
@@ -26,12 +27,30 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
   Widget build(BuildContext context) {
     final repository = context.watch<EventoraRepository>();
     final session = context.watch<EventoraSessionController>();
+    final canLaunchCampaigns =
+        session.viewer.hasOrganizerAccess || session.viewer.hasAdminAccess;
+    final needsHostAccess = !session.isGuest && !canLaunchCampaigns;
     final campaigns = repository.campaigns;
     final filtered = _filter == null
         ? campaigns
         : campaigns.where((campaign) => campaign.status == _filter).toList();
-    final liveCount = campaigns.where((campaign) => campaign.status == PromotionStatus.live).length;
-    final scheduledCount = campaigns.where((campaign) => campaign.status == PromotionStatus.scheduled).length;
+    final liveCount = campaigns
+        .where((campaign) => campaign.status == PromotionStatus.live)
+        .length;
+    final scheduledCount = campaigns
+        .where((campaign) => campaign.status == PromotionStatus.scheduled)
+        .length;
+    final featuredCount = campaigns
+        .where(
+          (campaign) => campaign.channels.contains(PromotionChannel.featured),
+        )
+        .length;
+    final announcementCount = campaigns
+        .where(
+          (campaign) =>
+              campaign.channels.contains(PromotionChannel.announcement),
+        )
+        .length;
     final totalReach = campaigns.fold<int>(
       0,
       (sum, campaign) => sum + campaign.pushAudience + campaign.smsAudience,
@@ -41,8 +60,13 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
       children: [
         _PromotionsHero(
-          onLaunch: () => session.isGuest ? _promptForAccess(context) : _launchCampaign(context),
+          onLaunch: () => session.isGuest
+              ? _promptForAccess(context)
+              : needsHostAccess
+              ? _openHostAccess(context)
+              : _launchCampaign(context),
           isGuest: session.isGuest,
+          needsHostAccess: needsHostAccess,
         ),
         const SizedBox(height: 22),
         Wrap(
@@ -50,18 +74,18 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
           runSpacing: 14,
           children: [
             MetricTile(
-              label: 'Total campaigns',
+              label: 'Campaigns',
               value: '${campaigns.length}',
               icon: Icons.campaign_outlined,
             ),
             MetricTile(
-              label: 'Live right now',
+              label: 'Live now',
               value: '$liveCount',
               icon: Icons.wifi_tethering_outlined,
               highlight: context.palette.coral,
             ),
             MetricTile(
-              label: 'Combined audience',
+              label: 'People reached',
               value: '$totalReach',
               icon: Icons.groups_2_outlined,
               highlight: context.palette.teal,
@@ -69,9 +93,20 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
           ],
         ),
         const SizedBox(height: 28),
+        _PlacementInventorySection(
+          featuredCount: featuredCount,
+          announcementCount: announcementCount,
+          onLaunch: () => session.isGuest
+              ? _promptForAccess(context)
+              : needsHostAccess
+              ? _openHostAccess(context)
+              : _launchCampaign(context),
+        ),
+        const SizedBox(height: 28),
         SectionHeading(
-          title: 'Audience routes',
-          subtitle: 'Mix push, SMS, share links, and featured placement around each event.',
+          title: 'How you want to reach people',
+          subtitle:
+              'Mix direct outreach with premium surfaces like the dashboard banner and full-screen event announcements.',
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -105,23 +140,41 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
         const SizedBox(height: 24),
         SectionHeading(
           title: 'Campaign history',
-          subtitle: 'Every promotion is event-linked, which makes auditing reach and sales easier later.',
+          subtitle:
+              'Each campaign stays tied to an event so it is easy to review the message, budget, and placements later.',
         ),
         const SizedBox(height: 14),
         if (session.isGuest)
           EmptyStateCard(
-            title: 'Promotion tools need an account',
-            body: 'Sign in to launch push, SMS, share-link, and featured campaigns around your events.',
+            title: 'Campaign tools need an account',
+            body:
+                'Sign in to build campaigns, share links, and feature your event in discovery.',
             icon: Icons.outbound_outlined,
             actionLabel: 'Create account',
             onAction: () => _promptForAccess(context),
           )
+        else if (needsHostAccess)
+          EmptyStateCard(
+            title: 'Finish host access to launch campaigns',
+            body:
+                'Campaigns are part of the organizer workspace. Complete host access first, then come back here to use push, SMS, share links, and premium placements.',
+            icon: Icons.storefront_outlined,
+            actionLabel: 'Open host access',
+            onAction: () => _openHostAccess(context),
+          )
+        else if (repository.managedEvents.isEmpty)
+          EmptyStateCard(
+            title: 'Create an event before promoting it',
+            body:
+                'Campaigns attach to a hosted event. Build your first event from the Host tab, then return here to launch outreach.',
+            icon: Icons.event_available_outlined,
+          )
         else if (filtered.isEmpty)
           EmptyStateCard(
-            title: 'No campaigns match this view',
+            title: 'Nothing matches this filter yet',
             body: scheduledCount == 0
-                ? 'Launch a campaign to start building push and SMS audiences around your events.'
-                : 'Try another status filter or create a new campaign.',
+                ? 'Create your first campaign when you are ready to tell more people about an event.'
+                : 'Try another filter or create a new campaign.',
             icon: Icons.outbound_outlined,
             actionLabel: 'Launch campaign',
             onAction: () => _launchCampaign(context),
@@ -141,7 +194,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
     final campaign = await showCampaignComposerSheet(context);
     if (campaign != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Campaign "${campaign.name}" is ready.')),
+        SnackBar(content: Text('"${campaign.name}" is ready to send.')),
       );
     }
   }
@@ -149,9 +202,16 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
   void _promptForAccess(BuildContext context) {
     showAuthPromptSheet(
       context,
-      title: 'Campaign launch is account-only',
-      body: 'Create an Eventora account to run push, SMS, featured, and share-link promotion flows.',
+      title: 'Campaigns work best with an account',
+      body:
+          'Create an Eventora account to send guest updates, share links, and event promotions.',
     );
+  }
+
+  void _openHostAccess(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const HostAccessScreen()));
   }
 }
 
@@ -159,10 +219,12 @@ class _PromotionsHero extends StatelessWidget {
   const _PromotionsHero({
     required this.onLaunch,
     required this.isGuest,
+    required this.needsHostAccess,
   });
 
   final VoidCallback onLaunch;
   final bool isGuest;
+  final bool needsHostAccess;
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +235,7 @@ class _PromotionsHero extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
-          colors: [palette.teal, palette.ink],
+          colors: [palette.teal, palette.ink, palette.coral],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -182,7 +244,7 @@ class _PromotionsHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Promotion engine',
+            'Spread the word',
             style: context.text.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.84),
               fontWeight: FontWeight.w700,
@@ -191,16 +253,22 @@ class _PromotionsHero extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Browse the campaign architecture first, then sign in to launch real promotion flows.'
-                : 'Turn events into campaigns, not one-off posts.',
+                ? 'See how you will promote an event once your hosting account is ready.'
+                : needsHostAccess
+                ? 'Finish host access to unlock organizer campaigns and premium placements.'
+                : 'Create campaigns that reach inboxes, phones, banner rails, and immersive announcement takeovers.',
             style: context.text.headlineSmall?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Guest access keeps Eventora reviewable without exposing organizer-only growth tooling.'
-                : 'Launch a campaign that combines share links, push, SMS, and featured discovery placement.',
-            style: context.text.bodyLarge?.copyWith(color: Colors.white.withValues(alpha: 0.86)),
+                ? 'Sign in later to unlock push, SMS, share links, featured placement, and full-screen announcements.'
+                : needsHostAccess
+                ? 'Once your host profile is approved, this workspace becomes your launch point for campaign outreach.'
+                : 'Launch a campaign that mixes share links, push alerts, SMS, featured banner slots, and full-screen announcements.',
+            style: context.text.bodyLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.86),
+            ),
           ),
           const SizedBox(height: 18),
           ElevatedButton(
@@ -209,10 +277,65 @@ class _PromotionsHero extends StatelessWidget {
               backgroundColor: Colors.white,
               foregroundColor: palette.ink,
             ),
-            child: Text(isGuest ? 'Create account' : 'Launch campaign'),
+            child: Text(
+              isGuest
+                  ? 'Create account'
+                  : needsHostAccess
+                  ? 'Open host access'
+                  : 'Launch campaign',
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PlacementInventorySection extends StatelessWidget {
+  const _PlacementInventorySection({
+    required this.featuredCount,
+    required this.announcementCount,
+    required this.onLaunch,
+  });
+
+  final int featuredCount;
+  final int announcementCount;
+  final VoidCallback onLaunch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeading(
+          title: 'Premium placements',
+          subtitle:
+              'These paid surfaces help organizers move beyond basic outreach and own high-attention moments inside the app.',
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            _PlacementCard(
+              title: 'Featured banner',
+              body:
+                  'Places an event in the Explore dashboard rail so attendees see it before the regular feed.',
+              stat: '$featuredCount campaigns booked',
+              icon: Icons.workspace_premium_outlined,
+              onLaunch: onLaunch,
+            ),
+            _PlacementCard(
+              title: 'Fullscreen announcement',
+              body:
+                  'Runs an immersive takeover card that opens before attendees start browsing the event feed.',
+              stat: '$announcementCount campaigns booked',
+              icon: Icons.open_in_full_outlined,
+              onLaunch: onLaunch,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -227,8 +350,9 @@ class _EventReachSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionHeading(
-          title: 'Event reach by source',
-          subtitle: 'The same event model powers push estimates, SMS audiences, and share-link readiness.',
+          title: 'Reach by event',
+          subtitle:
+              'Use this to see which events already have an audience worth talking to.',
         ),
         const SizedBox(height: 14),
         if (events.isEmpty)
@@ -243,7 +367,10 @@ class _EventReachSection extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(event.title, style: context.text.titleLarge?.copyWith(fontSize: 20)),
+                      Text(
+                        event.title,
+                        style: context.text.titleLarge?.copyWith(fontSize: 20),
+                      ),
                       const SizedBox(height: 6),
                       Text(
                         '${repository.pushAudienceFor(event.id)} push • ${repository.smsAudienceFor(event.id)} SMS',
@@ -255,8 +382,15 @@ class _EventReachSection extends StatelessWidget {
                         runSpacing: 10,
                         children: [
                           _MiniReachPill(label: '${event.rsvpCount} RSVPs'),
-                          _MiniReachPill(label: '${repository.soldForEvent(event.id)} tickets'),
-                          _MiniReachPill(label: event.allowSharing ? 'Share link on' : 'Share link off'),
+                          _MiniReachPill(
+                            label:
+                                '${repository.soldForEvent(event.id)} tickets',
+                          ),
+                          _MiniReachPill(
+                            label: event.allowSharing
+                                ? 'Sharing on'
+                                : 'Sharing off',
+                          ),
                         ],
                       ),
                     ],
@@ -297,14 +431,20 @@ class _CampaignCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(campaign.name, style: context.text.titleLarge?.copyWith(fontSize: 22)),
+                      Text(
+                        campaign.name,
+                        style: context.text.titleLarge?.copyWith(fontSize: 22),
+                      ),
                       const SizedBox(height: 6),
                       Text(campaign.eventTitle, style: context.text.bodyMedium),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(16),
@@ -352,18 +492,82 @@ class _CampaignCard extends StatelessWidget {
   }
 
   String _statusLabel(PromotionStatus status) => switch (status) {
-        PromotionStatus.draft => 'Draft',
-        PromotionStatus.scheduled => 'Scheduled',
-        PromotionStatus.live => 'Live',
-        PromotionStatus.completed => 'Completed',
-      };
+    PromotionStatus.draft => 'Draft',
+    PromotionStatus.scheduled => 'Scheduled',
+    PromotionStatus.live => 'Live',
+    PromotionStatus.completed => 'Completed',
+  };
 
   String _channelLabel(PromotionChannel channel) => switch (channel) {
-        PromotionChannel.push => 'Push',
-        PromotionChannel.sms => 'SMS',
-        PromotionChannel.shareLink => 'Share Link',
-        PromotionChannel.featured => 'Featured',
-      };
+    PromotionChannel.push => 'Push',
+    PromotionChannel.sms => 'SMS',
+    PromotionChannel.shareLink => 'Share Link',
+    PromotionChannel.featured => 'Featured Banner',
+    PromotionChannel.announcement => 'Fullscreen Announcement',
+  };
+}
+
+class _PlacementCard extends StatelessWidget {
+  const _PlacementCard({
+    required this.title,
+    required this.body,
+    required this.stat,
+    required this.icon,
+    required this.onLaunch,
+  });
+
+  final String title;
+  final String body;
+  final String stat;
+  final IconData icon;
+  final VoidCallback onLaunch;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return SizedBox(
+      width: 320,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      palette.coral.withValues(alpha: 0.18),
+                      palette.gold.withValues(alpha: 0.14),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(icon, color: palette.coral),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: context.text.titleLarge?.copyWith(fontSize: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(body, style: context.text.bodyMedium),
+              const SizedBox(height: 14),
+              _MiniReachPill(label: stat),
+              const SizedBox(height: 14),
+              OutlinedButton(
+                onPressed: onLaunch,
+                child: const Text('Use this placement'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _MiniReachPill extends StatelessWidget {
@@ -379,7 +583,10 @@ class _MiniReachPill extends StatelessWidget {
         color: context.palette.canvas,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(label, style: context.text.bodyMedium?.copyWith(color: context.palette.ink)),
+      child: Text(
+        label,
+        style: context.text.bodyMedium?.copyWith(color: context.palette.ink),
+      ),
     );
   }
 }

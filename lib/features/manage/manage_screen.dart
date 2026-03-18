@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/eventora_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
-import '../../core/utils/portal_links.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/repositories/eventora_repository.dart';
 import '../../domain/models/account_models.dart';
 import '../../domain/models/event_models.dart';
+import '../../domain/models/promotion_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/event_card.dart';
 import '../../widgets/metric_tile.dart';
@@ -16,6 +15,7 @@ import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
 import '../events/event_detail_screen.dart';
 import '../events/event_editor_screen.dart';
+import 'host_access_screen.dart';
 import '../promotions/campaign_composer_sheet.dart';
 
 class ManageScreen extends StatelessWidget {
@@ -36,12 +36,26 @@ class ManageScreen extends StatelessWidget {
     );
     final viewer = session.viewer;
     final organizerReady = viewer.hasOrganizerAccess;
+    final campaigns = repository.campaigns;
+    final featuredCount = campaigns
+        .where(
+          (campaign) => campaign.channels.contains(PromotionChannel.featured),
+        )
+        .length;
+    final announcementCount = campaigns
+        .where(
+          (campaign) =>
+              campaign.channels.contains(PromotionChannel.announcement),
+        )
+        .length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
       children: [
         _ManageHero(
-          organizerName: session.isGuest ? 'Guest mode' : repository.currentUserName,
+          organizerName: session.isGuest
+              ? 'Guest mode'
+              : repository.currentUserName,
           totalRevenue: totalRevenue,
           isGuest: session.isGuest,
           organizerReady: organizerReady,
@@ -53,7 +67,7 @@ class ManageScreen extends StatelessWidget {
           runSpacing: 14,
           children: [
             MetricTile(
-              label: 'Managed events',
+              label: 'Hosted events',
               value: '${events.length}',
               icon: Icons.calendar_month_outlined,
             ),
@@ -64,7 +78,7 @@ class ManageScreen extends StatelessWidget {
               highlight: context.palette.coral,
             ),
             MetricTile(
-              label: 'Gross revenue',
+              label: 'Sales so far',
               value: formatMoney(totalRevenue),
               icon: Icons.payments_outlined,
               highlight: context.palette.teal,
@@ -73,62 +87,123 @@ class ManageScreen extends StatelessWidget {
         ),
         const SizedBox(height: 28),
         SectionHeading(
-          title: 'Your event stack',
+          title: 'Premium placements',
           subtitle: session.isGuest
-              ? 'Sign in to start an organizer application, then continue in Eventora Studio for approval and dashboard access.'
+              ? 'Featured banners and full-screen announcements are paid placements available once you start hosting.'
               : organizerReady
-              ? 'Edit scheduling, ticket tiers, visibility, reminders, and promotion settings from one place.'
-              : 'Organizer access is now approval-driven. Open Eventora Studio to apply, submit documents, and wait for superadmin review.',
+              ? 'Use premium inventory when an event deserves extra attention in the attendee dashboard.'
+              : 'Premium placements unlock once your hosting setup is approved.',
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            _HostPlacementCard(
+              title: 'Featured banner',
+              body:
+                  'Put an event into the Explore banner rail so it leads the dashboard instead of waiting inside the normal list.',
+              stat: '$featuredCount campaigns',
+              icon: Icons.workspace_premium_outlined,
+              actionLabel: session.isGuest
+                  ? 'Get started'
+                  : organizerReady
+                  ? 'Promote an event'
+                  : 'Finish setup',
+              onAction: () => session.isGuest
+                  ? _promptForAccess(context)
+                  : organizerReady
+                  ? _launchGeneralCampaign(
+                      context,
+                      events.isNotEmpty ? events.first : null,
+                    )
+                  : _openHostAccess(context),
+            ),
+            _HostPlacementCard(
+              title: 'Fullscreen announcement',
+              body:
+                  'Book a splash-like takeover that opens before attendees start scrolling through the event feed.',
+              stat: '$announcementCount campaigns',
+              icon: Icons.open_in_full_outlined,
+              actionLabel: session.isGuest
+                  ? 'Create account'
+                  : organizerReady
+                  ? 'Launch campaign'
+                  : 'Finish setup',
+              onAction: () => session.isGuest
+                  ? _promptForAccess(context)
+                  : organizerReady
+                  ? _launchGeneralCampaign(
+                      context,
+                      events.isNotEmpty ? events.first : null,
+                    )
+                  : _openHostAccess(context),
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        SectionHeading(
+          title: 'Host tools',
+          subtitle: session.isGuest
+              ? 'Create an account to draft events, set ticket prices, and start building your host profile.'
+              : organizerReady
+              ? 'Update the essentials quickly: dates, tickets, sharing, reminders, and promotions.'
+              : 'Finish your host access setup right here in the app, then publish and manage events from this workspace.',
           actionLabel: session.isGuest
-              ? 'Create account'
+              ? 'Get started'
               : organizerReady
               ? 'Create event'
-              : 'Open Studio',
+              : 'Open setup',
           onAction: () => session.isGuest
               ? _promptForAccess(context)
               : organizerReady
               ? _openEditor(context)
-              : _openOrganizerPortal(context),
+              : _openHostAccess(context),
         ),
         const SizedBox(height: 14),
         if (session.isGuest)
           EmptyStateCard(
-            title: 'Organizer tools are waiting for you',
-            body: 'Guest access keeps discovery open. Sign in when you are ready to create events, manage ticketing, and promote launches.',
+            title: 'Ready to host your first event?',
+            body:
+                'Create an account when you want to build an event page, sell tickets, and share updates with guests.',
             icon: Icons.lock_outline,
-            actionLabel: 'Sign in',
+            actionLabel: 'Create account',
             onAction: () => _promptForAccess(context),
           )
         else if (!organizerReady && viewer.hasPendingOrganizerApplication)
           EmptyStateCard(
-            title: 'Organizer application is in review',
-            body: 'Your Eventora Studio application has been submitted. A superadmin will review it before organizer tools, publishing, and campaigns are unlocked in the app.',
+            title: 'Your host application is being reviewed',
+            body:
+                'You have already submitted your host access request. We will unlock publishing tools here as soon as approval is complete.',
             icon: Icons.pending_actions_outlined,
-            actionLabel: 'Open Studio',
-            onAction: () => _openOrganizerPortal(context),
+            actionLabel: 'Review status',
+            onAction: () => _openHostAccess(context),
           )
         else if (!organizerReady &&
             viewer.organizerApplicationStatus ==
                 OrganizerApplicationStatus.rejected)
           EmptyStateCard(
-            title: 'Organizer application needs changes',
-            body: 'Open Eventora Studio to update your application and resubmit it for review.',
+            title: 'Your host application needs an update',
+            body:
+                'Open your host access setup, fix the requested details, and send it back for review.',
             icon: Icons.feedback_outlined,
-            actionLabel: 'Fix in Studio',
-            onAction: () => _openOrganizerPortal(context),
+            actionLabel: 'Update now',
+            onAction: () => _openHostAccess(context),
           )
         else if (!organizerReady)
           EmptyStateCard(
-            title: 'Apply for organizer access',
-            body: 'Eventora Studio is the organizer-facing web app for onboarding, verification, payouts, and approval. Once you are approved, this mobile workspace unlocks automatically.',
+            title: 'Set up host access',
+            body:
+                'Complete your organizer profile and payout setup here in the app so the hosting tools are ready when you need them.',
             icon: Icons.storefront_outlined,
-            actionLabel: 'Open Studio',
-            onAction: () => _openOrganizerPortal(context),
+            actionLabel: 'Start setup',
+            onAction: () => _openHostAccess(context),
           )
         else if (events.isEmpty)
           EmptyStateCard(
-            title: 'Your organizer workspace is empty',
-            body: 'Create your first event and start with either open RSVPs, ticketed checkout, or a private invite-only rollout.',
+            title: 'You have not created an event yet',
+            body:
+                'Start with a public event, a ticketed launch, or a private guest list. You can edit everything later.',
             icon: Icons.add_circle_outline,
             actionLabel: 'Create event',
             onAction: () => _openEditor(context),
@@ -172,7 +247,10 @@ class ManageScreen extends StatelessWidget {
   }
 
   Future<void> _openPromoter(BuildContext context, EventModel event) async {
-    final campaign = await showCampaignComposerSheet(context, initialEvent: event);
+    final campaign = await showCampaignComposerSheet(
+      context,
+      initialEvent: event,
+    );
     if (campaign != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Campaign "${campaign.name}" created.')),
@@ -180,24 +258,30 @@ class ManageScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _launchGeneralCampaign(
+    BuildContext context,
+    EventModel? event,
+  ) async {
+    if (event == null) {
+      _openEditor(context);
+      return;
+    }
+    await _openPromoter(context, event);
+  }
+
   void _promptForAccess(BuildContext context) {
     showAuthPromptSheet(
       context,
-      title: 'Organizer access starts with an account',
-      body: 'Create an Eventora account to manage events, ticket tiers, and promotion settings.',
+      title: 'Hosting starts with an account',
+      body:
+          'Create an Eventora account to build events, set ticket options, and share updates with guests.',
     );
   }
 
-  Future<void> _openOrganizerPortal(BuildContext context) async {
-    final opened = await launchUrl(
-      Uri.parse(eventoraStudioUrl),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open Eventora Studio right now.')),
-      );
-    }
+  void _openHostAccess(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const HostAccessScreen()));
   }
 }
 
@@ -224,32 +308,104 @@ class _ManageHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        color: Colors.white.withValues(alpha: 0.84),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.98),
+            palette.gold.withValues(alpha: 0.12),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         border: Border.all(color: const Color(0x1410212A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Organizer control room', style: context.text.titleLarge?.copyWith(fontSize: 20)),
+          Text(
+            'Hosting hub',
+            style: context.text.titleLarge?.copyWith(fontSize: 20),
+          ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Browse first, then turn on your organizer workspace when you are ready.'
+                ? 'Start hosting when you are ready.'
                 : !organizerReady
-                ? 'Organizer approval is required before publishing events from the app.'
-                : 'Run your calendar like a product, $organizerName.',
+                ? 'Finish your host access setup before you publish from the app.'
+                : 'Everything you need to keep your events moving, $organizerName.',
             style: context.text.headlineSmall,
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Guest access keeps public events open without forcing signup.'
+                ? 'You can keep browsing as a guest. Sign in later to build an event page, sell tickets, and promote it.'
                 : !organizerReady
-                ? 'Current organizer status: $organizerStatusLabel.'
-                : 'Ticket revenue tracked so far: ${formatMoney(totalRevenue)}.',
+                ? 'Current setup status: $organizerStatusLabel.'
+                : 'You have tracked ${formatMoney(totalRevenue)} in ticket sales so far.',
             style: context.text.bodyLarge?.copyWith(color: palette.slate),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HostPlacementCard extends StatelessWidget {
+  const _HostPlacementCard({
+    required this.title,
+    required this.body,
+    required this.stat,
+    required this.icon,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final String title;
+  final String body;
+  final String stat;
+  final IconData icon;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return SizedBox(
+      width: 320,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      palette.teal.withValues(alpha: 0.18),
+                      palette.gold.withValues(alpha: 0.12),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(icon, color: palette.ink),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: context.text.titleLarge?.copyWith(fontSize: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(body, style: context.text.bodyMedium),
+              const SizedBox(height: 14),
+              _FooterPill(label: stat),
+              const SizedBox(height: 14),
+              OutlinedButton(onPressed: onAction, child: Text(actionLabel)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -281,9 +437,11 @@ class _ManageFooter extends StatelessWidget {
           spacing: 10,
           runSpacing: 10,
           children: [
-            _FooterPill(label: '$ticketCount tickets'),
+            _FooterPill(label: '$ticketCount sold'),
             _FooterPill(label: formatMoney(revenue)),
-            _FooterPill(label: event.allowSharing ? 'Share-ready' : 'Sharing off'),
+            _FooterPill(
+              label: event.allowSharing ? 'Sharing on' : 'Sharing off',
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -291,9 +449,12 @@ class _ManageFooter extends StatelessWidget {
           spacing: 10,
           runSpacing: 10,
           children: [
-            OutlinedButton(onPressed: onView, child: const Text('View')),
-            OutlinedButton(onPressed: onEdit, child: const Text('Edit')),
-            ElevatedButton(onPressed: onPromote, child: const Text('Promote')),
+            OutlinedButton(onPressed: onView, child: const Text('Preview')),
+            OutlinedButton(
+              onPressed: onEdit,
+              child: const Text('Edit details'),
+            ),
+            ElevatedButton(onPressed: onPromote, child: const Text('Share it')),
           ],
         ),
       ],
@@ -314,7 +475,10 @@ class _FooterPill extends StatelessWidget {
         color: context.palette.canvas,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(label, style: context.text.bodyMedium?.copyWith(color: context.palette.ink)),
+      child: Text(
+        label,
+        style: context.text.bodyMedium?.copyWith(color: context.palette.ink),
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 export type OrganizerApplicationStatus =
   | 'not_started'
   | 'draft'
+  | 'active'
   | 'submitted'
   | 'under_review'
   | 'approved'
@@ -11,6 +12,7 @@ export interface UserProfile {
   email: string
   phone: string
   roles: string[]
+  adminRole: string
   defaultOrganizationId: string
   organizerApplicationStatus: OrganizerApplicationStatus
 }
@@ -23,7 +25,10 @@ export interface OrganizerApplication {
   phone: string
   businessType: string
   businessAddress: string
+  audienceCity: string
   instagram: string
+  brandTagline: string
+  brandAccentColor: string
   logoFileName: string
   logoImageUrl: string
   governmentIdFileName: string

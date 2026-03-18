@@ -62,7 +62,7 @@ class AdminCampaignsScreen extends StatelessWidget {
         SectionHeading(
           title: 'SMS and push routing',
           subtitle:
-              'This admin view keeps the GPlus-style broadcast mindset, but scoped to event-based campaigns and organizer-approved messaging.',
+              'Plan broadcast messaging around approved events, with clean controls for push, SMS, and premium placement.',
         ),
         const SizedBox(height: 14),
         ...events.map(
@@ -142,7 +142,7 @@ class _CampaignsHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'This is where GPlus-style broadcasts become eventora-native event campaigns.',
+            'This is where event campaigns are scheduled, reviewed, and sent with clear audience intent.',
             style: context.text.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.86),
             ),
@@ -264,7 +264,8 @@ class _CampaignCard extends StatelessWidget {
       PromotionChannel.push => 'Push',
       PromotionChannel.sms => 'SMS',
       PromotionChannel.shareLink => 'Share link',
-      PromotionChannel.featured => 'Featured',
+      PromotionChannel.featured => 'Featured banner',
+      PromotionChannel.announcement => 'Fullscreen announcement',
     };
   }
 }

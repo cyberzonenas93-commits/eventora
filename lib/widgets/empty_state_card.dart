@@ -29,24 +29,34 @@ class EmptyStateCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 52,
-              height: 52,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
-                color: palette.coral.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  colors: [
+                    palette.coral.withValues(alpha: 0.18),
+                    palette.gold.withValues(alpha: 0.14),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(icon, color: palette.coral),
             ),
             const SizedBox(height: 18),
             Text(title, style: context.text.titleLarge?.copyWith(fontSize: 20)),
             const SizedBox(height: 8),
-            Text(body, style: context.text.bodyMedium),
+            Text(
+              body,
+              style: context.text.bodyMedium?.copyWith(
+                color: palette.ink,
+                height: 1.5,
+              ),
+            ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 18),
-              OutlinedButton(
-                onPressed: onAction,
-                child: Text(actionLabel!),
-              ),
+              ElevatedButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
         ),

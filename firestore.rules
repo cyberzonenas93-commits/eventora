@@ -5,25 +5,20 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function adminDoc() {
-      return get(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
     function isAdmin() {
-      return isSignedIn() && adminDoc().exists();
-    }
-
-    function memberDoc(organizationId) {
-      return get(
-        /databases/$(database)/documents/organization_members/$(organizationId + '_' + request.auth.uid)
-      );
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
     function isOrgMember(organizationId) {
       return isSignedIn()
         && organizationId is string
-        && memberDoc(organizationId).exists()
-        && memberDoc(organizationId).data.status == 'active';
+        && exists(
+          /databases/$(database)/documents/organization_members/$(organizationId + '_' + request.auth.uid)
+        )
+        && get(
+          /databases/$(database)/documents/organization_members/$(organizationId + '_' + request.auth.uid)
+        ).data.status == 'active';
     }
 
     function isEventManager(organizationId) {
@@ -37,9 +32,19 @@ service cloud.firestore {
         && request.resource.data.status in ['draft', 'submitted'];
     }
 
+    function validOwnUserProfile(userId) {
+      return isSignedIn()
+        && request.auth.uid == userId
+        && !request.resource.data.keys().hasAny(['roles', 'adminRole'])
+        && (
+          !request.resource.data.keys().hasAny(['organizerApplicationStatus'])
+          || request.resource.data.organizerApplicationStatus in ['notStarted', 'draft', 'submitted']
+        );
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if validOwnUserProfile(userId);
       allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 

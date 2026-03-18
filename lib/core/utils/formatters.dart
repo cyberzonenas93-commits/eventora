@@ -13,7 +13,10 @@ String formatEventWindow(DateTime start, DateTime? end) {
   return '$startLabel - ${DateFormat('h:mm a').format(end)}';
 }
 
-String formatShortDate(DateTime value) => DateFormat('MMM d, yyyy').format(value);
+String formatShortDate(DateTime value) =>
+    DateFormat('MMM d, yyyy').format(value);
+
+String formatDate(DateTime value) => DateFormat('MMM d, yyyy').format(value);
 
 String formatPromoTime(DateTime? value) {
   if (value == null) return 'Start anytime';

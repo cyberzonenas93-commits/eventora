@@ -36,64 +36,84 @@ class _SignInScreenState extends State<SignInScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sign in')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-        children: [
-          _AuthIntro(
-            title: 'Welcome back',
-            body: 'Sign in to create events, manage tickets, and run campaigns from the same Eventora workspace.',
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
-          const SizedBox(height: 22),
-          Form(
-            key: _formKey,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) {
-                        final trimmed = value?.trim() ?? '';
-                        if (trimmed.isEmpty || !trimmed.contains('@')) {
-                          return 'Enter the email tied to your Eventora account.';
-                        }
-                        return null;
-                      },
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+            children: [
+              _AuthIntro(
+                title: 'Welcome back',
+                body:
+                    'Sign in to open your tickets, manage RSVPs, and pick up where you left off without searching for links again.',
+              ),
+              const SizedBox(height: 22),
+              Form(
+                key: _formKey,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(labelText: 'Email'),
+                          validator: (value) {
+                            final trimmed = value?.trim() ?? '';
+                            if (trimmed.isEmpty || !trimmed.contains('@')) {
+                              return 'Enter the email linked to your Eventora account.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                          ),
+                          validator: (value) {
+                            if ((value ?? '').isEmpty) {
+                              return 'Enter your password.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: session.isProcessing ? null : _submit,
+                            child: Text(
+                              session.isProcessing
+                                  ? 'Signing you in...'
+                                  : 'Sign in',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextButton(
+                          onPressed: session.isProcessing
+                              ? null
+                              : _openResetDialog,
+                          child: const Text('Forgot password?'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Password'),
-                      validator: (value) {
-                        if ((value ?? '').isEmpty) {
-                          return 'Enter your password.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: session.isProcessing ? null : _submit,
-                        child: Text(session.isProcessing ? 'Signing in...' : 'Sign in'),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: session.isProcessing ? null : _openResetDialog,
-                      child: const Text('Forgot password?'),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -103,25 +123,27 @@ class _SignInScreenState extends State<SignInScreen> {
       return;
     }
 
+    final session = context.read<EventoraSessionController>();
+    final navigator = Navigator.of(context);
     try {
-      await context.read<EventoraSessionController>().signIn(
-            email: _emailController.text,
-            password: _passwordController.text,
-          );
+      await session.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      await session.waitForAuthenticatedSession();
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed in to Eventora.')),
-      );
+      navigator.pop(true);
     } on EventoraAuthFailure catch (error) {
       _showMessage(error.message);
     }
   }
 
   Future<void> _openResetDialog() async {
-    final controller = TextEditingController(text: _emailController.text.trim());
+    final controller = TextEditingController(
+      text: _emailController.text.trim(),
+    );
     final submitted = await showDialog<String>(
       context: context,
       builder: (context) {
@@ -138,7 +160,8 @@ class _SignInScreenState extends State<SignInScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
               child: const Text('Send reset email'),
             ),
           ],
@@ -152,7 +175,9 @@ class _SignInScreenState extends State<SignInScreen> {
     }
 
     try {
-      await context.read<EventoraSessionController>().sendPasswordReset(submitted);
+      await context.read<EventoraSessionController>().sendPasswordReset(
+        submitted,
+      );
       if (!mounted) {
         return;
       }
@@ -163,15 +188,14 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
 class _AuthIntro extends StatelessWidget {
-  const _AuthIntro({
-    required this.title,
-    required this.body,
-  });
+  const _AuthIntro({required this.title, required this.body});
 
   final String title;
   final String body;

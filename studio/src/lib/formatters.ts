@@ -26,6 +26,9 @@ export function formatDateTime(value: string) {
 }
 
 export function titleCaseStatus(value: string) {
+  if (value === 'active') {
+    return 'Live'
+  }
   return value
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase())

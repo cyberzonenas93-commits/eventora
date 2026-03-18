@@ -66,7 +66,7 @@ class AdminEventsScreen extends StatelessWidget {
         SectionHeading(
           title: 'Event operations',
           subtitle:
-              'This is the Eventora equivalent of the GPlus event console: edit, inspect guest lists, check ticket pressure, and launch campaigns from one lane.',
+              'Run event operations from one lane: edit pages, inspect guest lists, monitor ticket demand, and launch campaigns quickly.',
         ),
         const SizedBox(height: 14),
         if (events.isEmpty)
@@ -126,7 +126,7 @@ class _AdminEventsHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'This surface leans into the stronger parts of the GPlus admin console without dragging over the club-specific complexity.',
+            'Use this surface to keep event operations clean, focused, and easy for the admin team to act on.',
             style: context.text.bodyLarge?.copyWith(
               color: context.palette.slate,
             ),

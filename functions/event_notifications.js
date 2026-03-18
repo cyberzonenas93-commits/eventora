@@ -4,6 +4,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
+const shareLinks = require("./share_link");
 
 try {
   admin.app();
@@ -50,9 +51,13 @@ async function getHubtelSmsConfig() {
 
   const configSnap = await db.collection("app_config").doc("hubtel").get();
   const config = configSnap.data() || {};
-  const clientId = config.smsClientId || config.smsClientID || config.smsApiKey || config.apiKey;
-  const clientSecret = config.smsClientSecret || config.smsApiSecret || config.apiSecret;
-  const senderId = String(config.smsSenderId || config.smsFrom || "Eventora").substring(0, 11);
+  const clientId =
+    config.smsClientId || config.smsClientID || config.clientId || config.smsApiKey || config.apiKey;
+  const clientSecret =
+    config.smsClientSecret || config.clientSecret || config.smsApiSecret || config.apiSecret;
+  const senderId = String(
+    config.smsSenderId || config.senderId || config.smsFrom || "Eventora",
+  ).substring(0, 11);
 
   if (!clientId || !clientSecret) {
     throw new Error(
@@ -112,8 +117,18 @@ function safeString(value, fallback = "") {
   return stringValue || fallback;
 }
 
-function buildEventLink(eventId) {
-  return `https://eventora.app/e/${encodeURIComponent(eventId)}`;
+async function buildEventLink(eventId, eventData = null) {
+  try {
+    const shareLink = await shareLinks.ensureEventShareLink({
+      eventId,
+      eventData,
+      allowPrivate: false,
+    });
+    return shareLink.url;
+  } catch (error) {
+    console.warn("Falling back to static Eventora event link", eventId, error && error.message);
+    return `https://eventora.app/e/${encodeURIComponent(eventId)}`;
+  }
 }
 
 function titleCaseTiming(timing) {
@@ -815,6 +830,7 @@ exports.launchEventNotificationCampaign = onCall(
       `${safeString(eventData.title, "Eventora")} update`,
     );
     const isScheduled = scheduledAt.getTime() > Date.now() + 30000;
+    const shareLink = await buildEventLink(eventId, eventData);
 
     const jobSpecs = channels
       .filter((channel) => channel === "push" || channel === "sms")
@@ -834,7 +850,7 @@ exports.launchEventNotificationCampaign = onCall(
             eventId,
             eventTitle: safeString(eventData.title),
             route: `/events/${eventId}`,
-            link: buildEventLink(eventId),
+            link: shareLink,
           },
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -945,6 +961,7 @@ exports.processEventReminderNotifications = onSchedule(
         const body =
           `${eventTitle} is coming up ${titleCaseTiming(reminder.timing)}. ` +
           `Starts ${formatEventDate(eventData.startAt)}.`;
+        const shareLink = await buildEventLink(eventId, eventData);
 
         if (distribution.sendPushNotification !== false && userId && user && prefs.pushEnabled !== false && user.fcmToken) {
           await queuePushNotification({
@@ -955,7 +972,7 @@ exports.processEventReminderNotifications = onSchedule(
               body,
               eventId,
               route: `/events/${eventId}`,
-              link: buildEventLink(eventId),
+              link: shareLink,
             },
             eventId,
           });
@@ -966,7 +983,7 @@ exports.processEventReminderNotifications = onSchedule(
           const hubtelCfg = await getHubtelSmsConfig();
           await sendHubtelSms({
             to: reminderPhone,
-            message: `${eventTitle} reminder: ${body} ${buildEventLink(eventId)}`,
+            message: `${eventTitle} reminder: ${body} ${shareLink}`,
             reference: `reminder_${doc.id}`,
             hubtelCfg,
           });
@@ -1021,6 +1038,7 @@ exports.onEventRsvpCreated = onDocumentCreated(
     const prefs = user && user.notificationPrefs ? user.notificationPrefs : {};
     const eventTitle = safeString(rsvp.eventTitle || eventData.title, "your event");
     const body = `Your RSVP is confirmed for ${eventTitle} on ${formatEventDate(eventData.startAt)}.`;
+    const shareLink = await buildEventLink(eventId, eventData);
 
     if (distribution.sendPushNotification !== false && userId && user && prefs.pushEnabled !== false && user.fcmToken) {
       await queuePushNotification({
@@ -1031,7 +1049,7 @@ exports.onEventRsvpCreated = onDocumentCreated(
           body,
           eventId,
           route: `/events/${eventId}`,
-          link: buildEventLink(eventId),
+          link: shareLink,
         },
         eventId,
       });
@@ -1042,7 +1060,7 @@ exports.onEventRsvpCreated = onDocumentCreated(
       const hubtelCfg = await getHubtelSmsConfig();
       await sendHubtelSms({
         to: phone,
-        message: `RSVP confirmed: ${body} ${buildEventLink(eventId)}`,
+        message: `RSVP confirmed: ${body} ${shareLink}`,
         reference: `rsvp_${rsvpDoc.id}`,
         hubtelCfg,
       });

@@ -28,7 +28,7 @@ class AdminSettingsScreen extends StatelessWidget {
         SectionHeading(
           title: 'Team access',
           subtitle:
-              'Eventora keeps the most relevant parts of the GPlus admin console: role-based access, ticket-desk permissions, and campaign control.',
+              'Manage role-based access, ticket-desk permissions, and campaign control for the admin team.',
         ),
         const SizedBox(height: 14),
         const _RoleCard(

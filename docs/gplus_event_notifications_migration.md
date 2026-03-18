@@ -20,11 +20,12 @@ The important pieces are:
   transactional collections.
 - Campaigns are modeled separately from recipients, then dispatched in batches.
 
-The credentials reused in Eventora come from GPlus:
+The credentials reused in Eventora come from the existing GPlus Hubtel SMS
+gateway setup.
 
-- `clientId: mkdkdqru`
-- `clientSecret: xzeyqzjc`
-- `senderId: GPlus`
+- `clientId`: configured locally or in Firestore `app_config/hubtel`
+- `clientSecret`: configured locally or in Firestore `app_config/hubtel`
+- `senderId`: `GPlus`
 
 ## How GPlus handles push
 

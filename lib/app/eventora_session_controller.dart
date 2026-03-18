@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../data/services/eventora_notification_service.dart';
@@ -48,6 +49,18 @@ class EventoraSessionController extends ChangeNotifier {
   bool get needsWorkspaceChoice =>
       !_isInitializing && canChooseWorkspace && _selectedFace == null;
 
+  Future<void> waitForAuthenticatedSession({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (!_isInitializing && isAuthenticated) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
   Future<void> _onAuthChanged(User? user) async {
     _isInitializing = true;
     notifyListeners();
@@ -61,6 +74,21 @@ class EventoraSessionController extends ChangeNotifier {
       return;
     }
 
+    await _hydrateViewer(user);
+  }
+
+  Future<void> refreshViewer() async {
+    if (!_firebaseEnabled) {
+      return;
+    }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return;
+    }
+    await _hydrateViewer(user);
+  }
+
+  Future<void> _hydrateViewer(User user) async {
     final results = await Future.wait([
       FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       FirebaseFirestore.instance.collection('admins').doc(user.uid).get(),
@@ -113,6 +141,12 @@ class EventoraSessionController extends ChangeNotifier {
       phone: _normalizePhone(
         (userData['phone'] as String?) ?? (adminData['phone'] as String?),
       ),
+      dateOfBirth: _dateOfBirthFromData(userData, adminData),
+      photoUrl: _resolvePhotoUrl(
+        userData: userData,
+        adminData: adminData,
+        authUser: user,
+      ),
       isAuthenticated: true,
       notificationPrefs: notificationPrefs,
       roles: roles,
@@ -139,7 +173,10 @@ class EventoraSessionController extends ChangeNotifier {
     required String displayName,
     required String email,
     required String password,
+    required DateTime dateOfBirth,
     String? phone,
+    Uint8List? profileImageBytes,
+    String? profileImageName,
   }) async {
     _ensureFirebaseEnabled();
     await _runGuarded(() async {
@@ -154,8 +191,29 @@ class EventoraSessionController extends ChangeNotifier {
           'We could not finish creating the account.',
         );
       }
+      String? photoUrl;
+      if (profileImageBytes != null && profileImageBytes.isNotEmpty) {
+        try {
+          photoUrl = await _uploadProfilePhoto(
+            user.uid,
+            profileImageBytes,
+            fileName: profileImageName,
+          );
+          if (photoUrl != null && photoUrl.isNotEmpty) {
+            await user.updatePhotoURL(photoUrl);
+          }
+        } on FirebaseException catch (error) {
+          debugPrint('Profile image upload failed: ${error.message}');
+        }
+      }
       await user.updateDisplayName(displayName.trim());
-      await _upsertProfile(user, displayName: displayName.trim(), phone: phone);
+      await _upsertProfile(
+        user,
+        displayName: displayName.trim(),
+        dateOfBirth: dateOfBirth,
+        phone: phone,
+        photoUrl: photoUrl,
+      );
     });
   }
 
@@ -301,17 +359,25 @@ class EventoraSessionController extends ChangeNotifier {
   Future<void> _upsertProfile(
     User user, {
     required String displayName,
+    required DateTime dateOfBirth,
     String? phone,
+    String? photoUrl,
   }) async {
     final trimmedPhone = phone?.trim();
+    final normalizedDob = DateTime(
+      dateOfBirth.year,
+      dateOfBirth.month,
+      dateOfBirth.day,
+    );
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
       <String, Object?>{
         'displayName': displayName,
         'email': user.email,
+        'dateOfBirth': Timestamp.fromDate(normalizedDob),
+        'photoUrl': photoUrl ?? user.photoURL,
         'phone': trimmedPhone == null || trimmedPhone.isEmpty
             ? null
             : trimmedPhone,
-        'roles': FieldValue.arrayUnion(const ['attendee']),
         'organizerApplicationStatus': 'notStarted',
         'notificationPrefs': const <String, Object?>{
           'pushEnabled': true,
@@ -406,7 +472,8 @@ class EventoraSessionController extends ChangeNotifier {
     if (hasUserProfile && roles.isEmpty) {
       roles.add('attendee');
     }
-    if (organizerStatus == OrganizerApplicationStatus.approved) {
+    if (organizerStatus == OrganizerApplicationStatus.active ||
+        organizerStatus == OrganizerApplicationStatus.approved) {
       roles.add('organizer');
     }
     if (hasAdminProfile) {
@@ -463,12 +530,15 @@ class EventoraSessionController extends ChangeNotifier {
         (userData['organizerApplicationStatus'] as String?) ??
         ((userData['organizerApplication'] as Map?)?['status'] as String?);
     return switch ((directValue ?? '').trim().toLowerCase()) {
+      'active' => OrganizerApplicationStatus.active,
       'draft' => OrganizerApplicationStatus.draft,
       'submitted' => OrganizerApplicationStatus.submitted,
       'under_review' => OrganizerApplicationStatus.underReview,
       'underreview' => OrganizerApplicationStatus.underReview,
       'approved' => OrganizerApplicationStatus.approved,
       'rejected' => OrganizerApplicationStatus.rejected,
+      'not_started' => OrganizerApplicationStatus.notStarted,
+      'notstarted' => OrganizerApplicationStatus.notStarted,
       _ => OrganizerApplicationStatus.notStarted,
     };
   }
@@ -516,6 +586,82 @@ class EventoraSessionController extends ChangeNotifier {
       return null;
     }
     return value;
+  }
+
+  DateTime? _dateOfBirthFromData(
+    Map<String, dynamic> userData,
+    Map<String, dynamic> adminData,
+  ) {
+    final raw = userData['dateOfBirth'] ?? adminData['dateOfBirth'];
+    if (raw is Timestamp) {
+      final value = raw.toDate();
+      return DateTime(value.year, value.month, value.day);
+    }
+    if (raw is DateTime) {
+      return DateTime(raw.year, raw.month, raw.day);
+    }
+    if (raw is String && raw.trim().isNotEmpty) {
+      final parsed = DateTime.tryParse(raw.trim());
+      if (parsed != null) {
+        return DateTime(parsed.year, parsed.month, parsed.day);
+      }
+    }
+    return null;
+  }
+
+  String? _resolvePhotoUrl({
+    required Map<String, dynamic> userData,
+    required Map<String, dynamic> adminData,
+    required User authUser,
+  }) {
+    final userPhoto = (userData['photoUrl'] as String?)?.trim();
+    if (userPhoto != null && userPhoto.isNotEmpty) {
+      return userPhoto;
+    }
+    final adminPhoto = (adminData['photoUrl'] as String?)?.trim();
+    if (adminPhoto != null && adminPhoto.isNotEmpty) {
+      return adminPhoto;
+    }
+    final authPhoto = authUser.photoURL?.trim();
+    if (authPhoto != null && authPhoto.isNotEmpty) {
+      return authPhoto;
+    }
+    return null;
+  }
+
+  Future<String?> _uploadProfilePhoto(
+    String uid,
+    Uint8List bytes, {
+    String? fileName,
+  }) async {
+    final extension = _fileExtension(fileName);
+    final contentType = _contentTypeForExtension(extension);
+    final ref = FirebaseStorage.instance.ref().child(
+      'users/$uid/profile/avatar.$extension',
+    );
+    await ref.putData(bytes, SettableMetadata(contentType: contentType));
+    return ref.getDownloadURL();
+  }
+
+  String _fileExtension(String? fileName) {
+    final trimmed = fileName?.trim().toLowerCase();
+    if (trimmed == null || !trimmed.contains('.')) {
+      return 'jpg';
+    }
+    final extension = trimmed.split('.').last;
+    if (extension.isEmpty) {
+      return 'jpg';
+    }
+    return extension;
+  }
+
+  String _contentTypeForExtension(String extension) {
+    return switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'heic' || 'heif' => 'image/heic',
+      _ => 'image/jpeg',
+    };
   }
 
   bool _containsRole(List<String> roles, String expected) {

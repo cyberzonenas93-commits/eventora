@@ -70,7 +70,7 @@ class AdminDashboardScreen extends StatelessWidget {
         SectionHeading(
           title: 'Today at a glance',
           subtitle:
-              'A calmer admin summary inspired by the GPlus console: revenue, validation pressure, private event load, and upcoming recurring formats.',
+              'A focused admin summary of revenue, validation pressure, private-event load, and upcoming recurring formats.',
         ),
         const SizedBox(height: 14),
         Wrap(

@@ -7,6 +7,9 @@
       "hosting": {
         "studio": [
           "eventora-studio"
+        ],
+        "admin": [
+          "eventora-admin"
         ]
       }
     }

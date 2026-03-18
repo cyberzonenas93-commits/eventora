@@ -57,6 +57,9 @@ Only set these locally when needed:
 - `HUBTEL_SMS_CLIENT_SECRET`
 - `HUBTEL_SMS_SENDER_ID`
 
+You can keep these in `/Users/angelonartey/Desktop/eventora_app/functions/.env.local`
+for local emulator work. That file is gitignored and should never be committed.
+
 ## Notes
 
 - Do not commit live secrets into the repo.

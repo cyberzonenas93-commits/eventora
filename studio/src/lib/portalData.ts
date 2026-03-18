@@ -13,49 +13,14 @@ import {
 } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 
-import { db, storage } from '../firebase'
+import { db } from '../firebaseDb'
+import { storage } from '../firebaseStorage'
 import type {
   OrganizerApplication,
   OverviewMetrics,
   PortalEvent,
   PortalTicketTier,
 } from './types'
-
-export const setupSteps = ['account', 'verification', 'payout', 'review'] as const
-
-export function createEmptyApplication(seed?: Partial<OrganizerApplication>): OrganizerApplication {
-  return {
-    userId: seed?.userId ?? '',
-    organizerName: seed?.organizerName ?? '',
-    contactPerson: seed?.contactPerson ?? '',
-    email: seed?.email ?? '',
-    phone: seed?.phone ?? '',
-    businessType: seed?.businessType ?? '',
-    businessAddress: seed?.businessAddress ?? '',
-    instagram: seed?.instagram ?? '',
-    logoFileName: seed?.logoFileName ?? '',
-    logoImageUrl: seed?.logoImageUrl ?? '',
-    governmentIdFileName: seed?.governmentIdFileName ?? '',
-    governmentIdUrl: seed?.governmentIdUrl ?? '',
-    selfieFileName: seed?.selfieFileName ?? '',
-    selfieUrl: seed?.selfieUrl ?? '',
-    isRegisteredBusiness: seed?.isRegisteredBusiness ?? 'no',
-    businessRegistrationNumber: seed?.businessRegistrationNumber ?? '',
-    tinNumber: seed?.tinNumber ?? '',
-    payoutMethod: seed?.payoutMethod ?? 'mobile-money',
-    bankName: seed?.bankName ?? '',
-    accountName: seed?.accountName ?? '',
-    accountNumber: seed?.accountNumber ?? '',
-    network: seed?.network ?? 'MTN Mobile Money',
-    payoutPhone: seed?.payoutPhone ?? '',
-    settlementPreference: seed?.settlementPreference ?? 'After event ends',
-    agreedToPayoutTerms: seed?.agreedToPayoutTerms ?? false,
-    agreesToCompliance: seed?.agreesToCompliance ?? false,
-    status: seed?.status ?? 'draft',
-    reviewNotes: seed?.reviewNotes ?? '',
-    organizationId: seed?.organizationId ?? '',
-  }
-}
 
 export async function uploadApplicationFile(
   userId: string,
@@ -81,14 +46,29 @@ export async function saveOrganizerApplicationDraft(
   payload: OrganizerApplication,
 ) {
   const refDoc = doc(db, 'organizer_applications', userId)
+  const organizationId = payload.organizationId || `org_${userId}`
   await setDoc(
     refDoc,
     {
       ...payload,
       userId,
-      status: payload.status === 'rejected' ? 'draft' : 'draft',
+      organizationId,
+      status: 'active',
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+  await setDoc(
+    doc(db, 'users', userId),
+    {
+      defaultOrganizationId: organizationId,
+      organizerApplicationStatus: 'active',
+      organizerApplication: {
+        status: 'active',
+        updatedAt: serverTimestamp(),
+      },
+      updatedAt: serverTimestamp(),
     },
     { merge: true },
   )

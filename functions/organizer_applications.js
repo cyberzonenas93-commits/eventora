@@ -251,3 +251,154 @@ exports.reviewOrganizerApplication = onCall(
     };
   },
 );
+
+exports.createAdminAccount = onCall(
+  { region: REGION },
+  async (request) => {
+    const callerUid = request.auth && request.auth.uid;
+    if (!callerUid) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sign in as a superadmin before creating admin accounts.",
+      );
+    }
+
+    const callerAdmin = await assertSuperAdmin(callerUid);
+    const displayName = safeString(request.data && request.data.displayName);
+    const email = safeString(request.data && request.data.email).toLowerCase();
+    const password = safeString(request.data && request.data.password);
+    const phone = safeString(request.data && request.data.phone);
+    const requestedRole = safeString(
+      request.data && request.data.role,
+      "admin",
+    ).toLowerCase();
+    const role = ["admin", "superadmin"].includes(requestedRole)
+      ? requestedRole
+      : "admin";
+
+    if (displayName.length < 2) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Display name must be at least 2 characters.",
+      );
+    }
+
+    if (!email || !email.includes("@")) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A valid email address is required.",
+      );
+    }
+
+    if (password.length < 8) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Temporary password must be at least 8 characters.",
+      );
+    }
+
+    let targetUser;
+    let created = false;
+
+    try {
+      targetUser = await admin.auth().getUserByEmail(email);
+    } catch (error) {
+      if (error && error.code === "auth/user-not-found") {
+        targetUser = await admin.auth().createUser({
+          email,
+          password,
+          displayName,
+          phoneNumber: phone || undefined,
+          emailVerified: false,
+          disabled: false,
+        });
+        created = true;
+      } else {
+        throw error;
+      }
+    }
+
+    const existingAdminSnap = await db.collection("admins").doc(targetUser.uid).get();
+    const existingAdmin = existingAdminSnap.exists ? existingAdminSnap.data() || {} : {};
+    const existingRole = safeString(existingAdmin.role).toLowerCase();
+
+    if (existingRole) {
+      throw new HttpsError(
+        "already-exists",
+        existingRole === role
+          ? "That user already has this admin role."
+          : "That user already has admin access. Edit their role manually if you need to change it.",
+      );
+    }
+
+    if (!created) {
+      await admin.auth().updateUser(targetUser.uid, {
+        displayName,
+        password,
+        phoneNumber: phone || undefined,
+        disabled: false,
+      });
+      targetUser = await admin.auth().getUser(targetUser.uid);
+    }
+
+    const adminRef = db.collection("admins").doc(targetUser.uid);
+    const userRef = db.collection("users").doc(targetUser.uid);
+    const now = FieldValue.serverTimestamp();
+    const actorName = safeString(
+      callerAdmin.displayName,
+      safeString(callerAdmin.email, callerUid),
+    );
+    const roles = role === "superadmin" ? ["admin", "superadmin"] : ["admin"];
+
+    await db.runTransaction(async (transaction) => {
+      const userSnap = await transaction.get(userRef);
+      const userData = userSnap.exists ? userSnap.data() || {} : {};
+
+      transaction.set(
+        adminRef,
+        {
+          uid: targetUser.uid,
+          displayName,
+          email,
+          phone: phone || null,
+          role,
+          status: "active",
+          createdBy: callerUid,
+          createdByName: actorName,
+          createdAt: existingAdminSnap.exists
+            ? existingAdmin.createdAt || now
+            : now,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+
+      transaction.set(
+        userRef,
+        {
+          displayName,
+          email,
+          phone: phone || null,
+          roles: Array.from(
+            new Set(
+              []
+                .concat(Array.isArray(userData.roles) ? userData.roles : [])
+                .concat(roles),
+            ),
+          ),
+          adminRole: role,
+          updatedAt: now,
+          createdAt: userSnap.exists ? userData.createdAt || now : now,
+        },
+        { merge: true },
+      );
+    });
+
+    return {
+      success: true,
+      uid: targetUser.uid,
+      created,
+      role,
+    };
+  },
+);

@@ -17,8 +17,9 @@ import {
   type ReactNode,
 } from 'react'
 
-import { auth, db } from '../firebase'
-import { createEmptyApplication } from './portalData'
+import { auth } from '../firebaseAuth'
+import { db } from '../firebaseDb'
+import { createEmptyApplication } from './organizerApplication'
 import type {
   OrganizerApplication,
   OrganizerApplicationStatus,
@@ -32,6 +33,9 @@ interface PortalSessionValue {
   loading: boolean
   status: OrganizerApplicationStatus | 'guest'
   organizationId: string | null
+  adminRole: string
+  isAdmin: boolean
+  isSuperAdmin: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (input: {
     displayName: string
@@ -48,18 +52,22 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [application, setApplication] = useState<OrganizerApplication | null>(null)
+  const [adminRole, setAdminRole] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let stopProfile = () => {}
     let stopApplication = () => {}
+    let stopAdmin = () => {}
 
     const stopAuth = onAuthStateChanged(auth, (nextUser) => {
       stopProfile()
       stopApplication()
+      stopAdmin()
       setUser(nextUser)
       setProfile(null)
       setApplication(null)
+      setAdminRole('')
 
       if (!nextUser) {
         setLoading(false)
@@ -68,9 +76,10 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
 
       let profileReady = false
       let applicationReady = false
+      let adminReady = false
 
       const finishLoading = () => {
-        if (profileReady && applicationReady) {
+        if (profileReady && applicationReady && adminReady) {
           setLoading(false)
         }
       }
@@ -84,11 +93,14 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
                 displayName: String(data.displayName ?? nextUser.displayName ?? ''),
                 email: String(data.email ?? nextUser.email ?? ''),
                 phone: String(data.phone ?? ''),
-                roles: Array.isArray(data.roles) ? data.roles.map(String) : ['attendee'],
-                defaultOrganizationId: String(data.defaultOrganizationId ?? ''),
+                roles: Array.isArray(data.roles) ? data.roles.map(String) : ['organizer'],
+                adminRole: adminRole.trim(),
+                defaultOrganizationId: String(
+                  data.defaultOrganizationId ?? `org_${nextUser.uid}`,
+                ),
                 organizerApplicationStatus:
                   (data.organizerApplicationStatus as OrganizerApplicationStatus | undefined) ??
-                  'not_started',
+                  'active',
               }
             : null,
         )
@@ -113,29 +125,49 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
           finishLoading()
         },
       )
+
+      stopAdmin = onSnapshot(doc(db, 'admins', nextUser.uid), (snapshot) => {
+        const data = snapshot.data()
+        setAdminRole(String(data?.role ?? ''))
+        adminReady = true
+        finishLoading()
+      })
     })
 
     return () => {
       stopProfile()
       stopApplication()
+      stopAdmin()
       stopAuth()
     }
   }, [])
 
   const value = useMemo<PortalSessionValue>(() => {
+    const normalizedAdminRole = adminRole.trim().toLowerCase()
+    const isSuperAdmin = normalizedAdminRole === 'superadmin'
+    const isAdmin = normalizedAdminRole === 'admin' || isSuperAdmin
     const applicationStatus =
-      application?.status ?? profile?.organizerApplicationStatus ?? 'not_started'
-    const status = user ? applicationStatus : 'guest'
+      application?.status ?? profile?.organizerApplicationStatus ?? 'active'
+    const status = user ? (isAdmin ? applicationStatus : 'active') : 'guest'
     const organizationId =
-      application?.organizationId || profile?.defaultOrganizationId || null
+      application?.organizationId || profile?.defaultOrganizationId || (user ? `org_${user.uid}` : null)
+    const profileWithAdminRole = profile
+      ? {
+          ...profile,
+          adminRole: adminRole.trim(),
+        }
+      : null
 
     return {
       user,
-      profile,
+      profile: profileWithAdminRole,
       application,
       loading,
       status,
       organizationId,
+      adminRole: adminRole.trim(),
+      isAdmin,
+      isSuperAdmin,
       async signIn(email, password) {
         await signInWithEmailAndPassword(auth, email.trim(), password)
       },
@@ -154,8 +186,9 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
             displayName: input.displayName.trim(),
             email: input.email.trim(),
             phone: input.phone?.trim() || null,
-            roles: ['attendee'],
-            organizerApplicationStatus: 'not_started',
+            roles: ['organizer'],
+            defaultOrganizationId: `org_${credential.user.uid}`,
+            organizerApplicationStatus: 'active',
             notificationPrefs: {
               pushEnabled: true,
               smsEnabled: true,
@@ -166,12 +199,37 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
           },
           { merge: true },
         )
+        await setDoc(
+          doc(db, 'organizations', `org_${credential.user.uid}`),
+          {
+            id: `org_${credential.user.uid}`,
+            ownerId: credential.user.uid,
+            name: input.displayName.trim(),
+            status: 'active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        )
+        await setDoc(
+          doc(db, 'organizer_applications', credential.user.uid),
+          createEmptyApplication({
+            userId: credential.user.uid,
+            organizerName: input.displayName.trim(),
+            contactPerson: input.displayName.trim(),
+            email: input.email.trim(),
+            phone: input.phone?.trim() || '',
+            organizationId: `org_${credential.user.uid}`,
+            status: 'active',
+          }),
+          { merge: true },
+        )
       },
       async signOut() {
         await firebaseSignOut(auth)
       },
     }
-  }, [application, loading, profile, user])
+  }, [adminRole, application, loading, profile, user])
 
   return (
     <PortalSessionContext.Provider value={value}>

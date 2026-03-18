@@ -1,16 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/repositories/eventora_repository.dart';
+import '../../data/services/eventora_location_service.dart';
+import '../../data/services/eventora_places_service.dart';
 import '../../domain/models/event_models.dart';
 
 class EventEditorScreen extends StatefulWidget {
-  const EventEditorScreen({
-    super.key,
-    this.existingEvent,
-  });
+  const EventEditorScreen({super.key, this.existingEvent});
 
   final EventModel? existingEvent;
 
@@ -21,6 +23,7 @@ class EventEditorScreen extends StatefulWidget {
 class _EventEditorScreenState extends State<EventEditorScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _locationSearchController;
   late final TextEditingController _venueController;
   late final TextEditingController _cityController;
   late final TextEditingController _djsController;
@@ -43,21 +46,38 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   late RecurrenceEndType _recurrenceEndType;
   DateTime? _recurrenceEndDate;
   int? _recurrenceOccurrences;
+  Timer? _placesDebounce;
+  List<EventoraPlaceSuggestion> _placeSuggestions = const [];
+  EventLocation? _selectedLocation;
+  String? _locationMessage;
+  bool _isSearchingPlaces = false;
+  bool _isResolvingPlace = false;
+  bool _isApplyingPlaceSelection = false;
+  bool _isUsingDeviceLocation = false;
 
   @override
   void initState() {
     super.initState();
     final event = widget.existingEvent;
     _titleController = TextEditingController(text: event?.title ?? '');
-    _descriptionController = TextEditingController(text: event?.description ?? '');
+    _descriptionController = TextEditingController(
+      text: event?.description ?? '',
+    );
+    _locationSearchController = TextEditingController(
+      text: event?.location?.address ?? '',
+    );
     _venueController = TextEditingController(text: event?.venue ?? '');
     _cityController = TextEditingController(text: event?.city ?? 'Accra');
     _djsController = TextEditingController(text: event?.djs ?? '');
     _mcsController = TextEditingController(text: event?.mcs ?? '');
-    _performersController = TextEditingController(text: event?.performers ?? '');
+    _performersController = TextEditingController(
+      text: event?.performers ?? '',
+    );
     _tagsController = TextEditingController(text: event?.tags.join(', ') ?? '');
 
-    _startDate = event?.startDate ?? DateTime.now().add(const Duration(days: 7, hours: 3));
+    _startDate =
+        event?.startDate ??
+        DateTime.now().add(const Duration(days: 7, hours: 3));
     _endDate = event?.endDate;
     _visibility = event?.visibility ?? EventVisibility.publicEvent;
     _mood = event?.mood ?? EventMood.night;
@@ -67,23 +87,27 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     _sendSms = event?.sendSmsNotification ?? true;
     _allowSharing = event?.allowSharing ?? true;
     _tiers = List<TicketTier>.from(event?.ticketing.tiers ?? const []);
-    _recurrenceFrequency = event?.recurrence.frequency ?? RecurrenceFrequency.none;
+    _recurrenceFrequency =
+        event?.recurrence.frequency ?? RecurrenceFrequency.none;
     _recurrenceInterval = event?.recurrence.interval ?? 1;
     _recurrenceEndType = event?.recurrence.endType ?? RecurrenceEndType.never;
     _recurrenceEndDate = event?.recurrence.endDate;
     _recurrenceOccurrences = event?.recurrence.endAfterOccurrences;
+    _selectedLocation = event?.location;
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _locationSearchController.dispose();
     _venueController.dispose();
     _cityController.dispose();
     _djsController.dispose();
     _mcsController.dispose();
     _performersController.dispose();
     _tagsController.dispose();
+    _placesDebounce?.cancel();
     super.dispose();
   }
 
@@ -92,306 +116,448 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit event' : 'Create event'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        children: [
-          _EditorIntro(isEditing: _isEditing),
-          const SizedBox(height: 24),
-          _SectionCard(
-            title: 'Core details',
-            body: Column(
-              children: [
-                TextField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(labelText: 'Event title'),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _descriptionController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Description'),
-                ),
-              ],
-            ),
+      appBar: AppBar(title: Text(_isEditing ? 'Edit event' : 'Create event')),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: 'Schedule',
-            body: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _DateButton(
-                  label: 'Start time',
-                  value: formatEventWindow(_startDate, null),
-                  onTap: () => _pickStartDate(context),
-                ),
-                const SizedBox(height: 12),
-                _DateButton(
-                  label: _endDate == null ? 'Add end time' : 'End time',
-                  value: _endDate == null ? 'Not set' : formatEventWindow(_endDate!, null),
-                  onTap: () => _pickEndDate(context),
-                  onClear: _endDate == null ? null : () => setState(() => _endDate = null),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: 'Location & lineup',
-            body: Column(
-              children: [
-                TextField(
-                  controller: _venueController,
-                  decoration: const InputDecoration(labelText: 'Venue'),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _cityController,
-                  decoration: const InputDecoration(labelText: 'City'),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _performersController,
-                  decoration: const InputDecoration(labelText: 'Performers'),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _djsController,
-                  decoration: const InputDecoration(labelText: 'DJs'),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _mcsController,
-                  decoration: const InputDecoration(labelText: 'Hosts / MCs'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: 'Visibility & vibe',
-            body: Column(
-              children: [
-                DropdownButtonFormField<EventVisibility>(
-                  initialValue: _visibility,
-                  decoration: const InputDecoration(labelText: 'Visibility'),
-                  items: EventVisibility.values
-                      .map(
-                        (visibility) => DropdownMenuItem(
-                          value: visibility,
-                          child: Text(
-                            visibility == EventVisibility.publicEvent ? 'Public' : 'Private',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => _visibility = value ?? _visibility),
-                ),
-                const SizedBox(height: 18),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Mood', style: context.text.titleLarge?.copyWith(fontSize: 20)),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: EventMood.values
-                      .map(
-                        (mood) => ChoiceChip(
-                          label: Text(_moodLabel(mood)),
-                          selected: _mood == mood,
-                          onSelected: (_) => setState(() => _mood = mood),
-                          showCheckmark: false,
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: 'Ticketing',
-            body: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _ticketingEnabled,
-                  onChanged: (value) => setState(() => _ticketingEnabled = value),
-                  title: const Text('Enable ticketing'),
-                  subtitle: const Text('Turn on tiers, reservations, and ticket issuance.'),
-                ),
-                if (_ticketingEnabled) ...[
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: _requireTicket,
-                    onChanged: (value) => setState(() => _requireTicket = value),
-                    title: const Text('Require ticket for entry'),
-                    subtitle: const Text('Turn off if you want RSVPs plus optional support tickets.'),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _editTier(context),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add tier'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  if (_tiers.isEmpty)
-                    const Text('No ticket tiers yet.')
-                  else
-                    ..._tiers.asMap().entries.map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _TierSummaryCard(
-                          tier: entry.value,
-                          onEdit: () => _editTier(context, existing: entry.value),
-                          onDelete: () => setState(() => _tiers.removeAt(entry.key)),
-                        ),
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            children: [
+              _EditorIntro(isEditing: _isEditing),
+              const SizedBox(height: 24),
+              _SectionCard(
+                title: 'Event basics',
+                body: Column(
+                  children: [
+                    TextField(
+                      controller: _titleController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Event title',
+                        hintText:
+                            'Give guests a clear name they can recognize fast.',
                       ),
                     ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: 'Recurrence',
-            body: Column(
-              children: [
-                DropdownButtonFormField<RecurrenceFrequency>(
-                  initialValue: _recurrenceFrequency,
-                  decoration: const InputDecoration(labelText: 'Frequency'),
-                  items: RecurrenceFrequency.values
-                      .map(
-                        (frequency) => DropdownMenuItem(
-                          value: frequency,
-                          child: Text(_frequencyLabel(frequency)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _recurrenceFrequency = value ?? RecurrenceFrequency.none;
-                      if (_recurrenceFrequency == RecurrenceFrequency.none) {
-                        _recurrenceEndType = RecurrenceEndType.never;
-                      }
-                    });
-                  },
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _descriptionController,
+                      minLines: 4,
+                      maxLines: 8,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'What should guests know?',
+                        hintText:
+                            'Explain the format, who it is for, what the energy feels like, and what guests should expect when they arrive.',
+                      ),
+                    ),
+                  ],
                 ),
-                if (_recurrenceFrequency != RecurrenceFrequency.none) ...[
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<int>(
-                    initialValue: _recurrenceInterval,
-                    decoration: const InputDecoration(labelText: 'Repeat every'),
-                    items: const [1, 2, 4]
-                        .map(
-                          (interval) => DropdownMenuItem(
-                            value: interval,
-                            child: Text('$interval ${interval == 1 ? 'cycle' : 'cycles'}'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _recurrenceInterval = value ?? 1),
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<RecurrenceEndType>(
-                    initialValue: _recurrenceEndType,
-                    decoration: const InputDecoration(labelText: 'Ends'),
-                    items: RecurrenceEndType.values
-                        .map(
-                          (type) => DropdownMenuItem(
-                            value: type,
-                            child: Text(_endTypeLabel(type)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _recurrenceEndType = value ?? RecurrenceEndType.never),
-                  ),
-                  if (_recurrenceEndType == RecurrenceEndType.onDate) ...[
+              ),
+              const SizedBox(height: 18),
+              _SectionCard(
+                title: 'Date and time',
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DateButton(
+                      label: 'Starts',
+                      value: formatEventWindow(_startDate, null),
+                      onTap: () => _pickStartDate(context),
+                    ),
                     const SizedBox(height: 12),
                     _DateButton(
-                      label: 'Recurrence end date',
-                      value: _recurrenceEndDate == null
-                          ? 'Choose end date'
-                          : formatShortDate(_recurrenceEndDate!),
-                      onTap: () => _pickRecurrenceEndDate(context),
-                      onClear: _recurrenceEndDate == null
+                      label: _endDate == null ? 'Add an end time' : 'Ends',
+                      value: _endDate == null
+                          ? 'Not set yet'
+                          : formatEventWindow(_endDate!, null),
+                      onTap: () => _pickEndDate(context),
+                      onClear: _endDate == null
                           ? null
-                          : () => setState(() => _recurrenceEndDate = null),
+                          : () => setState(() => _endDate = null),
                     ),
                   ],
-                  if (_recurrenceEndType == RecurrenceEndType.afterOccurrences) ...[
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      initialValue: _recurrenceOccurrences?.toString() ?? '',
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Number of occurrences',
-                      ),
-                      onChanged: (value) => _recurrenceOccurrences = int.tryParse(value),
-                    ),
-                  ],
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: 'Distribution settings',
-            body: Column(
-              children: [
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _sendPush,
-                  onChanged: (value) => setState(() => _sendPush = value),
-                  title: const Text('Send push notification on publish'),
                 ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _sendSms,
-                  onChanged: (value) => setState(() => _sendSms = value),
-                  title: const Text('Include SMS audience flow'),
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _allowSharing,
-                  onChanged: (value) => setState(() => _allowSharing = value),
-                  title: const Text('Allow share links'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _SectionCard(
-            title: 'Tags',
-            body: TextField(
-              controller: _tagsController,
-              decoration: const InputDecoration(
-                labelText: 'Comma-separated tags',
-                hintText: 'Music, Featured, Community',
               ),
-            ),
+              const SizedBox(height: 18),
+              _SectionCard(
+                title: 'Venue and map',
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _locationSearchController,
+                      onChanged: _onLocationSearchChanged,
+                      decoration: InputDecoration(
+                        labelText: 'Search for a venue or address',
+                        hintText:
+                            'Start typing a venue, landmark, or street address',
+                        suffixIcon: _isSearchingPlaces || _isResolvingPlace
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : _locationSearchController.text.trim().isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: _clearSelectedLocation,
+                                icon: const Icon(Icons.close),
+                                tooltip: 'Clear location',
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Pick a real place so guests can preview it on a live map and Explore can surface the event near them.',
+                      style: context.text.bodyMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _isUsingDeviceLocation
+                          ? null
+                          : _useDeviceLocation,
+                      icon: _isUsingDeviceLocation
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.my_location_rounded),
+                      label: Text(
+                        _isUsingDeviceLocation
+                            ? 'Getting device location...'
+                            : 'Use device location',
+                      ),
+                    ),
+                    if (_locationMessage != null) ...[
+                      const SizedBox(height: 12),
+                      _EditorInfoBanner(message: _locationMessage!),
+                    ],
+                    if (_placeSuggestions.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _PlaceSuggestionList(
+                        suggestions: _placeSuggestions,
+                        onTap: _selectPlaceSuggestion,
+                      ),
+                    ],
+                    if (_selectedLocation != null) ...[
+                      const SizedBox(height: 14),
+                      _LocationPreviewCard(
+                        location: _selectedLocation!,
+                        venueName: _venueController.text.trim(),
+                        city: _cityController.text.trim(),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _venueController,
+                      onChanged: (_) => _markLocationAsNeedsReview(),
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Venue name',
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _cityController,
+                      onChanged: (_) => _markLocationAsNeedsReview(),
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(labelText: 'City'),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _performersController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Performers',
+                        hintText: 'List artists, speakers, or featured talent.',
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _djsController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(labelText: 'DJs'),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _mcsController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Hosts / MCs',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _SectionCard(
+                title: 'Visibility and vibe',
+                body: Column(
+                  children: [
+                    DropdownButtonFormField<EventVisibility>(
+                      initialValue: _visibility,
+                      decoration: const InputDecoration(
+                        labelText: 'Visibility',
+                      ),
+                      items: EventVisibility.values
+                          .map(
+                            (visibility) => DropdownMenuItem(
+                              value: visibility,
+                              child: Text(
+                                visibility == EventVisibility.publicEvent
+                                    ? 'Public event'
+                                    : 'Private event',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) =>
+                          setState(() => _visibility = value ?? _visibility),
+                    ),
+                    const SizedBox(height: 18),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Visual mood',
+                        style: context.text.titleLarge?.copyWith(fontSize: 20),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: EventMood.values
+                          .map(
+                            (mood) => ChoiceChip(
+                              label: Text(_moodLabel(mood)),
+                              selected: _mood == mood,
+                              onSelected: (_) => setState(() => _mood = mood),
+                              showCheckmark: false,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _SectionCard(
+                title: 'Tickets and entry',
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: _ticketingEnabled,
+                      onChanged: (value) =>
+                          setState(() => _ticketingEnabled = value),
+                      title: const Text('Sell tickets'),
+                      subtitle: const Text(
+                        'Turn this on to add paid tiers, free passes, or pay-at-door reservations.',
+                      ),
+                    ),
+                    if (_ticketingEnabled) ...[
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: _requireTicket,
+                        onChanged: (value) =>
+                            setState(() => _requireTicket = value),
+                        title: const Text('Require a ticket for entry'),
+                        subtitle: const Text(
+                          'Turn this off if guests can RSVP first and buy optional support tickets later.',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => _editTier(context),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add ticket option'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      if (_tiers.isEmpty)
+                        const Text('No ticket options yet.')
+                      else
+                        ..._tiers.asMap().entries.map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _TierSummaryCard(
+                              tier: entry.value,
+                              onEdit: () =>
+                                  _editTier(context, existing: entry.value),
+                              onDelete: () =>
+                                  setState(() => _tiers.removeAt(entry.key)),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _SectionCard(
+                title: 'Repeat schedule',
+                body: Column(
+                  children: [
+                    DropdownButtonFormField<RecurrenceFrequency>(
+                      initialValue: _recurrenceFrequency,
+                      decoration: const InputDecoration(labelText: 'Frequency'),
+                      items: RecurrenceFrequency.values
+                          .map(
+                            (frequency) => DropdownMenuItem(
+                              value: frequency,
+                              child: Text(_frequencyLabel(frequency)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _recurrenceFrequency =
+                              value ?? RecurrenceFrequency.none;
+                          if (_recurrenceFrequency ==
+                              RecurrenceFrequency.none) {
+                            _recurrenceEndType = RecurrenceEndType.never;
+                          }
+                        });
+                      },
+                    ),
+                    if (_recurrenceFrequency != RecurrenceFrequency.none) ...[
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<int>(
+                        initialValue: _recurrenceInterval,
+                        decoration: const InputDecoration(
+                          labelText: 'Repeat every',
+                        ),
+                        items: const [1, 2, 4]
+                            .map(
+                              (interval) => DropdownMenuItem(
+                                value: interval,
+                                child: Text(
+                                  '$interval ${interval == 1 ? 'time' : 'times'}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _recurrenceInterval = value ?? 1),
+                      ),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<RecurrenceEndType>(
+                        initialValue: _recurrenceEndType,
+                        decoration: const InputDecoration(labelText: 'Ends'),
+                        items: RecurrenceEndType.values
+                            .map(
+                              (type) => DropdownMenuItem(
+                                value: type,
+                                child: Text(_endTypeLabel(type)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) => setState(
+                          () => _recurrenceEndType =
+                              value ?? RecurrenceEndType.never,
+                        ),
+                      ),
+                      if (_recurrenceEndType == RecurrenceEndType.onDate) ...[
+                        const SizedBox(height: 12),
+                        _DateButton(
+                          label: 'Recurrence end date',
+                          value: _recurrenceEndDate == null
+                              ? 'Choose end date'
+                              : formatShortDate(_recurrenceEndDate!),
+                          onTap: () => _pickRecurrenceEndDate(context),
+                          onClear: _recurrenceEndDate == null
+                              ? null
+                              : () => setState(() => _recurrenceEndDate = null),
+                        ),
+                      ],
+                      if (_recurrenceEndType ==
+                          RecurrenceEndType.afterOccurrences) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          initialValue:
+                              _recurrenceOccurrences?.toString() ?? '',
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'How many times should it repeat?',
+                          ),
+                          onChanged: (value) =>
+                              _recurrenceOccurrences = int.tryParse(value),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _SectionCard(
+                title: 'Guest updates and sharing',
+                body: Column(
+                  children: [
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: _sendPush,
+                      onChanged: (value) => setState(() => _sendPush = value),
+                      title: const Text('Send a push alert when you publish'),
+                    ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: _sendSms,
+                      onChanged: (value) => setState(() => _sendSms = value),
+                      title: const Text('Allow SMS updates'),
+                    ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: _allowSharing,
+                      onChanged: (value) =>
+                          setState(() => _allowSharing = value),
+                      title: const Text('Let guests share your event'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _SectionCard(
+                title: 'Tags',
+                body: TextField(
+                  controller: _tagsController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Tags',
+                    hintText: 'Music, Rooftop, Family-friendly',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _save,
+                  child: Text(
+                    _isEditing ? 'Save changes' : 'Publish this event',
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _save,
-              child: Text(_isEditing ? 'Save changes' : 'Create event'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -419,7 +585,8 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   Future<void> _pickRecurrenceEndDate(BuildContext context) async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: _recurrenceEndDate ?? _startDate.add(const Duration(days: 30)),
+      initialDate:
+          _recurrenceEndDate ?? _startDate.add(const Duration(days: 30)),
       firstDate: _startDate,
       lastDate: _startDate.add(const Duration(days: 365 * 3)),
     );
@@ -428,7 +595,10 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     }
   }
 
-  Future<DateTime?> _pickDateTime(BuildContext context, {required DateTime initial}) async {
+  Future<DateTime?> _pickDateTime(
+    BuildContext context, {
+    required DateTime initial,
+  }) async {
     final date = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -463,6 +633,209 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     });
   }
 
+  void _onLocationSearchChanged(String value) {
+    _placesDebounce?.cancel();
+    final trimmed = value.trim();
+    if (trimmed.length < 2) {
+      setState(() {
+        _placeSuggestions = const [];
+        _isSearchingPlaces = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearchingPlaces = true);
+    _placesDebounce = Timer(const Duration(milliseconds: 320), () {
+      unawaited(_searchPlaces(trimmed));
+    });
+  }
+
+  Future<void> _searchPlaces(String query) async {
+    try {
+      final suggestions = await EventoraPlacesService.instance.search(query);
+      if (!mounted || _locationSearchController.text.trim() != query) {
+        return;
+      }
+      setState(() {
+        _placeSuggestions = suggestions;
+        _isSearchingPlaces = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSearchingPlaces = false;
+        _placeSuggestions = const [];
+        _locationMessage = '$error';
+      });
+    }
+  }
+
+  Future<void> _selectPlaceSuggestion(
+    EventoraPlaceSuggestion suggestion,
+  ) async {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isResolvingPlace = true;
+      _locationMessage = null;
+    });
+
+    try {
+      final selection = await EventoraPlacesService.instance.fetchSelection(
+        suggestion.placeId,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      _applyPlaceSelection(
+        selection,
+        message:
+            'Map pin updated. Guests will see this address and map preview.',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _locationMessage = '$error');
+    } finally {
+      _isApplyingPlaceSelection = false;
+      if (mounted) {
+        setState(() => _isResolvingPlace = false);
+      }
+    }
+  }
+
+  Future<void> _useDeviceLocation() async {
+    FocusScope.of(context).unfocus();
+    _placesDebounce?.cancel();
+    setState(() {
+      _isUsingDeviceLocation = true;
+      _placeSuggestions = const [];
+      _locationMessage = null;
+    });
+
+    try {
+      final position = await EventoraLocationService.instance
+          .getCurrentPosition();
+      if (!mounted) {
+        return;
+      }
+
+      try {
+        final selection = await EventoraPlacesService.instance.reverseGeocode(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+        if (!mounted) {
+          return;
+        }
+
+        _applyPlaceSelection(
+          selection,
+          message:
+              'Using your current device location. Review the venue details before publishing.',
+        );
+      } on EventoraPlacesFailure {
+        if (!mounted) {
+          return;
+        }
+        _pinCurrentCoordinates(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+      }
+    } on EventoraLocationFailure catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _locationMessage = error.message);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _locationMessage =
+            'We could not use your current device location right now. Try again in a moment.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isUsingDeviceLocation = false);
+      }
+    }
+  }
+
+  void _clearSelectedLocation() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _selectedLocation = null;
+      _placeSuggestions = const [];
+      _locationSearchController.clear();
+      _locationMessage =
+          'Map pin cleared. Search again before publishing so people can find the event easily.';
+    });
+  }
+
+  void _markLocationAsNeedsReview() {
+    if (_isApplyingPlaceSelection || _selectedLocation == null) {
+      return;
+    }
+    setState(() {
+      _locationMessage =
+          'If you changed the venue text, pick the place again so the map pin stays accurate.';
+    });
+  }
+
+  void _applyPlaceSelection(
+    EventoraPlaceSelection selection, {
+    required String message,
+  }) {
+    _isApplyingPlaceSelection = true;
+    try {
+      _locationSearchController.text = selection.address;
+      _venueController.text = selection.venueName;
+      _cityController.text = selection.city;
+      setState(() {
+        _selectedLocation = selection.toEventLocation();
+        _placeSuggestions = const [];
+        _locationMessage = message;
+      });
+    } finally {
+      _isApplyingPlaceSelection = false;
+    }
+  }
+
+  void _pinCurrentCoordinates({
+    required double latitude,
+    required double longitude,
+  }) {
+    _isApplyingPlaceSelection = true;
+    try {
+      final fallbackAddress =
+          'Pinned from your device location (${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)})';
+      if (_venueController.text.trim().isEmpty) {
+        _venueController.text = 'Current location pin';
+      }
+      if (_cityController.text.trim().isEmpty) {
+        _cityController.text = 'Accra';
+      }
+      _locationSearchController.text = fallbackAddress;
+      setState(() {
+        _selectedLocation = EventLocation(
+          address: fallbackAddress,
+          latitude: latitude,
+          longitude: longitude,
+        );
+        _placeSuggestions = const [];
+        _locationMessage =
+            'We pinned your current device location. Review the venue name and city before publishing.';
+      });
+    } finally {
+      _isApplyingPlaceSelection = false;
+    }
+  }
+
   void _save() {
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
@@ -471,6 +844,12 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
 
     if (title.isEmpty || description.isEmpty || venue.isEmpty || city.isEmpty) {
       _showMessage('Complete the title, description, venue, and city.');
+      return;
+    }
+    if (_selectedLocation == null) {
+      _showMessage(
+        'Search for a venue or address so Eventora can show guests a live map and surface the event nearby.',
+      );
       return;
     }
     if (_endDate != null && _endDate!.isBefore(_startDate)) {
@@ -510,11 +889,18 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
       ),
       recurrence: RecurrenceRule(
         frequency: _recurrenceFrequency,
-        interval: _recurrenceFrequency == RecurrenceFrequency.none ? 1 : _recurrenceInterval,
-        endType: _recurrenceFrequency == RecurrenceFrequency.none ? RecurrenceEndType.never : _recurrenceEndType,
-        endDate: _recurrenceFrequency == RecurrenceFrequency.none ? null : _recurrenceEndDate,
-        endAfterOccurrences:
-            _recurrenceFrequency == RecurrenceFrequency.none ? null : _recurrenceOccurrences,
+        interval: _recurrenceFrequency == RecurrenceFrequency.none
+            ? 1
+            : _recurrenceInterval,
+        endType: _recurrenceFrequency == RecurrenceFrequency.none
+            ? RecurrenceEndType.never
+            : _recurrenceEndType,
+        endDate: _recurrenceFrequency == RecurrenceFrequency.none
+            ? null
+            : _recurrenceEndDate,
+        endAfterOccurrences: _recurrenceFrequency == RecurrenceFrequency.none
+            ? null
+            : _recurrenceOccurrences,
       ),
       sendPushNotification: _sendPush,
       sendSmsNotification: _sendSms,
@@ -528,6 +914,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
           .map((tag) => tag.trim())
           .where((tag) => tag.isNotEmpty)
           .toList(),
+      location: _selectedLocation,
     );
 
     final repository = context.read<EventoraRepository>();
@@ -544,28 +931,30 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _moodLabel(EventMood mood) => switch (mood) {
-        EventMood.night => 'Night',
-        EventMood.sunrise => 'Sunrise',
-        EventMood.electric => 'Electric',
-        EventMood.garden => 'Garden',
-      };
+    EventMood.night => 'Night',
+    EventMood.sunrise => 'Sunrise',
+    EventMood.electric => 'Electric',
+    EventMood.garden => 'Garden',
+  };
 
   String _frequencyLabel(RecurrenceFrequency frequency) => switch (frequency) {
-        RecurrenceFrequency.none => 'No recurrence',
-        RecurrenceFrequency.daily => 'Daily',
-        RecurrenceFrequency.weekly => 'Weekly',
-        RecurrenceFrequency.monthly => 'Monthly',
-      };
+    RecurrenceFrequency.none => 'No recurrence',
+    RecurrenceFrequency.daily => 'Daily',
+    RecurrenceFrequency.weekly => 'Weekly',
+    RecurrenceFrequency.monthly => 'Monthly',
+  };
 
   String _endTypeLabel(RecurrenceEndType endType) => switch (endType) {
-        RecurrenceEndType.never => 'Never',
-        RecurrenceEndType.onDate => 'On date',
-        RecurrenceEndType.afterOccurrences => 'After occurrences',
-      };
+    RecurrenceEndType.never => 'Never',
+    RecurrenceEndType.onDate => 'On date',
+    RecurrenceEndType.afterOccurrences => 'After occurrences',
+  };
 }
 
 class _EditorIntro extends StatelessWidget {
@@ -586,12 +975,14 @@ class _EditorIntro extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            isEditing ? 'Refine your event' : 'Build a new event',
+            isEditing
+                ? 'Update the event page guests will see'
+                : 'Build an event page that feels ready to publish',
             style: context.text.headlineSmall,
           ),
           const SizedBox(height: 12),
           Text(
-            'This editor keeps the original app model intact: visibility, ticket tiers, recurrence, push and SMS settings, and sharing rules.',
+            'Add the essentials first, pin the exact location, then finish tickets and sharing so guests can trust what they are opening.',
             style: context.text.bodyMedium,
           ),
         ],
@@ -600,11 +991,27 @@ class _EditorIntro extends StatelessWidget {
   }
 }
 
+class _EditorInfoBanner extends StatelessWidget {
+  const _EditorInfoBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.palette.canvas,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(message, style: context.text.bodyMedium),
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.body,
-  });
+  const _SectionCard({required this.title, required this.body});
 
   final String title;
   final Widget body;
@@ -657,13 +1064,16 @@ class _DateButton extends StatelessWidget {
               children: [
                 Text(label, style: context.text.bodyMedium),
                 const SizedBox(height: 6),
-                Text(value, style: context.text.titleLarge?.copyWith(fontSize: 18)),
+                Text(
+                  value,
+                  style: context.text.titleLarge?.copyWith(fontSize: 18),
+                ),
               ],
             ),
           ),
-          TextButton(onPressed: onTap, child: const Text('Choose')),
+          TextButton(onPressed: onTap, child: const Text('Select')),
           if (onClear != null)
-            TextButton(onPressed: onClear, child: const Text('Clear')),
+            TextButton(onPressed: onClear, child: const Text('Remove')),
         ],
       ),
     );
@@ -696,18 +1106,26 @@ class _TierSummaryCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(tier.name, style: context.text.titleLarge?.copyWith(fontSize: 19)),
+                child: Text(
+                  tier.name,
+                  style: context.text.titleLarge?.copyWith(fontSize: 19),
+                ),
               ),
               Text(formatMoney(tier.price), style: context.text.bodyLarge),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            tier.description?.isNotEmpty == true ? tier.description! : 'No description yet.',
+            tier.description?.isNotEmpty == true
+                ? tier.description!
+                : 'No description yet.',
             style: context.text.bodyMedium,
           ),
           const SizedBox(height: 8),
-          Text('Capacity ${tier.maxQuantity} • Sold ${tier.sold}', style: context.text.bodyMedium),
+          Text(
+            'Capacity ${tier.maxQuantity} • Sold ${tier.sold}',
+            style: context.text.bodyMedium,
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 10,
@@ -718,6 +1136,107 @@ class _TierSummaryCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PlaceSuggestionList extends StatelessWidget {
+  const _PlaceSuggestionList({required this.suggestions, required this.onTap});
+
+  final List<EventoraPlaceSuggestion> suggestions;
+  final ValueChanged<EventoraPlaceSuggestion> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0x1410212A)),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < suggestions.length; index++) ...[
+            ListTile(
+              onTap: () => onTap(suggestions[index]),
+              title: Text(suggestions[index].title),
+              subtitle: Text(
+                suggestions[index].subtitle.isEmpty
+                    ? suggestions[index].fullText
+                    : suggestions[index].subtitle,
+              ),
+              trailing: suggestions[index].distanceMeters == null
+                  ? null
+                  : Text(
+                      '${(suggestions[index].distanceMeters! / 1000).toStringAsFixed(1)} km',
+                      style: context.text.bodySmall,
+                    ),
+            ),
+            if (index != suggestions.length - 1)
+              const Divider(height: 1, thickness: 1),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationPreviewCard extends StatelessWidget {
+  const _LocationPreviewCard({
+    required this.location,
+    required this.venueName,
+    required this.city,
+  });
+
+  final EventLocation location;
+  final String venueName;
+  final String city;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: SizedBox(
+            height: 220,
+            width: double.infinity,
+            child: gmaps.GoogleMap(
+              initialCameraPosition: gmaps.CameraPosition(
+                target: gmaps.LatLng(location.latitude, location.longitude),
+                zoom: 15,
+              ),
+              markers: {
+                gmaps.Marker(
+                  markerId: const gmaps.MarkerId('event_location'),
+                  position: gmaps.LatLng(location.latitude, location.longitude),
+                  infoWindow: gmaps.InfoWindow(
+                    title: venueName.isEmpty ? 'Selected venue' : venueName,
+                    snippet: city.isEmpty ? null : city,
+                  ),
+                ),
+              },
+              liteModeEnabled: true,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              compassEnabled: false,
+              myLocationButtonEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              zoomGesturesEnabled: false,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          venueName.isEmpty ? 'Pinned venue' : venueName,
+          style: context.text.titleLarge?.copyWith(fontSize: 18),
+        ),
+        const SizedBox(height: 4),
+        Text(location.address, style: context.text.bodyMedium),
+      ],
     );
   }
 }
@@ -741,9 +1260,15 @@ class _TierEditorDialogState extends State<_TierEditorDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.existing?.name ?? '');
-    _priceController = TextEditingController(text: widget.existing?.price.toStringAsFixed(0) ?? '0');
-    _capacityController = TextEditingController(text: widget.existing?.maxQuantity.toString() ?? '100');
-    _descriptionController = TextEditingController(text: widget.existing?.description ?? '');
+    _priceController = TextEditingController(
+      text: widget.existing?.price.toStringAsFixed(0) ?? '0',
+    );
+    _capacityController = TextEditingController(
+      text: widget.existing?.maxQuantity.toString() ?? '100',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.existing?.description ?? '',
+    );
   }
 
   @override
@@ -758,7 +1283,9 @@ class _TierEditorDialogState extends State<_TierEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'Add ticket tier' : 'Edit ticket tier'),
+      title: Text(
+        widget.existing == null ? 'Add ticket tier' : 'Edit ticket tier',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -770,7 +1297,9 @@ class _TierEditorDialogState extends State<_TierEditorDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _priceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(labelText: 'Price'),
             ),
             const SizedBox(height: 12),
@@ -799,7 +1328,10 @@ class _TierEditorDialogState extends State<_TierEditorDialog> {
             final price = double.tryParse(_priceController.text.trim());
             final capacity = int.tryParse(_capacityController.text.trim());
 
-            if (name.isEmpty || price == null || capacity == null || capacity <= 0) {
+            if (name.isEmpty ||
+                price == null ||
+                capacity == null ||
+                capacity <= 0) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Complete the tier details.')),
               );
@@ -808,7 +1340,9 @@ class _TierEditorDialogState extends State<_TierEditorDialog> {
 
             Navigator.of(context).pop(
               TicketTier(
-                tierId: widget.existing?.tierId ?? 'tier_${DateTime.now().millisecondsSinceEpoch}',
+                tierId:
+                    widget.existing?.tierId ??
+                    'tier_${DateTime.now().millisecondsSinceEpoch}',
                 name: name,
                 price: price,
                 maxQuantity: capacity,

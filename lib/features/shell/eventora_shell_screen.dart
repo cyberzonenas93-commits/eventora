@@ -4,12 +4,9 @@ import 'package:provider/provider.dart';
 import '../../app/eventora_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../account/account_screen.dart';
-import '../account/auth_prompt_sheet.dart';
-import '../events/event_editor_screen.dart';
-import '../promotions/campaign_composer_sheet.dart';
-import '../promotions/promotions_screen.dart';
 import '../discover/discover_screen.dart';
 import '../manage/manage_screen.dart';
+import '../promotions/promotions_screen.dart';
 import '../tickets/tickets_screen.dart';
 
 class EventoraShellScreen extends StatefulWidget {
@@ -42,9 +39,10 @@ class _EventoraShellScreenState extends State<EventoraShellScreen> {
             bottom: false,
             child: Column(
               children: [
-                _ShellHeader(
+                _ShellTopBar(
                   badgeLabel: session.viewer.badgeLabel,
                   viewerName: session.viewer.displayName,
+                  photoUrl: session.viewer.photoUrl,
                   isGuest: session.isGuest,
                   isBusy: session.isInitializing || session.isProcessing,
                   canSwitchWorkspace: session.canChooseWorkspace,
@@ -58,8 +56,6 @@ class _EventoraShellScreenState extends State<EventoraShellScreen> {
           ),
         ],
       ),
-      floatingActionButton: _buildFab(context),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -85,22 +81,22 @@ class _EventoraShellScreenState extends State<EventoraShellScreen> {
                 BottomNavigationBarItem(
                   icon: Icon(Icons.explore_outlined),
                   activeIcon: Icon(Icons.explore),
-                  label: 'Discover',
+                  label: 'Explore',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.edit_calendar_outlined),
                   activeIcon: Icon(Icons.edit_calendar),
-                  label: 'Manage',
+                  label: 'Host',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.confirmation_num_outlined),
                   activeIcon: Icon(Icons.confirmation_num),
-                  label: 'Tickets',
+                  label: 'Passes',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.campaign_outlined),
                   activeIcon: Icon(Icons.campaign),
-                  label: 'Promote',
+                  label: 'Reach',
                 ),
               ],
             ),
@@ -109,68 +105,13 @@ class _EventoraShellScreenState extends State<EventoraShellScreen> {
       ),
     );
   }
-
-  Widget? _buildFab(BuildContext context) {
-    final palette = context.palette;
-    final session = context.read<EventoraSessionController>();
-
-    if (_currentIndex == 1) {
-      return FloatingActionButton.extended(
-        onPressed: () {
-          if (session.isGuest) {
-            showAuthPromptSheet(
-              context,
-              title: 'Create events with an account',
-              body:
-                  'Guest mode is perfect for discovery. Sign in when you are ready to publish events and manage ticketing.',
-            );
-            return;
-          }
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const EventEditorScreen()),
-          );
-        },
-        backgroundColor: palette.coral,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('New Event'),
-      );
-    }
-
-    if (_currentIndex == 3) {
-      return FloatingActionButton.extended(
-        onPressed: () async {
-          if (session.isGuest) {
-            await showAuthPromptSheet(
-              context,
-              title: 'Campaign tools need an account',
-              body:
-                  'Sign in to launch push, SMS, and share-link campaigns from your Eventora workspace.',
-            );
-            return;
-          }
-          final campaign = await showCampaignComposerSheet(context);
-          if (campaign != null && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Campaign "${campaign.name}" launched.')),
-            );
-          }
-        },
-        backgroundColor: palette.teal,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.auto_graph_outlined),
-        label: const Text('Campaign'),
-      );
-    }
-
-    return null;
-  }
 }
 
-class _ShellHeader extends StatelessWidget {
-  const _ShellHeader({
+class _ShellTopBar extends StatelessWidget {
+  const _ShellTopBar({
     required this.badgeLabel,
     required this.viewerName,
+    required this.photoUrl,
     required this.isGuest,
     required this.isBusy,
     required this.canSwitchWorkspace,
@@ -179,6 +120,7 @@ class _ShellHeader extends StatelessWidget {
 
   final String badgeLabel;
   final String viewerName;
+  final String? photoUrl;
   final bool isGuest;
   final bool isBusy;
   final bool canSwitchWorkspace;
@@ -190,71 +132,110 @@ class _ShellHeader extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    badgeLabel,
-                    style: context.text.bodyMedium?.copyWith(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.82),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0x14FFFFFF)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12121E31),
+              blurRadius: 20,
+              offset: Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    palette.gold.withValues(alpha: 0.22),
+                    palette.coral.withValues(alpha: 0.14),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                badgeLabel,
+                style: context.text.bodyMedium?.copyWith(
+                  color: palette.ink,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isGuest
+                        ? 'Explore as a guest'
+                        : 'Welcome back, $viewerName',
+                    style: context.text.bodyLarge?.copyWith(
                       color: palette.ink,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text('Eventora', style: context.text.headlineSmall),
-                const SizedBox(height: 4),
-                Text(
-                  isGuest
-                      ? 'Browse live events without signing up.'
-                      : 'Welcome back, $viewerName.',
-                  style: context.text.bodyMedium?.copyWith(
-                    color: palette.slate,
+                  const SizedBox(height: 4),
+                  Text(
+                    'Everything important is a tap away.',
+                    style: context.text.bodySmall?.copyWith(
+                      color: palette.slate,
+                    ),
                   ),
+                ],
+              ),
+            ),
+            if (isBusy)
+              const Padding(
+                padding: EdgeInsets.only(left: 10),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
                 ),
-              ],
-            ),
-          ),
-          if (isBusy)
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
               ),
-            ),
-          if (canSwitchWorkspace)
+            if (canSwitchWorkspace)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: IconButton.filledTonal(
+                  onPressed: onSwitchWorkspace,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.swap_horiz_outlined),
+                  tooltip: 'Switch workspace',
+                ),
+              ),
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(left: 8),
               child: IconButton.filledTonal(
-                onPressed: onSwitchWorkspace,
-                icon: const Icon(Icons.swap_horiz_outlined),
-                tooltip: 'Switch workspace',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AccountScreen(),
+                    ),
+                  );
+                },
+                visualDensity: VisualDensity.compact,
+                icon: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.transparent,
+                  foregroundImage: photoUrl != null
+                      ? NetworkImage(photoUrl!)
+                      : null,
+                  child: photoUrl == null
+                      ? const Icon(Icons.person_outline)
+                      : null,
+                ),
+                tooltip: 'Account',
               ),
             ),
-          IconButton.filledTonal(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
-              );
-            },
-            icon: const Icon(Icons.person_outline),
-            tooltip: 'Account',
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -271,12 +252,23 @@ class _Backdrop extends StatelessWidget {
       children: [
         Positioned(
           top: -120,
-          right: -50,
+          right: -40,
           child: _Blob(
-            size: 260,
+            size: 280,
             colors: [
-              palette.coral.withValues(alpha: 0.14),
-              palette.gold.withValues(alpha: 0.06),
+              palette.coral.withValues(alpha: 0.18),
+              palette.gold.withValues(alpha: 0.08),
+            ],
+          ),
+        ),
+        Positioned(
+          top: 160,
+          left: -70,
+          child: _Blob(
+            size: 190,
+            colors: [
+              palette.gold.withValues(alpha: 0.12),
+              Colors.white.withValues(alpha: 0.02),
             ],
           ),
         ),
@@ -284,9 +276,9 @@ class _Backdrop extends StatelessWidget {
           bottom: 100,
           left: -90,
           child: _Blob(
-            size: 220,
+            size: 240,
             colors: [
-              palette.teal.withValues(alpha: 0.14),
+              palette.teal.withValues(alpha: 0.16),
               palette.canvas.withValues(alpha: 0.04),
             ],
           ),

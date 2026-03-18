@@ -35,6 +35,9 @@ migrate_working_dir/
 .firebase/
 /google-services.json
 /GoogleService-Info.plist
+/ios/Flutter/Secrets.xcconfig
+/functions/.env.local
+/functions/.secret.local
 
 # Symbolication related
 app.*.symbols

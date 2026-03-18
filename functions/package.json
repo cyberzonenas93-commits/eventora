@@ -10,7 +10,7 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "lint": "node --check index.js && node --check event_notifications.js && node --check event_payments.js && node --check organizer_applications.js",
+    "lint": "node --check index.js && node --check event_notifications.js && node --check event_payments.js && node --check organizer_applications.js && node --check places_lookup.js && node --check share_link.js",
     "test": "npm run lint"
   },
   "dependencies": {

@@ -84,16 +84,16 @@ class AdminFaceChooserScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'This account can open both the attendee experience and the admin console, just like the GPlus split. Pick the side you want right now.',
+                            'This account can open both the attendee experience and the admin console. Pick the side you want right now.',
                             style: context.text.bodyLarge?.copyWith(
                               color: palette.slate,
                             ),
                           ),
                           const SizedBox(height: 24),
                           _WorkspaceTile(
-                            title: 'Customer & organizer app',
+                            title: 'Eventora app',
                             subtitle:
-                                'Discover events, manage your organizer workspace, issue RSVPs, and run ticketing from the attendee-facing side.',
+                                'Open the main Eventora experience for discovery, RSVP, tickets, and organizer tools.',
                             icon: Icons.explore_outlined,
                             accent: palette.coral,
                             onTap: session.enterAttendeeWorkspace,

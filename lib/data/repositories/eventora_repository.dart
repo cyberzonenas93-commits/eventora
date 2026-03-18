@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import '../services/eventora_cloud_sync_service.dart';
+import '../services/eventora_payment_service.dart';
 import '../../domain/models/account_models.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
@@ -45,12 +46,28 @@ class EventoraRepository extends ChangeNotifier {
   final EventoraCloudSyncService _cloudSync;
   final List<EventModel> _livePublicEvents = <EventModel>[];
   final List<EventModel> _liveWorkspaceEvents = <EventModel>[];
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _publicEventsSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _workspaceEventsSubscription;
+  final List<TicketOrder> _liveOrders = <TicketOrder>[];
+  final List<RsvpRecord> _liveRsvps = <RsvpRecord>[];
+  final List<PromotionCampaign> _liveCampaigns = <PromotionCampaign>[];
+  final Map<String, ReminderTiming> _liveReminders = <String, ReminderTiming>{};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _publicEventsSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _workspaceEventsSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _ordersSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _rsvpsSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _campaignsSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _remindersSubscription;
   EventoraViewer _viewer = const EventoraViewer.guest();
   final Map<String, ReminderTiming> _reminders = {
     'event_after_dark': ReminderTiming.oneDayBefore,
   };
+  bool _ordersHydrated = false;
+  bool _rsvpsHydrated = false;
+  bool _campaignsHydrated = false;
+  bool _remindersHydrated = false;
 
   List<EventModel> get _effectiveEvents {
     final merged = <String, EventModel>{
@@ -78,9 +95,10 @@ class EventoraRepository extends ChangeNotifier {
         _viewer.phone == viewer.phone &&
         _viewer.isAuthenticated == viewer.isAuthenticated &&
         _viewer.activeFace == viewer.activeFace &&
-      _viewer.organizerApplicationStatus == viewer.organizerApplicationStatus &&
-      _viewer.organizerReviewNotes == viewer.organizerReviewNotes &&
-      listEquals(_viewer.roles, viewer.roles)) {
+        _viewer.organizerApplicationStatus ==
+            viewer.organizerApplicationStatus &&
+        _viewer.organizerReviewNotes == viewer.organizerReviewNotes &&
+        listEquals(_viewer.roles, viewer.roles)) {
       return;
     }
 
@@ -90,6 +108,7 @@ class EventoraRepository extends ChangeNotifier {
     }
     if (_cloudSync.isEnabled) {
       _bindEventStreams();
+      _bindCommerceStreams();
     }
     notifyListeners();
   }
@@ -97,6 +116,89 @@ class EventoraRepository extends ChangeNotifier {
   List<EventModel> get discoverableEvents =>
       _effectiveEvents.where((event) => !event.isPrivate).toList()
         ..sort((a, b) => a.startDate.compareTo(b.startDate));
+
+  List<EventModel> nearbyEvents({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 25,
+    int limit = 8,
+  }) {
+    final matches =
+        discoverableEvents.where((event) {
+          final distance = distanceKmForEvent(
+            event,
+            latitude: latitude,
+            longitude: longitude,
+          );
+          return distance != null && distance <= radiusKm;
+        }).toList()..sort((a, b) {
+          final aDistance =
+              distanceKmForEvent(a, latitude: latitude, longitude: longitude) ??
+              double.infinity;
+          final bDistance =
+              distanceKmForEvent(b, latitude: latitude, longitude: longitude) ??
+              double.infinity;
+          final compareDistance = aDistance.compareTo(bDistance);
+          if (compareDistance != 0) {
+            return compareDistance;
+          }
+          return a.startDate.compareTo(b.startDate);
+        });
+    return matches.take(limit).toList();
+  }
+
+  double? distanceKmForEvent(
+    EventModel event, {
+    required double latitude,
+    required double longitude,
+  }) {
+    final location = event.location;
+    if (location == null) {
+      return null;
+    }
+    return _distanceKm(
+      latitude,
+      longitude,
+      location.latitude,
+      location.longitude,
+    );
+  }
+
+  List<PromotionCampaign> get featuredCampaigns {
+    return _campaigns
+        .where(
+          (campaign) =>
+              campaign.status == PromotionStatus.live &&
+              campaign.channels.contains(PromotionChannel.featured) &&
+              !(eventById(campaign.eventId)?.isPrivate ?? true),
+        )
+        .toList()
+      ..sort((a, b) {
+        final aEvent = eventById(a.eventId);
+        final bEvent = eventById(b.eventId);
+        if (aEvent == null || bEvent == null) {
+          return b.createdAt.compareTo(a.createdAt);
+        }
+        return aEvent.startDate.compareTo(bEvent.startDate);
+      });
+  }
+
+  List<PromotionCampaign> get announcementCampaigns {
+    return _campaigns
+        .where(
+          (campaign) =>
+              campaign.status == PromotionStatus.live &&
+              campaign.channels.contains(PromotionChannel.announcement) &&
+              !(eventById(campaign.eventId)?.isPrivate ?? true),
+        )
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  PromotionCampaign? get primaryAnnouncementCampaign {
+    final campaigns = announcementCampaigns;
+    return campaigns.isEmpty ? null : campaigns.first;
+  }
 
   List<EventModel> get managedEvents {
     if (isGuest || !_viewer.hasOrganizerAccess) {
@@ -131,7 +233,10 @@ class EventoraRepository extends ChangeNotifier {
     if (isGuest) {
       return const [];
     }
-    return _orders.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final visibleOrders = _shouldUseLiveOrders
+        ? _liveOrders.toList()
+        : _visibleOrders();
+    return visibleOrders..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   List<TicketOrder> get adminVisibleOrders => orders;
@@ -140,7 +245,10 @@ class EventoraRepository extends ChangeNotifier {
     if (isGuest) {
       return const [];
     }
-    return _rsvps.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final visibleRsvps = _shouldUseLiveRsvps
+        ? _liveRsvps.toList()
+        : _visibleRsvps();
+    return visibleRsvps..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   List<RsvpRecord> get adminVisibleRsvps => rsvps;
@@ -149,7 +257,9 @@ class EventoraRepository extends ChangeNotifier {
     if (isGuest) {
       return const [];
     }
-    return _campaigns.toList()
+    return (_shouldUseLiveCampaigns
+          ? _liveCampaigns.toList()
+          : _visibleCampaigns().toList())
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
@@ -188,11 +298,11 @@ class EventoraRepository extends ChangeNotifier {
       .length;
 
   List<RsvpRecord> rsvpsForEvent(String eventId) =>
-      _rsvps.where((rsvp) => rsvp.eventId == eventId).toList()
+      rsvps.where((rsvp) => rsvp.eventId == eventId).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   List<TicketOrder> ordersForEvent(String eventId) =>
-      _orders.where((order) => order.eventId == eventId).toList()
+      orders.where((order) => order.eventId == eventId).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
   TicketOrder? orderById(String orderId) {
@@ -219,7 +329,12 @@ class EventoraRepository extends ChangeNotifier {
     return null;
   }
 
-  ReminderTiming? reminderFor(String eventId) => _reminders[eventId];
+  ReminderTiming? reminderFor(String eventId) {
+    if (_shouldUseLiveReminders) {
+      return _liveReminders[eventId];
+    }
+    return _reminders[eventId];
+  }
 
   String buildShareLink(String eventId) => 'https://eventora.app/e/$eventId';
 
@@ -234,7 +349,7 @@ class EventoraRepository extends ChangeNotifier {
   }
 
   List<PromotionCampaign> campaignsForEvent(String eventId) =>
-      _campaigns.where((campaign) => campaign.eventId == eventId).toList();
+      campaigns.where((campaign) => campaign.eventId == eventId).toList();
 
   int pushAudienceFor(String eventId) {
     final event = eventById(eventId);
@@ -331,6 +446,7 @@ class EventoraRepository extends ChangeNotifier {
       rsvpCount: 0,
       mood: draft.mood,
       tags: draft.tags,
+      location: draft.location,
     );
     _events.add(event);
     unawaited(
@@ -367,6 +483,7 @@ class EventoraRepository extends ChangeNotifier {
       performers: draft.performers,
       mood: draft.mood,
       tags: draft.tags,
+      location: draft.location,
     );
     _events[index] = updated;
     if (_viewer.isAuthenticated) {
@@ -396,6 +513,7 @@ class EventoraRepository extends ChangeNotifier {
       id: _generateId('rsvp'),
       eventId: eventId,
       eventTitle: eventTitle,
+      attendeeUserId: currentUserId,
       name: name,
       phone: phone,
       guestCount: guestCount,
@@ -489,6 +607,7 @@ class EventoraRepository extends ChangeNotifier {
       id: orderId,
       eventId: event.id,
       eventTitle: event.title,
+      buyerUserId: currentUserId,
       buyerName: currentUserName,
       buyerPhone: currentUserPhone,
       buyerEmail: currentUserEmail,
@@ -590,6 +709,7 @@ class EventoraRepository extends ChangeNotifier {
       eventId: event.id,
       eventTitle: event.title,
       name: name,
+      createdByUserId: currentUserId,
       status: scheduledAt == null
           ? PromotionStatus.live
           : PromotionStatus.scheduled,
@@ -636,6 +756,98 @@ class EventoraRepository extends ChangeNotifier {
     final now = DateTime.now().millisecondsSinceEpoch;
     final random = Random().nextInt(99999).toString().padLeft(5, '0');
     return '${prefix}_${now}_$random';
+  }
+
+  List<TicketOrder> _visibleOrders() {
+    if (_viewer.hasAdminAccess) {
+      return _orders.toList();
+    }
+
+    if (_viewer.hasOrganizerAccess) {
+      final managedEventIds = _managedEffectiveEvents
+          .map((event) => event.id)
+          .toSet();
+      return _orders
+          .where((order) => managedEventIds.contains(order.eventId))
+          .toList();
+    }
+
+    final email = currentUserEmail.trim().toLowerCase();
+    final phone = currentUserPhone.trim();
+    final name = currentUserName.trim().toLowerCase();
+    return _orders.where((order) {
+      final buyerUserId = order.buyerUserId?.trim();
+      if (buyerUserId != null &&
+          buyerUserId.isNotEmpty &&
+          buyerUserId == currentUserId) {
+        return true;
+      }
+      if (email.isNotEmpty && order.buyerEmail.trim().toLowerCase() == email) {
+        return true;
+      }
+      if (phone.isNotEmpty && order.buyerPhone.trim() == phone) {
+        return true;
+      }
+      return name.isNotEmpty && order.buyerName.trim().toLowerCase() == name;
+    }).toList();
+  }
+
+  List<RsvpRecord> _visibleRsvps() {
+    if (_viewer.hasAdminAccess) {
+      return _rsvps.toList();
+    }
+
+    if (_viewer.hasOrganizerAccess) {
+      final managedEventIds = _managedEffectiveEvents
+          .map((event) => event.id)
+          .toSet();
+      return _rsvps
+          .where((rsvp) => managedEventIds.contains(rsvp.eventId))
+          .toList();
+    }
+
+    final phone = currentUserPhone.trim();
+    final name = currentUserName.trim().toLowerCase();
+    return _rsvps.where((rsvp) {
+      final attendeeUserId = rsvp.attendeeUserId?.trim();
+      if (attendeeUserId != null &&
+          attendeeUserId.isNotEmpty &&
+          attendeeUserId == currentUserId) {
+        return true;
+      }
+      if (phone.isNotEmpty && rsvp.phone.trim() == phone) {
+        return true;
+      }
+      return name.isNotEmpty && rsvp.name.trim().toLowerCase() == name;
+    }).toList();
+  }
+
+  List<PromotionCampaign> _visibleCampaigns() {
+    if (_viewer.hasAdminAccess) {
+      return _campaigns.toList();
+    }
+
+    if (_viewer.hasOrganizerAccess) {
+      final currentUid = currentUserId.trim();
+      final ownedCampaigns = currentUid.isEmpty
+          ? const <PromotionCampaign>[]
+          : _campaigns
+                .where(
+                  (campaign) => campaign.createdByUserId?.trim() == currentUid,
+                )
+                .toList();
+      if (ownedCampaigns.isNotEmpty) {
+        return ownedCampaigns;
+      }
+      final managedEventIds = _managedEffectiveEvents
+          .map((event) => event.id)
+          .toSet();
+      return _campaigns
+          .where((campaign) => managedEventIds.contains(campaign.eventId))
+          .toList();
+    }
+
+    return const <PromotionCampaign>[];
   }
 
   void _bindEventStreams() {
@@ -698,6 +910,119 @@ class EventoraRepository extends ChangeNotifier {
     }
   }
 
+  void _bindCommerceStreams() {
+    _ordersSubscription?.cancel();
+    _rsvpsSubscription?.cancel();
+    _campaignsSubscription?.cancel();
+    _remindersSubscription?.cancel();
+    _liveOrders.clear();
+    _liveRsvps.clear();
+    _liveCampaigns.clear();
+    _liveReminders.clear();
+    _ordersHydrated = false;
+    _rsvpsHydrated = false;
+    _campaignsHydrated = false;
+    _remindersHydrated = false;
+
+    if (!_viewer.isAuthenticated || _viewer.uid == null) {
+      notifyListeners();
+      return;
+    }
+
+    final firestore = FirebaseFirestore.instance;
+    final uid = _viewer.uid!;
+    final organizationId = _viewer.defaultOrganizationId?.trim();
+
+    Query<Map<String, dynamic>>? ordersQuery;
+    Query<Map<String, dynamic>>? rsvpsQuery;
+    Query<Map<String, dynamic>>? campaignsQuery;
+    Query<Map<String, dynamic>> remindersQuery = firestore
+        .collection('event_reminders')
+        .where('userId', isEqualTo: uid);
+
+    if (_viewer.hasAdminAccess) {
+      ordersQuery = firestore.collection('event_ticket_orders');
+      rsvpsQuery = firestore.collection('event_rsvps');
+      campaignsQuery = firestore.collection('promotion_campaigns');
+    } else if (organizationId != null &&
+        organizationId.isNotEmpty &&
+        _viewer.hasOrganizerAccess) {
+      ordersQuery = firestore
+          .collection('event_ticket_orders')
+          .where('organizationId', isEqualTo: organizationId);
+      rsvpsQuery = firestore
+          .collection('event_rsvps')
+          .where('organizationId', isEqualTo: organizationId);
+      campaignsQuery = firestore
+          .collection('promotion_campaigns')
+          .where('organizationId', isEqualTo: organizationId);
+    } else {
+      ordersQuery = firestore
+          .collection('event_ticket_orders')
+          .where('buyerId', isEqualTo: uid);
+      rsvpsQuery = firestore
+          .collection('event_rsvps')
+          .where('userId', isEqualTo: uid);
+    }
+
+    _ordersSubscription = ordersQuery.snapshots().listen((snapshot) {
+      _ordersHydrated = true;
+      _liveOrders
+        ..clear()
+        ..addAll(
+          snapshot.docs
+              .map(EventoraPaymentService.orderFromDocument)
+              .whereType<TicketOrder>(),
+        );
+      notifyListeners();
+    });
+
+    _rsvpsSubscription = rsvpsQuery.snapshots().listen((snapshot) {
+      _rsvpsHydrated = true;
+      _liveRsvps
+        ..clear()
+        ..addAll(
+          snapshot.docs
+              .map((doc) => _rsvpFromFirestore(doc))
+              .whereType<RsvpRecord>(),
+        );
+      notifyListeners();
+    });
+
+    if (campaignsQuery != null) {
+      _campaignsSubscription = campaignsQuery.snapshots().listen((snapshot) {
+        _campaignsHydrated = true;
+        _liveCampaigns
+          ..clear()
+          ..addAll(
+            snapshot.docs
+                .map((doc) => _campaignFromFirestore(doc))
+                .whereType<PromotionCampaign>(),
+          );
+        notifyListeners();
+      });
+    } else {
+      _campaignsHydrated = true;
+    }
+
+    _remindersSubscription = remindersQuery.snapshots().listen((snapshot) {
+      _remindersHydrated = true;
+      _liveReminders
+        ..clear()
+        ..addEntries(
+          snapshot.docs
+              .map(
+                (doc) => MapEntry(
+                  '${doc.data()['eventId'] ?? ''}'.trim(),
+                  _reminderTimingFromValue(doc.data()['timing']),
+                ),
+              )
+              .where((entry) => entry.key.isNotEmpty),
+        );
+      notifyListeners();
+    });
+  }
+
   EventModel? _eventFromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) {
@@ -724,6 +1049,11 @@ class EventoraRepository extends ChangeNotifier {
     final lineup = data['lineup'];
     final metrics = data['metrics'];
     final distribution = data['distribution'];
+    final rawLocation = data['location'];
+    final latitude = _latitudeFromValue(rawLocation, data['latitude']);
+    final longitude = _longitudeFromValue(rawLocation, data['longitude']);
+    final addressText = '${data['addressText'] ?? ''}'.trim();
+    final placeId = '${data['placeId'] ?? ''}'.trim();
 
     return EventModel(
       id: doc.id,
@@ -740,8 +1070,9 @@ class EventoraRepository extends ChangeNotifier {
       createdAt: _dateFromValue(data['createdAt']) ?? DateTime.now(),
       ticketing: EventTicketing(
         enabled: ticketing is Map ? ticketing['enabled'] != false : false,
-        requireTicket:
-            ticketing is Map ? ticketing['requireTicket'] == true : false,
+        requireTicket: ticketing is Map
+            ? ticketing['requireTicket'] == true
+            : false,
         currency: ticketing is Map
             ? '${ticketing['currency'] ?? 'GHS'}'
             : 'GHS',
@@ -783,11 +1114,79 @@ class EventoraRepository extends ChangeNotifier {
           ? (metrics['rsvpCount'] as num?)?.toInt() ?? 0
           : 0,
       mood: _eventMoodFromValue(data['mood']),
-      tags: (data['tags'] as Iterable?)
+      tags:
+          (data['tags'] as Iterable?)
               ?.map((value) => '$value')
               .where((value) => value.trim().isNotEmpty)
               .toList() ??
           const <String>[],
+      location: latitude == null || longitude == null
+          ? null
+          : EventLocation(
+              address: addressText.isEmpty
+                  ? '${data['venue'] ?? 'Venue TBA'}, ${data['city'] ?? 'Accra'}'
+                  : addressText,
+              latitude: latitude,
+              longitude: longitude,
+              placeId: placeId.isEmpty ? null : placeId,
+            ),
+    );
+  }
+
+  RsvpRecord? _rsvpFromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    if (data == null) {
+      return null;
+    }
+
+    return RsvpRecord(
+      id: doc.id,
+      eventId: '${data['eventId'] ?? ''}'.trim(),
+      eventTitle: '${data['eventTitle'] ?? ''}'.trim(),
+      attendeeUserId: '${data['userId'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${data['userId'] ?? ''}'.trim(),
+      name: '${data['name'] ?? ''}'.trim(),
+      phone: '${data['phone'] ?? ''}'.trim(),
+      guestCount: (data['guestCount'] as num?)?.toInt() ?? 1,
+      bookTable: data['bookTable'] == true,
+      createdAt: _dateFromValue(data['createdAt']) ?? DateTime.now(),
+    );
+  }
+
+  PromotionCampaign? _campaignFromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+    if (data == null) {
+      return null;
+    }
+
+    final rawChannels = data['channels'];
+    final channels = rawChannels is Iterable
+        ? rawChannels
+              .map((channel) => _promotionChannelFromValue(channel))
+              .whereType<PromotionChannel>()
+              .toList()
+        : const <PromotionChannel>[];
+
+    return PromotionCampaign(
+      id: doc.id,
+      eventId: '${data['eventId'] ?? ''}'.trim(),
+      eventTitle: '${data['eventTitle'] ?? ''}'.trim(),
+      name: '${data['name'] ?? ''}'.trim(),
+      createdByUserId: '${data['createdBy'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${data['createdBy'] ?? ''}'.trim(),
+      status: _promotionStatusFromValue(data['status']),
+      channels: channels,
+      scheduledAt: _dateFromValue(data['scheduledAt']),
+      pushAudience: (data['pushAudience'] as num?)?.toInt() ?? 0,
+      smsAudience: (data['smsAudience'] as num?)?.toInt() ?? 0,
+      shareLinkEnabled: data['shareLinkEnabled'] == true,
+      budget: (data['budget'] as num?)?.toDouble() ?? 0,
+      message: '${data['message'] ?? ''}'.trim(),
+      createdAt: _dateFromValue(data['createdAt']) ?? DateTime.now(),
     );
   }
 
@@ -803,6 +1202,68 @@ class EventoraRepository extends ChangeNotifier {
     }
     return null;
   }
+
+  double? _latitudeFromValue(Object? location, Object? fallback) {
+    if (location is GeoPoint) {
+      return location.latitude;
+    }
+    if (location is Map) {
+      final raw = location['latitude'] ?? location['lat'];
+      if (raw is num) {
+        return raw.toDouble();
+      }
+    }
+    if (fallback is num) {
+      return fallback.toDouble();
+    }
+    if (fallback is String && fallback.trim().isNotEmpty) {
+      return double.tryParse(fallback);
+    }
+    return null;
+  }
+
+  double? _longitudeFromValue(Object? location, Object? fallback) {
+    if (location is GeoPoint) {
+      return location.longitude;
+    }
+    if (location is Map) {
+      final raw = location['longitude'] ?? location['lng'];
+      if (raw is num) {
+        return raw.toDouble();
+      }
+    }
+    if (fallback is num) {
+      return fallback.toDouble();
+    }
+    if (fallback is String && fallback.trim().isNotEmpty) {
+      return double.tryParse(fallback);
+    }
+    return null;
+  }
+
+  double _distanceKm(
+    double startLatitude,
+    double startLongitude,
+    double endLatitude,
+    double endLongitude,
+  ) {
+    const earthRadiusKm = 6371.0;
+    final latitudeDelta = _degreesToRadians(endLatitude - startLatitude);
+    final longitudeDelta = _degreesToRadians(endLongitude - startLongitude);
+    final originLatitude = _degreesToRadians(startLatitude);
+    final destinationLatitude = _degreesToRadians(endLatitude);
+
+    final haversine =
+        sin(latitudeDelta / 2) * sin(latitudeDelta / 2) +
+        cos(originLatitude) *
+            cos(destinationLatitude) *
+            sin(longitudeDelta / 2) *
+            sin(longitudeDelta / 2);
+    final angularDistance = 2 * atan2(sqrt(haversine), sqrt(1 - haversine));
+    return earthRadiusKm * angularDistance;
+  }
+
+  double _degreesToRadians(double degrees) => degrees * pi / 180.0;
 
   RecurrenceFrequency _recurrenceFrequencyFromValue(Object? value) {
     return switch ('$value'.trim().toLowerCase()) {
@@ -830,10 +1291,56 @@ class EventoraRepository extends ChangeNotifier {
     };
   }
 
+  PromotionStatus _promotionStatusFromValue(Object? value) {
+    return switch ('$value'.trim().toLowerCase()) {
+      'draft' => PromotionStatus.draft,
+      'scheduled' => PromotionStatus.scheduled,
+      'completed' => PromotionStatus.completed,
+      _ => PromotionStatus.live,
+    };
+  }
+
+  PromotionChannel? _promotionChannelFromValue(Object? value) {
+    return switch ('$value'.trim().toLowerCase()) {
+      'push' => PromotionChannel.push,
+      'sms' => PromotionChannel.sms,
+      'sharelink' => PromotionChannel.shareLink,
+      'featured' => PromotionChannel.featured,
+      'announcement' => PromotionChannel.announcement,
+      _ => null,
+    };
+  }
+
+  ReminderTiming _reminderTimingFromValue(Object? value) {
+    return switch ('$value'.trim().toLowerCase()) {
+      'onday' => ReminderTiming.onDay,
+      'twodaysbefore' => ReminderTiming.twoDaysBefore,
+      'oneweekbefore' => ReminderTiming.oneWeekBefore,
+      'custom' => ReminderTiming.custom,
+      _ => ReminderTiming.oneDayBefore,
+    };
+  }
+
+  bool get _shouldUseLiveOrders =>
+      _cloudSync.isEnabled && _viewer.isAuthenticated && _ordersHydrated;
+
+  bool get _shouldUseLiveRsvps =>
+      _cloudSync.isEnabled && _viewer.isAuthenticated && _rsvpsHydrated;
+
+  bool get _shouldUseLiveCampaigns =>
+      _cloudSync.isEnabled && _viewer.isAuthenticated && _campaignsHydrated;
+
+  bool get _shouldUseLiveReminders =>
+      _cloudSync.isEnabled && _viewer.isAuthenticated && _remindersHydrated;
+
   @override
   void dispose() {
     _publicEventsSubscription?.cancel();
     _workspaceEventsSubscription?.cancel();
+    _ordersSubscription?.cancel();
+    _rsvpsSubscription?.cancel();
+    _campaignsSubscription?.cancel();
+    _remindersSubscription?.cancel();
     super.dispose();
   }
 }

@@ -1,17 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
 
-Future<void> showAuthPromptSheet(
+Future<bool> showAuthPromptSheet(
   BuildContext context, {
   required String title,
   required String body,
 }) {
+  final completer = Completer<bool>();
   final navigator = Navigator.of(context);
+  var launchedAuthRoute = false;
 
-  return showModalBottomSheet<void>(
+  showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
     builder: (sheetContext) {
@@ -21,18 +25,27 @@ Future<void> showAuthPromptSheet(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: sheetContext.text.titleLarge?.copyWith(fontSize: 24)),
+            Text(
+              title,
+              style: sheetContext.text.titleLarge?.copyWith(fontSize: 24),
+            ),
             const SizedBox(height: 10),
             Text(body, style: sheetContext.text.bodyLarge),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  launchedAuthRoute = true;
                   Navigator.of(sheetContext).pop();
-                  navigator.push(
-                    MaterialPageRoute<void>(builder: (_) => const SignUpScreen()),
+                  final created = await navigator.push<bool>(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => const SignUpScreen(),
+                    ),
                   );
+                  if (!completer.isCompleted) {
+                    completer.complete(created == true);
+                  }
                 },
                 child: const Text('Create account'),
               ),
@@ -41,24 +54,38 @@ Future<void> showAuthPromptSheet(
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () {
+                onPressed: () async {
+                  launchedAuthRoute = true;
                   Navigator.of(sheetContext).pop();
-                  navigator.push(
-                    MaterialPageRoute<void>(builder: (_) => const SignInScreen()),
+                  final signedIn = await navigator.push<bool>(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => const SignInScreen(),
+                    ),
                   );
+                  if (!completer.isCompleted) {
+                    completer.complete(signedIn == true);
+                  }
                 },
-                child: const Text('Sign in'),
+                child: const Text('I already have an account'),
               ),
             ),
             const SizedBox(height: 6),
             TextButton(
               onPressed: () => Navigator.of(sheetContext).pop(),
-              style: TextButton.styleFrom(foregroundColor: sheetContext.palette.slate),
-              child: const Text('Keep browsing as guest'),
+              style: TextButton.styleFrom(
+                foregroundColor: sheetContext.palette.slate,
+              ),
+              child: const Text('Not now'),
             ),
           ],
         ),
       );
     },
-  );
+  ).whenComplete(() {
+    if (!completer.isCompleted && !launchedAuthRoute) {
+      completer.complete(false);
+    }
+  });
+
+  return completer.future;
 }

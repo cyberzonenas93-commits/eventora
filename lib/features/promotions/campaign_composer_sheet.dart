@@ -39,6 +39,7 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
   bool _sendSms = true;
   bool _shareLink = true;
   bool _featureInDiscover = false;
+  bool _fullscreenAnnouncement = false;
   bool _scheduleForLater = true;
   DateTime _scheduledAt = DateTime.now().add(const Duration(hours: 4));
 
@@ -47,7 +48,9 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
     super.initState();
     _selectedEventId = widget.initialEvent?.id;
     _nameController = TextEditingController(
-      text: widget.initialEvent == null ? '' : '${widget.initialEvent!.title} launch',
+      text: widget.initialEvent == null
+          ? ''
+          : '${widget.initialEvent!.title} launch',
     );
     _budgetController = TextEditingController(text: '350');
     _messageController = TextEditingController(
@@ -70,8 +73,13 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
     final repository = context.watch<EventoraRepository>();
     final events = repository.managedEvents;
     final palette = context.palette;
-    final effectiveEventId = _selectedEventId ?? widget.initialEvent?.id ?? (events.isNotEmpty ? events.first.id : null);
-    final selectedEvent = effectiveEventId == null ? null : repository.eventById(effectiveEventId);
+    final effectiveEventId =
+        _selectedEventId ??
+        widget.initialEvent?.id ??
+        (events.isNotEmpty ? events.first.id : null);
+    final selectedEvent = effectiveEventId == null
+        ? null
+        : repository.eventById(effectiveEventId);
 
     return Container(
       decoration: const BoxDecoration(
@@ -85,208 +93,277 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
           20,
           MediaQuery.of(context).viewInsets.bottom + 24,
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 48,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: const Color(0x1A10212A),
-                    borderRadius: BorderRadius.circular(999),
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: const Color(0x1A10212A),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Launch promotion',
-                style: context.text.headlineSmall?.copyWith(fontSize: 26),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Build a push, SMS, and share-link campaign around one event.',
-                style: context.text.bodyMedium,
-              ),
-              const SizedBox(height: 24),
-              DropdownButtonFormField<String>(
-                initialValue: effectiveEventId,
-                items: events
-                    .map(
-                      (event) => DropdownMenuItem<String>(
-                        value: event.id,
-                        child: Text(event.title),
+                const SizedBox(height: 18),
+                Text(
+                  'Launch promotion',
+                  style: context.text.headlineSmall?.copyWith(fontSize: 26),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Build guest outreach and premium placements around one event.',
+                  style: context.text.bodyMedium,
+                ),
+                const SizedBox(height: 24),
+                if (events.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0x1410212A)),
+                    ),
+                    child: Text(
+                      'No hosted events are available yet. Create one from the Host tab before launching a campaign.',
+                      style: context.text.bodyLarge,
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: effectiveEventId,
+                    items: events
+                        .map(
+                          (event) => DropdownMenuItem<String>(
+                            value: event.id,
+                            child: Text(event.title),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() {
+                      _selectedEventId = value;
+                      final event = value == null
+                          ? null
+                          : repository.eventById(value);
+                      if (event != null &&
+                          _nameController.text.trim().isEmpty) {
+                        _nameController.text = '${event.title} launch';
+                      }
+                    }),
+                    decoration: const InputDecoration(labelText: 'Event'),
+                  ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _nameController,
+                  enabled: events.isNotEmpty,
+                  decoration: const InputDecoration(
+                    labelText: 'Campaign name',
+                    hintText: '72-hour final push',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _budgetController,
+                  enabled: events.isNotEmpty,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Budget',
+                    hintText: '350',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _messageController,
+                  enabled: events.isNotEmpty,
+                  minLines: 4,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Campaign message',
+                    hintText: 'What should this campaign say and do?',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Channels',
+                  style: context.text.titleLarge?.copyWith(fontSize: 20),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _ChannelToggle(
+                      label: 'Push alerts',
+                      selected: _sendPush,
+                      onTap: () => setState(() => _sendPush = !_sendPush),
+                    ),
+                    _ChannelToggle(
+                      label: 'SMS',
+                      selected: _sendSms,
+                      onTap: () => setState(() => _sendSms = !_sendSms),
+                    ),
+                    _ChannelToggle(
+                      label: 'Share link',
+                      selected: _shareLink,
+                      onTap: () => setState(() => _shareLink = !_shareLink),
+                    ),
+                    _ChannelToggle(
+                      label: 'Featured banner',
+                      selected: _featureInDiscover,
+                      onTap: () => setState(
+                        () => _featureInDiscover = !_featureInDiscover,
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _selectedEventId = value;
-                  final event = value == null ? null : repository.eventById(value);
-                  if (event != null && _nameController.text.trim().isEmpty) {
-                    _nameController.text = '${event.title} launch';
-                  }
-                }),
-                decoration: const InputDecoration(labelText: 'Event'),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Campaign name',
-                  hintText: '72-hour final push',
+                    ),
+                    _ChannelToggle(
+                      label: 'Fullscreen announcement',
+                      selected: _fullscreenAnnouncement,
+                      onTap: () => setState(
+                        () =>
+                            _fullscreenAnnouncement = !_fullscreenAnnouncement,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _budgetController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Budget',
-                  hintText: '350',
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _messageController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Campaign message',
-                  hintText: 'What should this campaign say and do?',
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text('Channels', style: context.text.titleLarge?.copyWith(fontSize: 20)),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _ChannelToggle(
-                    label: 'Push',
-                    selected: _sendPush,
-                    onTap: () => setState(() => _sendPush = !_sendPush),
-                  ),
-                  _ChannelToggle(
-                    label: 'SMS',
-                    selected: _sendSms,
-                    onTap: () => setState(() => _sendSms = !_sendSms),
-                  ),
-                  _ChannelToggle(
-                    label: 'Share link',
-                    selected: _shareLink,
-                    onTap: () => setState(() => _shareLink = !_shareLink),
-                  ),
-                  _ChannelToggle(
-                    label: 'Featured',
-                    selected: _featureInDiscover,
-                    onTap: () => setState(() => _featureInDiscover = !_featureInDiscover),
+                if (selectedEvent != null) ...[
+                  const SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0x1410212A)),
+                    ),
+                    child: Wrap(
+                      spacing: 14,
+                      runSpacing: 14,
+                      children: [
+                        _AudienceMetric(
+                          label: 'Push audience',
+                          value: repository
+                              .pushAudienceFor(selectedEvent.id)
+                              .toString(),
+                          color: palette.coral,
+                        ),
+                        _AudienceMetric(
+                          label: 'SMS audience',
+                          value: repository
+                              .smsAudienceFor(selectedEvent.id)
+                              .toString(),
+                          color: palette.teal,
+                        ),
+                        _AudienceMetric(
+                          label: 'Share URL',
+                          value: selectedEvent.allowSharing
+                              ? 'Ready'
+                              : 'Disabled',
+                          color: palette.gold,
+                        ),
+                        _AudienceMetric(
+                          label: 'Premium slots',
+                          value: (_featureInDiscover || _fullscreenAnnouncement)
+                              ? 'Selected'
+                              : 'Optional',
+                          color: palette.ink,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-              ),
-              if (selectedEvent != null) ...[
                 const SizedBox(height: 18),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0x1410212A)),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _scheduleForLater,
+                  onChanged: (value) =>
+                      setState(() => _scheduleForLater = value),
+                  title: const Text('Schedule for later'),
+                  subtitle: Text(
+                    _scheduleForLater
+                        ? formatPromoTime(_scheduledAt)
+                        : 'Start immediately',
+                    style: context.text.bodyMedium,
                   ),
-                  child: Wrap(
-                    spacing: 14,
-                    runSpacing: 14,
-                    children: [
-                      _AudienceMetric(
-                        label: 'Push audience',
-                        value: repository.pushAudienceFor(selectedEvent.id).toString(),
-                        color: palette.coral,
-                      ),
-                      _AudienceMetric(
-                        label: 'SMS audience',
-                        value: repository.smsAudienceFor(selectedEvent.id).toString(),
-                        color: palette.teal,
-                      ),
-                      _AudienceMetric(
-                        label: 'Share URL',
-                        value: selectedEvent.allowSharing ? 'Ready' : 'Disabled',
-                        color: palette.gold,
-                      ),
-                    ],
+                ),
+                if (_scheduleForLater)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await _pickDateTime(
+                          context,
+                          initial: _scheduledAt,
+                        );
+                        if (picked != null && mounted) {
+                          setState(() => _scheduledAt = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.event_outlined),
+                      label: Text(formatPromoTime(_scheduledAt)),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: events.isEmpty
+                        ? null
+                        : () {
+                      final event = selectedEvent;
+                      final name = _nameController.text.trim();
+                      final message = _messageController.text.trim();
+                      final budget =
+                          double.tryParse(_budgetController.text.trim()) ?? 0;
+
+                      if (event == null) {
+                        _showMessage(
+                          'Pick an event before launching a campaign.',
+                        );
+                        return;
+                      }
+                      if (name.isEmpty || message.isEmpty) {
+                        _showMessage('Give the campaign a name and a message.');
+                        return;
+                      }
+
+                      final channels = <PromotionChannel>[
+                        if (_sendPush) PromotionChannel.push,
+                        if (_sendSms) PromotionChannel.sms,
+                        if (_shareLink) PromotionChannel.shareLink,
+                        if (_featureInDiscover) PromotionChannel.featured,
+                        if (_fullscreenAnnouncement)
+                          PromotionChannel.announcement,
+                      ];
+                      if (channels.isEmpty) {
+                        _showMessage('Select at least one channel.');
+                        return;
+                      }
+
+                      final campaign = context
+                          .read<EventoraRepository>()
+                          .scheduleCampaign(
+                            event: event,
+                            name: name,
+                            scheduledAt: _scheduleForLater
+                                ? _scheduledAt
+                                : null,
+                            channels: channels,
+                            budget: budget,
+                            message: message,
+                          );
+                      Navigator.of(context).pop(campaign);
+                    },
+                    child: const Text('Launch campaign'),
                   ),
                 ),
               ],
-              const SizedBox(height: 18),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: _scheduleForLater,
-                onChanged: (value) => setState(() => _scheduleForLater = value),
-                title: const Text('Schedule for later'),
-                subtitle: Text(
-                  _scheduleForLater ? formatPromoTime(_scheduledAt) : 'Start immediately',
-                  style: context.text.bodyMedium,
-                ),
-              ),
-              if (_scheduleForLater)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await _pickDateTime(context, initial: _scheduledAt);
-                      if (picked != null && mounted) {
-                        setState(() => _scheduledAt = picked);
-                      }
-                    },
-                    icon: const Icon(Icons.event_outlined),
-                    label: Text(formatPromoTime(_scheduledAt)),
-                  ),
-                ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    final event = selectedEvent;
-                    final name = _nameController.text.trim();
-                    final message = _messageController.text.trim();
-                    final budget = double.tryParse(_budgetController.text.trim()) ?? 0;
-
-                    if (event == null) {
-                      _showMessage('Pick an event before launching a campaign.');
-                      return;
-                    }
-                    if (name.isEmpty || message.isEmpty) {
-                      _showMessage('Give the campaign a name and a message.');
-                      return;
-                    }
-
-                    final channels = <PromotionChannel>[
-                      if (_sendPush) PromotionChannel.push,
-                      if (_sendSms) PromotionChannel.sms,
-                      if (_shareLink) PromotionChannel.shareLink,
-                      if (_featureInDiscover) PromotionChannel.featured,
-                    ];
-                    if (channels.isEmpty) {
-                      _showMessage('Select at least one channel.');
-                      return;
-                    }
-
-                    final campaign = context.read<EventoraRepository>().scheduleCampaign(
-                          event: event,
-                          name: name,
-                          scheduledAt: _scheduleForLater ? _scheduledAt : null,
-                          channels: channels,
-                          budget: budget,
-                          message: message,
-                        );
-                    Navigator.of(context).pop(campaign);
-                  },
-                  child: const Text('Launch campaign'),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -294,10 +371,15 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<DateTime?> _pickDateTime(BuildContext context, {required DateTime initial}) async {
+  Future<DateTime?> _pickDateTime(
+    BuildContext context, {
+    required DateTime initial,
+  }) async {
     final date = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -370,10 +452,7 @@ class _AudienceMetric extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            value,
-            style: context.text.titleLarge?.copyWith(fontSize: 18),
-          ),
+          Text(value, style: context.text.titleLarge?.copyWith(fontSize: 18)),
           const SizedBox(height: 4),
           Text(label, style: context.text.bodyMedium),
         ],

@@ -76,8 +76,6 @@ class EventoraCloudSyncService {
     if (viewer.hasCustomerProfile || viewer.hasOrganizerAccess) {
       batch.set(_firestore.collection('users').doc(uid), <String, Object?>{
         'defaultOrganizationId': organizationId,
-        'roles': FieldValue.arrayUnion(const ['attendee', 'organizer']),
-        'organizerApplicationStatus': 'approved',
         'notificationPrefs': <String, Object?>{
           'pushEnabled': viewer.notificationPrefs.pushEnabled,
           'smsEnabled': viewer.notificationPrefs.smsEnabled,
@@ -124,25 +122,25 @@ class EventoraCloudSyncService {
       SetOptions(merge: true),
     );
 
-    if (event.allowSharing) {
-      batch.set(
-        _firestore.collection('share_links').doc(event.id),
-        <String, Object?>{
-          'type': 'event',
-          'targetId': event.id,
-          'organizationId': organizationId,
-          'title': event.title,
-          'description': event.description,
-          'slug': _slugify(event.title),
-          'requireTicket': event.ticketing.requireTicket,
-          'status': 'active',
-          'createdBy': viewer.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-    }
+    batch.set(
+      _firestore.collection('share_links').doc(event.id),
+      <String, Object?>{
+        'type': 'event',
+        'targetId': event.id,
+        'eventId': event.id,
+        'organizationId': organizationId,
+        'title': event.title,
+        'description': event.description,
+        'imageUrl': '',
+        'slug': _slugify(event.title),
+        'requireTicket': event.ticketing.requireTicket,
+        'status': event.allowSharing ? 'active' : 'disabled',
+        'createdBy': viewer.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
 
     await _runSafely(batch.commit);
   }
@@ -179,7 +177,7 @@ class EventoraCloudSyncService {
         transaction.set(rsvpRef, <String, Object?>{
           'eventId': event.id,
           'occurrenceId': '${event.id}_primary',
-          'userId': viewer.uid,
+          'userId': record.attendeeUserId ?? viewer.uid,
           'organizationId': organizationId,
           'eventTitle': event.title,
           'name': record.name,
@@ -191,7 +189,7 @@ class EventoraCloudSyncService {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
         transaction.set(eventRsvpRef, <String, Object?>{
-          'userId': viewer.uid,
+          'userId': record.attendeeUserId ?? viewer.uid,
           'name': record.name,
           'phone': record.phone,
           'guestCount': record.guestCount,
@@ -236,7 +234,7 @@ class EventoraCloudSyncService {
           'occurrenceId': '${event.id}_primary',
           'organizationId': organizationId,
           'eventTitle': order.eventTitle,
-          'buyerId': viewer.uid,
+          'buyerId': order.buyerUserId ?? viewer.uid,
           'buyerName': order.buyerName,
           'buyerPhone': order.buyerPhone,
           'buyerEmail': order.buyerEmail,
@@ -292,7 +290,7 @@ class EventoraCloudSyncService {
               'eventId': event.id,
               'occurrenceId': '${event.id}_primary',
               'organizationId': organizationId,
-              'buyerId': viewer.uid,
+              'buyerId': order.buyerUserId ?? viewer.uid,
               'attendeeName': ticket.attendeeName,
               'tierId': ticket.tierId,
               'tierName': ticket.tierName,
@@ -402,7 +400,7 @@ class EventoraCloudSyncService {
         'shareLinkEnabled': campaign.shareLinkEnabled,
         'budget': campaign.budget,
         'message': campaign.message,
-        'createdBy': viewer.uid,
+        'createdBy': campaign.createdByUserId ?? viewer.uid,
         'createdAt': Timestamp.fromDate(campaign.createdAt),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -479,7 +477,13 @@ class EventoraCloudSyncService {
       'venue': event.venue,
       'city': event.city,
       'country': 'Ghana',
-      'addressText': '${event.venue}, ${event.city}',
+      'addressText': event.location?.address ?? '${event.venue}, ${event.city}',
+      'placeId': event.location?.placeId,
+      'location': event.location == null
+          ? null
+          : GeoPoint(event.location!.latitude, event.location!.longitude),
+      'latitude': event.location?.latitude,
+      'longitude': event.location?.longitude,
       'visibility': switch (event.visibility) {
         EventVisibility.publicEvent => 'public',
         EventVisibility.privateEvent => 'private',
@@ -560,6 +564,10 @@ class EventoraCloudSyncService {
       'timezone': 'Africa/Accra',
       'city': event.city,
       'venue': event.venue,
+      'addressText': event.location?.address ?? '${event.venue}, ${event.city}',
+      'location': event.location == null
+          ? null
+          : GeoPoint(event.location!.latitude, event.location!.longitude),
       'ticketingEnabled': event.ticketing.enabled,
       'requireTicket': event.ticketing.requireTicket,
       'createdAt': FieldValue.serverTimestamp(),

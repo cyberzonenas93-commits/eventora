@@ -7,12 +7,17 @@ void main() {
   testWidgets('Eventora shell renders the core navigation', (WidgetTester tester) async {
     GoogleFonts.config.allowRuntimeFetching = false;
 
-    await tester.pumpWidget(const EventoraApp(firebaseEnabled: false));
-    await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      const EventoraApp(
+        firebaseEnabled: false,
+        skipLaunchOnboarding: true,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Discover'), findsOneWidget);
-    expect(find.text('Manage'), findsOneWidget);
-    expect(find.text('Tickets'), findsOneWidget);
-    expect(find.text('Promote'), findsOneWidget);
+    expect(find.text('Explore'), findsOneWidget);
+    expect(find.text('Host'), findsOneWidget);
+    expect(find.text('Passes'), findsOneWidget);
+    expect(find.text('Reach'), findsOneWidget);
   });
 }

@@ -37,11 +37,20 @@ dependencies:
   firebase_auth: ^6.1.1
   firebase_core: ^4.2.0
   firebase_messaging: ^16.0.2
+  firebase_storage: ^13.0.2
   flutter_local_notifications: ^19.4.1
   google_fonts: ^6.3.2
+  image_picker: ^1.2.0
   intl: ^0.20.2
   provider: ^6.1.5
+  qr_flutter: ^4.1.0
+  share_plus: ^11.1.0
+  shared_preferences: ^2.5.3
   url_launcher: ^6.3.1
+  app_links: ^6.4.0
+  google_maps_flutter: ^2.15.0
+  geolocator: ^14.0.2
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
@@ -60,3 +69,5 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
   uses-material-design: true
+  assets:
+    - Eventora_Icon_Pack/

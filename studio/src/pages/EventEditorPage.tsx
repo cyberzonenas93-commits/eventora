@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
-import { createEmptyEvent, getOrganizerEvent, saveOrganizerEvent } from '../lib/portalData'
+import {
+  createEmptyEvent,
+  getOrganizerEvent,
+  saveOrganizerEvent,
+} from '../lib/portalData'
+import { formatMoney } from '../lib/formatters'
 import { usePortalSession } from '../lib/portalSession'
 import type { PortalEvent, PortalTicketTier } from '../lib/types'
 
@@ -51,7 +56,48 @@ export function EventEditorPage() {
     }
   }, [eventId, session.organizationId, session.user])
 
-  if (!session.user || session.status !== 'approved') {
+  const readinessChecks = useMemo(() => {
+    if (!eventDraft) {
+      return []
+    }
+
+    return [
+      {
+        label: 'Event title is set',
+        complete: eventDraft.title.trim().length >= 3,
+      },
+      {
+        label: 'Description is filled in',
+        complete: eventDraft.description.trim().length >= 24,
+      },
+      {
+        label: 'Venue and city are set',
+        complete: Boolean(eventDraft.venue.trim() && eventDraft.city.trim()),
+      },
+      {
+        label: 'Start time is scheduled',
+        complete: Boolean(eventDraft.startAt),
+      },
+      {
+        label: eventDraft.ticketingEnabled
+          ? 'At least one ticket tier is configured'
+          : 'Ticketing is intentionally turned off',
+        complete: eventDraft.ticketingEnabled ? eventDraft.tiers.length > 0 : true,
+      },
+    ]
+  }, [eventDraft])
+
+  const completedChecks = readinessChecks.filter((item) => item.complete).length
+  const totalCapacity = (eventDraft?.tiers ?? []).reduce(
+    (sum, tier) => sum + tier.maxQuantity,
+    0,
+  )
+  const potentialGross = (eventDraft?.tiers ?? []).reduce(
+    (sum, tier) => sum + tier.price * tier.maxQuantity,
+    0,
+  )
+
+  if (!session.user) {
     return <Navigate replace to="/" />
   }
 
@@ -80,274 +126,480 @@ export function EventEditorPage() {
 
   return (
     <div className="dashboard-stack">
-      <section className="hero-card hero-card--compact">
-        <div>
+      <section className="page-hero page-hero--editor">
+        <div className="page-hero__content">
           <p className="eyebrow">{eventId ? 'Edit event' : 'Create event'}</p>
-          <h2>Set the event identity, ticket tiers, and organizer-facing distribution rules.</h2>
+          <h2>Shape the public event page before guests ever see it.</h2>
+          <p>
+            Use the main canvas for copy and ticket setup, then rely on the
+            summary rail to check what is still missing before you publish.
+          </p>
+          <div className="hero-chip-row">
+            <span>{eventDraft.visibility} visibility</span>
+            <span>{eventDraft.status} status</span>
+            <span>
+              {eventDraft.ticketingEnabled ? `${eventDraft.tiers.length} ticket tiers` : 'No ticketing'}
+            </span>
+          </div>
+        </div>
+        <div className="page-hero__panel">
+          <p className="eyebrow">Readiness</p>
+          <h3>
+            {completedChecks}/{readinessChecks.length} checks complete
+          </h3>
+          <p>
+            Save once the essentials are in place, then come back to refine
+            details as your campaign or lineup evolves.
+          </p>
+          <div className="hero-actions">
+            <button className="button button--secondary" onClick={() => navigate('/events')} type="button">
+              Back to events
+            </button>
+            <button
+              className="button button--primary"
+              disabled={isSaving || !eventDraft.title.trim() || !eventDraft.venue.trim()}
+              onClick={handleSave}
+              type="button"
+            >
+              {isSaving ? 'Saving...' : 'Save event'}
+            </button>
+          </div>
         </div>
       </section>
 
-      <section className="editor-card">
-        <div className="form-grid">
-          <Field
-            label="Event title"
-            value={eventDraft.title}
-            onChange={(value) => setEventDraft((current) => current && { ...current, title: value })}
-            wide
-          />
-          <Field
-            label="Description"
-            value={eventDraft.description}
-            onChange={(value) =>
-              setEventDraft((current) => current && { ...current, description: value })
-            }
-            wide
-          />
-          <Field
-            label="Venue"
-            value={eventDraft.venue}
-            onChange={(value) => setEventDraft((current) => current && { ...current, venue: value })}
-          />
-          <Field
-            label="City"
-            value={eventDraft.city}
-            onChange={(value) => setEventDraft((current) => current && { ...current, city: value })}
-          />
-          <Field
-            label="Start date & time"
-            type="datetime-local"
-            value={eventDraft.startAt}
-            onChange={(value) => setEventDraft((current) => current && { ...current, startAt: value })}
-          />
-          <Field
-            label="End date & time"
-            type="datetime-local"
-            value={eventDraft.endAt}
-            onChange={(value) => setEventDraft((current) => current && { ...current, endAt: value })}
-          />
-          <SelectField
-            label="Visibility"
-            value={eventDraft.visibility}
-            onChange={(value) =>
-              setEventDraft((current) =>
-                current ? { ...current, visibility: value as PortalEvent['visibility'] } : current,
-              )
-            }
-            options={[
-              ['public', 'Public'],
-              ['private', 'Private'],
-            ]}
-          />
-          <SelectField
-            label="Publish state"
-            value={eventDraft.status}
-            onChange={(value) =>
-              setEventDraft((current) =>
-                current ? { ...current, status: value as PortalEvent['status'] } : current,
-              )
-            }
-            options={[
-              ['draft', 'Draft'],
-              ['published', 'Published'],
-              ['cancelled', 'Cancelled'],
-            ]}
-          />
-          <Field
-            label="Performers"
-            value={eventDraft.performers}
-            onChange={(value) =>
-              setEventDraft((current) => current && { ...current, performers: value })
-            }
-          />
-          <Field
-            label="DJs"
-            value={eventDraft.djs}
-            onChange={(value) => setEventDraft((current) => current && { ...current, djs: value })}
-          />
-          <Field
-            label="MCs"
-            value={eventDraft.mcs}
-            onChange={(value) => setEventDraft((current) => current && { ...current, mcs: value })}
-          />
-          <Field
-            label="Tags"
-            value={eventDraft.tags.join(', ')}
-            onChange={(value) =>
-              setEventDraft((current) =>
-                current
-                  ? {
-                      ...current,
-                      tags: value
-                        .split(',')
-                        .map((tag) => tag.trim())
-                        .filter(Boolean),
-                    }
-                  : current,
-              )
-            }
-            wide
-          />
-        </div>
-
-        <div className="editor-section">
-          <div className="editor-section__header">
-            <div>
-              <p className="eyebrow">Ticketing</p>
-              <h3>Ticket tiers and access rules</h3>
+      <div className="editor-layout">
+        <div className="editor-column">
+          <section className="editor-card editor-card--section">
+            <div className="editor-section__header">
+              <div>
+                <p className="eyebrow">Event identity</p>
+                <h3>Core details guests will read first</h3>
+              </div>
             </div>
-            <ToggleField
-              checked={eventDraft.ticketingEnabled}
-              label="Ticketing enabled"
-              onChange={(checked) =>
-                setEventDraft((current) =>
-                  current ? { ...current, ticketingEnabled: checked } : current,
-                )
-              }
-            />
-          </div>
 
-          <ToggleField
-            checked={eventDraft.requireTicket}
-            label="Require ticket for entry"
-            onChange={(checked) =>
-              setEventDraft((current) =>
-                current ? { ...current, requireTicket: checked } : current,
-              )
-            }
-          />
+            <div className="form-grid">
+              <Field
+                label="Event title"
+                note="Keep it short, recognizable, and easy to scan."
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, title: value })
+                }
+                value={eventDraft.title}
+                wide
+              />
+              <Field
+                label="Description"
+                multiline
+                note="Cover the format, energy, and what guests should expect."
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, description: value })
+                }
+                rows={5}
+                value={eventDraft.description}
+                wide
+              />
+              <SelectField
+                label="Visual mood"
+                onChange={(value) =>
+                  setEventDraft((current) =>
+                    current ? { ...current, mood: value } : current,
+                  )
+                }
+                options={[
+                  ['night', 'Night'],
+                  ['sunrise', 'Sunrise'],
+                  ['electric', 'Electric'],
+                  ['garden', 'Garden'],
+                ]}
+                value={eventDraft.mood}
+              />
+              <Field
+                label="Tags"
+                note="Separate tags with commas. Example: Afrobeats, Rooftop, Day party"
+                onChange={(value) =>
+                  setEventDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          tags: value
+                            .split(',')
+                            .map((tag) => tag.trim())
+                            .filter(Boolean),
+                        }
+                      : current,
+                  )
+                }
+                placeholder="Afrobeats, Rooftop, Day party"
+                value={eventDraft.tags.join(', ')}
+                wide
+              />
+            </div>
+          </section>
 
-          <div className="tiers-list">
-            {eventDraft.tiers.map((tier, index) => (
-              <div className="tier-card" key={tier.tierId}>
-                <div className="form-grid">
-                  <Field
-                    label="Tier name"
-                    value={tier.name}
-                    onChange={(value) => updateTier(index, { ...tier, name: value })}
-                  />
-                  <Field
-                    label="Price"
-                    type="number"
-                    value={String(tier.price)}
-                    onChange={(value) =>
-                      updateTier(index, { ...tier, price: Number(value || 0) })
-                    }
-                  />
-                  <Field
-                    label="Capacity"
-                    type="number"
-                    value={String(tier.maxQuantity)}
-                    onChange={(value) =>
-                      updateTier(index, { ...tier, maxQuantity: Number(value || 0) })
-                    }
-                  />
-                  <Field
-                    label="Description"
-                    value={tier.description}
-                    onChange={(value) => updateTier(index, { ...tier, description: value })}
-                    wide
-                  />
+          <section className="editor-card editor-card--section">
+            <div className="editor-section__header">
+              <div>
+                <p className="eyebrow">Schedule and venue</p>
+                <h3>Set timing, location, and launch state</h3>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <Field
+                label="Venue"
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, venue: value })
+                }
+                value={eventDraft.venue}
+              />
+              <Field
+                label="City"
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, city: value })
+                }
+                value={eventDraft.city}
+              />
+              <Field
+                label="Start date and time"
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, startAt: value })
+                }
+                type="datetime-local"
+                value={eventDraft.startAt}
+              />
+              <Field
+                label="End date and time"
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, endAt: value })
+                }
+                type="datetime-local"
+                value={eventDraft.endAt}
+              />
+              <SelectField
+                label="Visibility"
+                onChange={(value) =>
+                  setEventDraft((current) =>
+                    current
+                      ? { ...current, visibility: value as PortalEvent['visibility'] }
+                      : current,
+                  )
+                }
+                options={[
+                  ['public', 'Public'],
+                  ['private', 'Private'],
+                ]}
+                value={eventDraft.visibility}
+              />
+              <SelectField
+                label="Publish state"
+                onChange={(value) =>
+                  setEventDraft((current) =>
+                    current
+                      ? { ...current, status: value as PortalEvent['status'] }
+                      : current,
+                  )
+                }
+                options={[
+                  ['draft', 'Draft'],
+                  ['published', 'Published'],
+                  ['cancelled', 'Cancelled'],
+                ]}
+                value={eventDraft.status}
+              />
+            </div>
+          </section>
+
+          <section className="editor-card editor-card--section">
+            <div className="editor-section__header">
+              <div>
+                <p className="eyebrow">Lineup</p>
+                <h3>Highlight the talent and hosts</h3>
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <Field
+                label="Performers"
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, performers: value })
+                }
+                placeholder="Featured artists, speakers, or guest talent"
+                value={eventDraft.performers}
+              />
+              <Field
+                label="DJs"
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, djs: value })
+                }
+                placeholder="Headline DJ names"
+                value={eventDraft.djs}
+              />
+              <Field
+                label="MCs"
+                onChange={(value) =>
+                  setEventDraft((current) => current && { ...current, mcs: value })
+                }
+                placeholder="Hosts and on-stage personalities"
+                value={eventDraft.mcs}
+                wide
+              />
+            </div>
+          </section>
+
+          <section className="editor-card editor-card--section">
+            <div className="editor-section__header">
+              <div>
+                <p className="eyebrow">Ticketing</p>
+                <h3>Build tiers that match your door strategy</h3>
+              </div>
+            </div>
+
+            <div className="toggle-stack">
+              <ToggleField
+                checked={eventDraft.ticketingEnabled}
+                description="Turn this off only if guests should RSVP without ticket inventory."
+                label="Ticketing enabled"
+                onChange={(checked) =>
+                  setEventDraft((current) =>
+                    current ? { ...current, ticketingEnabled: checked } : current,
+                  )
+                }
+              />
+              <ToggleField
+                checked={eventDraft.requireTicket}
+                description="Require a ticket when door access should stay tightly controlled."
+                label="Require a ticket for entry"
+                onChange={(checked) =>
+                  setEventDraft((current) =>
+                    current ? { ...current, requireTicket: checked } : current,
+                  )
+                }
+              />
+            </div>
+
+            {eventDraft.ticketingEnabled ? (
+              <>
+                <div className="tiers-list">
+                  {eventDraft.tiers.map((tier, index) => (
+                    <div className="tier-card" key={tier.tierId}>
+                      <div className="tier-card__header">
+                        <div>
+                          <strong>{tier.name || `Tier ${index + 1}`}</strong>
+                          <span>
+                            {formatMoney(tier.price)} • capacity {tier.maxQuantity}
+                          </span>
+                        </div>
+                        <button
+                          className="button button--ghost"
+                          onClick={() =>
+                            setEventDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    tiers: current.tiers.filter(
+                                      (item) => item.tierId !== tier.tierId,
+                                    ),
+                                  }
+                                : current,
+                            )
+                          }
+                          type="button"
+                        >
+                          Remove tier
+                        </button>
+                      </div>
+                      <div className="form-grid">
+                        <Field
+                          label="Tier name"
+                          onChange={(value) => updateTier(index, { ...tier, name: value })}
+                          value={tier.name}
+                        />
+                        <Field
+                          label="Price"
+                          onChange={(value) =>
+                            updateTier(index, { ...tier, price: Number(value || 0) })
+                          }
+                          type="number"
+                          value={String(tier.price)}
+                        />
+                        <Field
+                          label="Capacity"
+                          onChange={(value) =>
+                            updateTier(index, {
+                              ...tier,
+                              maxQuantity: Number(value || 0),
+                            })
+                          }
+                          type="number"
+                          value={String(tier.maxQuantity)}
+                        />
+                        <Field
+                          label="Description"
+                          multiline
+                          onChange={(value) =>
+                            updateTier(index, { ...tier, description: value })
+                          }
+                          rows={3}
+                          value={tier.description}
+                          wide
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
+
                 <button
-                  className="button button--ghost"
+                  className="button button--secondary"
                   onClick={() =>
                     setEventDraft((current) =>
                       current
                         ? {
                             ...current,
-                            tiers: current.tiers.filter((item) => item.tierId !== tier.tierId),
+                            tiers: [
+                              ...current.tiers,
+                              {
+                                tierId: crypto.randomUUID(),
+                                name: 'New tier',
+                                price: 0,
+                                maxQuantity: 100,
+                                sold: 0,
+                                description: '',
+                              },
+                            ],
                           }
                         : current,
                     )
                   }
                   type="button"
                 >
-                  Remove tier
+                  Add ticket tier
                 </button>
+              </>
+            ) : (
+              <div className="empty-card">
+                <h4>Ticketing is off for this event</h4>
+                <p>
+                  Guests can still view the page, but no ticket inventory will be
+                  sold from Studio until you turn ticketing back on.
+                </p>
               </div>
-            ))}
-          </div>
+            )}
+          </section>
 
-          <button
-            className="button button--secondary"
-            onClick={() =>
-              setEventDraft((current) =>
-                current
-                  ? {
-                      ...current,
-                      tiers: [
-                        ...current.tiers,
-                        {
-                          tierId: crypto.randomUUID(),
-                          name: 'New tier',
-                          price: 0,
-                          maxQuantity: 100,
-                          sold: 0,
-                          description: '',
-                        },
-                      ],
-                    }
-                  : current,
-              )
-            }
-            type="button"
-          >
-            Add ticket tier
-          </button>
-        </div>
-
-        <div className="editor-section">
-          <div className="editor-section__header">
-            <div>
-              <p className="eyebrow">Distribution</p>
-              <h3>Sharing and notification defaults</h3>
+          <section className="editor-card editor-card--section">
+            <div className="editor-section__header">
+              <div>
+                <p className="eyebrow">Distribution</p>
+                <h3>Choose how Eventora promotes and shares this page</h3>
+              </div>
             </div>
-          </div>
-          <div className="toggle-stack">
-            <ToggleField
-              checked={eventDraft.allowSharing}
-              label="Allow share links"
-              onChange={(checked) =>
-                setEventDraft((current) => current && { ...current, allowSharing: checked })
-              }
-            />
-            <ToggleField
-              checked={eventDraft.sendPushNotification}
-              label="Send push notification on publish"
-              onChange={(checked) =>
-                setEventDraft((current) =>
-                  current && { ...current, sendPushNotification: checked },
-                )
-              }
-            />
-            <ToggleField
-              checked={eventDraft.sendSmsNotification}
-              label="Send SMS notification on publish"
-              onChange={(checked) =>
-                setEventDraft((current) =>
-                  current && { ...current, sendSmsNotification: checked },
-                )
-              }
-            />
-          </div>
+
+            <div className="toggle-stack">
+              <ToggleField
+                checked={eventDraft.allowSharing}
+                description="Let guests copy links and share the event across channels."
+                label="Allow share links"
+                onChange={(checked) =>
+                  setEventDraft((current) =>
+                    current ? { ...current, allowSharing: checked } : current,
+                  )
+                }
+              />
+              <ToggleField
+                checked={eventDraft.sendPushNotification}
+                description="Send push notifications when you publish or update the event."
+                label="Send push on publish"
+                onChange={(checked) =>
+                  setEventDraft((current) =>
+                    current ? { ...current, sendPushNotification: checked } : current,
+                  )
+                }
+              />
+              <ToggleField
+                checked={eventDraft.sendSmsNotification}
+                description="Enable SMS outreach for important guest updates."
+                label="Send SMS on publish"
+                onChange={(checked) =>
+                  setEventDraft((current) =>
+                    current ? { ...current, sendSmsNotification: checked } : current,
+                  )
+                }
+              />
+            </div>
+          </section>
         </div>
 
-        {error ? <p className="form-error">{error}</p> : null}
+        <aside className="editor-sidebar">
+          <section className="editor-card editor-card--summary">
+            <p className="eyebrow">Summary rail</p>
+            <h3>{eventDraft.title.trim() || 'Untitled event draft'}</h3>
+            <p>
+              {eventDraft.venue.trim() && eventDraft.city.trim()
+                ? `${eventDraft.venue}, ${eventDraft.city}`
+                : 'Venue details will appear here once you add them.'}
+            </p>
 
-        <div className="editor-actions">
-          <button className="button button--ghost" onClick={() => navigate('/events')} type="button">
-            Back to events
-          </button>
-          <button
-            className="button button--primary"
-            disabled={isSaving || !eventDraft.title.trim() || !eventDraft.venue.trim()}
-            onClick={handleSave}
-            type="button"
-          >
-            {isSaving ? 'Saving...' : 'Save event'}
-          </button>
-        </div>
-      </section>
+            <div className="summary-stat-grid">
+              <article className="summary-stat">
+                <span>Ticket tiers</span>
+                <strong>{eventDraft.tiers.length}</strong>
+              </article>
+              <article className="summary-stat">
+                <span>Capacity</span>
+                <strong>{totalCapacity}</strong>
+              </article>
+              <article className="summary-stat">
+                <span>Potential gross</span>
+                <strong>{formatMoney(potentialGross)}</strong>
+              </article>
+              <article className="summary-stat">
+                <span>Event ID</span>
+                <strong>{eventDraft.id || 'Not saved yet'}</strong>
+              </article>
+            </div>
+
+            <div className="readiness-card">
+              <div className="panel__header">
+                <div>
+                  <p className="eyebrow">Checklist</p>
+                  <h4>Before you publish</h4>
+                </div>
+              </div>
+              <ul className="readiness-list">
+                {readinessChecks.map((item) => (
+                  <li
+                    className={item.complete ? 'is-complete' : 'is-pending'}
+                    key={item.label}
+                  >
+                    <span>{item.complete ? 'Ready' : 'Pending'}</span>
+                    <strong>{item.label}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {error ? <p className="form-error">{error}</p> : null}
+
+            <div className="editor-actions editor-actions--stacked">
+              <button
+                className="button button--ghost button--full"
+                onClick={() => navigate('/events')}
+                type="button"
+              >
+                Back to events
+              </button>
+              <button
+                className="button button--primary button--full"
+                disabled={isSaving || !eventDraft.title.trim() || !eventDraft.venue.trim()}
+                onClick={handleSave}
+                type="button"
+              >
+                {isSaving ? 'Saving...' : 'Save event'}
+              </button>
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
   )
 
@@ -371,17 +623,40 @@ function Field({
   onChange,
   type = 'text',
   wide = false,
+  placeholder,
+  note,
+  multiline = false,
+  rows = 4,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   type?: string
   wide?: boolean
+  placeholder?: string
+  note?: string
+  multiline?: boolean
+  rows?: number
 }) {
   return (
     <label className={wide ? 'field field--wide' : 'field'}>
       <span>{label}</span>
-      <input onChange={(event) => onChange(event.target.value)} type={type} value={value} />
+      {multiline ? (
+        <textarea
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+          value={value}
+        />
+      ) : (
+        <input
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          type={type}
+          value={value}
+        />
+      )}
+      {note ? <small>{note}</small> : null}
     </label>
   )
 }
@@ -414,16 +689,21 @@ function SelectField({
 function ToggleField({
   checked,
   label,
+  description,
   onChange,
 }: {
   checked: boolean
   label: string
+  description: string
   onChange: (value: boolean) => void
 }) {
   return (
-    <label className="toggle">
+    <label className="toggle-card">
+      <div>
+        <strong>{label}</strong>
+        <p>{description}</p>
+      </div>
       <input checked={checked} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
-      <span>{label}</span>
     </label>
   )
 }

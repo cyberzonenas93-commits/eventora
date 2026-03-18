@@ -15,21 +15,13 @@ export function SettingsPage() {
       <section className="page-hero page-hero--settings">
         <div className="page-hero__content">
           <p className="eyebrow">Settings</p>
-          <h2>Keep your organizer identity, brand, and payout details current.</h2>
-          <p>
-            This is the control page for account information, workspace details,
-            and the payout destination your team relies on when tickets sell.
-          </p>
+          <h2>Keep your workspace current.</h2>
         </div>
         <div className="page-hero__panel">
           <p className="eyebrow">Current status</p>
           <h3>{session.status === 'active' ? 'Live' : titleCaseStatus(session.status)}</h3>
-          <p>
-            Your Studio workspace is live. Update it whenever your team, brand, or payout details change.
-          </p>
           <div className={payoutReadiness.ready ? 'signal-card signal-card--ready' : 'signal-card'}>
             <strong>{payoutReadiness.label}</strong>
-            <p>{payoutReadiness.detail}</p>
           </div>
         </div>
       </section>
@@ -47,7 +39,7 @@ export function SettingsPage() {
             style={{ '--workspace-accent': accentColor } as CSSProperties}
           >
             <strong>{workspaceName}</strong>
-            <p>{workspaceTagline}</p>
+            {workspaceTagline ? <p>{workspaceTagline}</p> : null}
             <small>
               {session.application?.audienceCity || 'Accra'} • {session.application?.businessType || 'Organizer workspace'}
             </small>

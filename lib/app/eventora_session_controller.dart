@@ -1,9 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../data/services/eventora_notification_service.dart';
 import '../domain/models/account_models.dart';
@@ -18,6 +24,11 @@ class EventoraAuthFailure implements Exception {
 }
 
 class EventoraSessionController extends ChangeNotifier {
+  static const String _googleWebServerClientId =
+      '872808273884-b3oi71o9tnuc2n8o11ejsdn37c604mrm.apps.googleusercontent.com';
+  static const String _googleIosClientId =
+      '872808273884-foqs1970kq12flua89mbg56jvuqh4hqe.apps.googleusercontent.com';
+
   EventoraSessionController({required bool firebaseEnabled})
     : _firebaseEnabled = firebaseEnabled {
     if (_firebaseEnabled) {
@@ -35,6 +46,7 @@ class EventoraSessionController extends ChangeNotifier {
   bool _isInitializing = false;
   bool _isProcessing = false;
   EventoraWorkspaceFace? _selectedFace;
+  bool _googleInitialized = false;
 
   EventoraViewer get viewer => _viewer;
   bool get isGuest => _viewer.isGuest;
@@ -127,6 +139,9 @@ class EventoraSessionController extends ChangeNotifier {
       hasCustomerProfile: hasCustomerProfile,
       hasAdminProfile: hasAdminProfile,
     );
+    final organizerReviewNotes =
+        (organizerData['reviewNotes'] as String?)?.trim();
+
     _viewer = EventoraViewer(
       uid: user.uid,
       displayName: _resolveDisplayName(
@@ -157,10 +172,9 @@ class EventoraSessionController extends ChangeNotifier {
           (adminData['defaultOrganizationId'] as String?) ??
           (organizerData['organizationId'] as String?),
       organizerApplicationStatus: organizerStatus,
-      organizerReviewNotes:
-          (organizerData['reviewNotes'] as String?)?.trim().isEmpty == true
+      organizerReviewNotes: organizerReviewNotes?.isEmpty == true
           ? null
-          : (organizerData['reviewNotes'] as String?),
+          : organizerReviewNotes,
       hasCustomerProfile: hasCustomerProfile,
       hasAdminProfile: hasAdminProfile,
     );
@@ -223,6 +237,84 @@ class EventoraSessionController extends ChangeNotifier {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
+      );
+    });
+  }
+
+  Future<void> signInWithGoogle() async {
+    _ensureFirebaseEnabled();
+    await _runGuarded(() async {
+      await _ensureGoogleInitialized();
+      if (!GoogleSignIn.instance.supportsAuthenticate()) {
+        throw const EventoraAuthFailure(
+          'Google sign-in is not available on this device yet.',
+        );
+      }
+
+      final account = await GoogleSignIn.instance.authenticate();
+      final googleAuth = account.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const EventoraAuthFailure(
+          'Google sign-in is not fully configured yet. Add the Google OAuth client configuration and try again.',
+        );
+      }
+
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      await _completeSocialProfile(
+        userCredential.user,
+        displayName: account.displayName?.trim(),
+        photoUrl: account.photoUrl,
+      );
+    });
+  }
+
+  Future<void> signInWithApple() async {
+    _ensureFirebaseEnabled();
+    if (defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.macOS) {
+      throw const EventoraAuthFailure(
+        'Apple sign-in is only available on Apple devices.',
+      );
+    }
+
+    await _runGuarded(() async {
+      final isAvailable = await SignInWithApple.isAvailable();
+      if (!isAvailable) {
+        throw const EventoraAuthFailure(
+          'Apple sign-in is not available on this device yet.',
+        );
+      }
+
+      final rawNonce = _generateNonce();
+      final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+      final identityToken = appleCredential.identityToken;
+      if (identityToken == null || identityToken.isEmpty) {
+        throw const EventoraAuthFailure(
+          'Apple sign-in did not return a valid identity token.',
+        );
+      }
+
+      final credential = OAuthProvider('apple.com').credential(
+        idToken: identityToken,
+        rawNonce: rawNonce,
+      );
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      await _completeSocialProfile(
+        userCredential.user,
+        displayName: _appleDisplayName(appleCredential),
       );
     });
   }
@@ -391,17 +483,87 @@ class EventoraSessionController extends ChangeNotifier {
     );
   }
 
+  Future<void> _completeSocialProfile(
+    User? user, {
+    String? displayName,
+    String? photoUrl,
+  }) async {
+    if (user == null) {
+      throw const EventoraAuthFailure(
+        'We could not finish signing you in.',
+      );
+    }
+
+    final resolvedName =
+        displayName?.trim().isNotEmpty == true
+        ? displayName!.trim()
+        : (user.displayName?.trim().isNotEmpty == true
+              ? user.displayName!.trim()
+              : _displayNameFromEmail(user.email));
+    final resolvedPhotoUrl =
+        photoUrl?.trim().isNotEmpty == true
+        ? photoUrl!.trim()
+        : user.photoURL?.trim();
+
+    if (user.displayName != resolvedName) {
+      await user.updateDisplayName(resolvedName);
+    }
+    if (resolvedPhotoUrl != null &&
+        resolvedPhotoUrl.isNotEmpty &&
+        user.photoURL != resolvedPhotoUrl) {
+      await user.updatePhotoURL(resolvedPhotoUrl);
+    }
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+      <String, Object?>{
+        'displayName': resolvedName,
+        'email': user.email,
+        'photoUrl': resolvedPhotoUrl,
+        'organizerApplicationStatus': 'notStarted',
+        'notificationPrefs': const <String, Object?>{
+          'pushEnabled': true,
+          'smsEnabled': true,
+          'marketingOptIn': false,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> _runGuarded(Future<void> Function() action) async {
     _isProcessing = true;
     notifyListeners();
     try {
       await action();
+    } on EventoraAuthFailure {
+      rethrow;
     } on FirebaseAuthException catch (error) {
       throw EventoraAuthFailure(_friendlyAuthMessage(error));
     } on FirebaseException catch (error) {
       throw EventoraAuthFailure(
         error.message ?? 'Something went wrong. Please try again.',
       );
+    } on PlatformException catch (error) {
+      throw EventoraAuthFailure(
+        error.message ?? 'That sign-in flow is not configured correctly yet.',
+      );
+    } on SignInWithAppleAuthorizationException catch (error) {
+      if (error.code == AuthorizationErrorCode.canceled) {
+        throw const EventoraAuthFailure('Apple sign-in was cancelled.');
+      }
+      throw EventoraAuthFailure(error.message);
+    } on GoogleSignInException catch (error) {
+      if (error.code == GoogleSignInExceptionCode.canceled) {
+        throw const EventoraAuthFailure('Google sign-in was cancelled.');
+      }
+      throw EventoraAuthFailure(
+        error.description ??
+            'Google sign-in could not be completed. Check the Firebase OAuth setup and try again.',
+      );
+    } on Exception catch (error) {
+      throw EventoraAuthFailure(error.toString());
     } finally {
       _isProcessing = false;
       notifyListeners();
@@ -431,6 +593,40 @@ class EventoraSessionController extends ChangeNotifier {
       return EventoraWorkspaceFace.admin;
     }
     return EventoraWorkspaceFace.attendee;
+  }
+
+  Future<void> _ensureGoogleInitialized() async {
+    if (_googleInitialized) {
+      return;
+    }
+    await GoogleSignIn.instance.initialize(
+      clientId: defaultTargetPlatform == TargetPlatform.iOS ||
+              defaultTargetPlatform == TargetPlatform.macOS
+          ? _googleIosClientId
+          : null,
+      serverClientId: _googleWebServerClientId,
+    );
+    _googleInitialized = true;
+  }
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List<String>.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  String? _appleDisplayName(AuthorizationCredentialAppleID credential) {
+    final given = credential.givenName?.trim() ?? '';
+    final family = credential.familyName?.trim() ?? '';
+    final joined = '$given $family'.trim();
+    if (joined.isEmpty) {
+      return null;
+    }
+    return joined;
   }
 
   String _resolveDisplayName({
@@ -545,6 +741,8 @@ class EventoraSessionController extends ChangeNotifier {
 
   String _friendlyAuthMessage(FirebaseAuthException error) {
     return switch (error.code) {
+      'account-exists-with-different-credential' =>
+        'That email is already linked to a different sign-in method.',
       'email-already-in-use' => 'That email already has an Eventora account.',
       'invalid-email' => 'Enter a valid email address.',
       'invalid-credential' => 'Those sign-in details did not match an account.',

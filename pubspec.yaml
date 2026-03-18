@@ -33,6 +33,7 @@ dependencies:
 
   cloud_functions: ^6.0.1
   cloud_firestore: ^6.1.0
+  crypto: ^3.0.6
   cupertino_icons: ^1.0.8
   firebase_auth: ^6.1.1
   firebase_core: ^4.2.0
@@ -40,12 +41,14 @@ dependencies:
   firebase_storage: ^13.0.2
   flutter_local_notifications: ^19.4.1
   google_fonts: ^6.3.2
+  google_sign_in: ^7.2.0
   image_picker: ^1.2.0
   intl: ^0.20.2
   provider: ^6.1.5
   qr_flutter: ^4.1.0
   share_plus: ^11.1.0
   shared_preferences: ^2.5.3
+  sign_in_with_apple: ^7.0.1
   url_launcher: ^6.3.1
   app_links: ^6.4.0
   google_maps_flutter: ^2.15.0

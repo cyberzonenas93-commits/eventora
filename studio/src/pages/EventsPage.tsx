@@ -70,11 +70,7 @@ export function EventsPage() {
       <section className="page-hero page-hero--events">
         <div className="page-hero__content">
           <p className="eyebrow">Events management</p>
-          <h2>Keep every event page polished, searchable, and ready to launch.</h2>
-          <p>
-            Browse your portfolio, jump into edits quickly, and manage every public
-            or private event from one clean production workspace.
-          </p>
+          <h2>Manage every event in one place.</h2>
           <div className="hero-chip-row">
             <span>{events.length} total events</span>
             <span>{publishedEvents} published</span>
@@ -111,12 +107,10 @@ export function EventsPage() {
         {events.length === 0 ? (
           <div className="empty-card">
             <h4>No events created yet</h4>
-            <p>Your workspace is live. Create your first event now.</p>
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="empty-card">
             <h4>No matches for "{query}"</h4>
-            <p>Try a different title, venue, city, or artist name.</p>
           </div>
         ) : (
           filteredEvents.map((event) => (
@@ -128,7 +122,6 @@ export function EventsPage() {
                 <span className="status-pill status-pill--soft">{event.visibility}</span>
               </div>
               <h3>{event.title}</h3>
-              <p>{event.description || 'No event description yet.'}</p>
               <div className="event-card__meta">
                 <span>{formatDateTime(event.startAt)}</span>
                 <span>

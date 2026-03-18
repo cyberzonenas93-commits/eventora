@@ -10,21 +10,15 @@ import type { OrganizerApplication } from '../lib/types'
 const stepCopy = {
   account: {
     eyebrow: 'Workspace',
-    title: 'Set up the organizer identity behind your events',
-    description:
-      'Add the brand, city, and operator details guests and collaborators should recognize.',
+    title: 'Set up your organizer profile',
   },
   payout: {
     eyebrow: 'Payouts',
-    title: 'Choose where ticket revenue should land',
-    description:
-      'Set the payout destination your team wants to use when sales begin and settlements start moving.',
+    title: 'Choose your payout destination',
   },
   launch: {
     eyebrow: 'Launch',
-    title: 'Finish your workspace and create your first event',
-    description:
-      'Review the essentials, save your workspace, and move straight into event creation.',
+    title: 'Save and launch',
   },
 } as const
 
@@ -168,11 +162,7 @@ export function SetupPage() {
 
         <div className="setup-sidebar__intro">
           <p className="eyebrow">Self-serve launch</p>
-          <h2>Set up your workspace once, then create events without waiting on review.</h2>
-          <p>
-            This setup is here to help your team look polished from day one. Save it now,
-            refine it anytime, and keep moving.
-          </p>
+          <h2>Set up your workspace, then create events right away.</h2>
         </div>
 
         <div className="setup-progress-card">
@@ -188,7 +178,6 @@ export function SetupPage() {
           <div className="setup-progress-bar">
             <span style={{ width: `${completionPercent}%` }} />
           </div>
-          <p>Set your brand identity, payout destination, and launch preferences in one flow.</p>
         </div>
 
         <ol className="setup-steps">
@@ -200,13 +189,6 @@ export function SetupPage() {
               <span>{index + 1}</span>
               <div>
                 <strong>{item.replace(/^\w/, (letter) => letter.toUpperCase())}</strong>
-                <small>
-                  {item === 'account'
-                    ? 'Brand and operator details'
-                    : item === 'payout'
-                      ? 'Settlement destination'
-                      : 'Open your dashboard'}
-                </small>
               </div>
             </li>
           ))}
@@ -215,17 +197,6 @@ export function SetupPage() {
         <div className="setup-summary-card">
           <span className="eyebrow">Workspace status</span>
           <h3>Live</h3>
-          <p>Your account already has a live workspace. This page helps you make it complete and launch-ready.</p>
-        </div>
-
-        <div className="setup-guidance-card">
-          <span className="eyebrow">Recommended next</span>
-          <ul className="setup-guidance-list">
-            <li>Add a recognizable organizer identity</li>
-            <li>Save a payout destination before ticket sales start</li>
-            <li>Use a strong tagline and logo for event pages</li>
-            <li>Create your first event as soon as the basics are in place</li>
-          </ul>
         </div>
       </aside>
 
@@ -236,11 +207,8 @@ export function SetupPage() {
               {activeStep.eyebrow} • Step {currentIndex + 1}
             </p>
             <h1>{activeStep.title}</h1>
-            <p className="page-description">{activeStep.description}</p>
             <div className="hero-chip-row hero-chip-row--compact">
               <span>Live workspace</span>
-              <span>Production-ready language</span>
-              <span>Create events immediately</span>
             </div>
           </div>
           <div className="setup-hero__panel">
@@ -261,16 +229,6 @@ export function SetupPage() {
 
         <div className="setup-main-grid">
           <div className="setup-card">
-            <div className="setup-card__intro">
-              <strong>
-                {safeStep === 'account'
-                  ? 'Start with the brand guests, partners, and your own team should recognize instantly.'
-                  : safeStep === 'payout'
-                    ? 'You can add payout details now or come back before your first major ticket drop.'
-                    : 'Use this final step to save your workspace and move directly into event creation.'}
-              </strong>
-            </div>
-
             {safeStep === 'account' ? (
               <div className="form-grid">
                 <Field
@@ -556,10 +514,10 @@ export function SetupPage() {
               <h3>{activeStep.title}</h3>
               <p>
                 {safeStep === 'account'
-                  ? 'Create a recognizable organizer identity for your dashboard and public event pages.'
+                  ? 'Your brand details will show across Studio and event pages.'
                   : safeStep === 'payout'
-                    ? 'Make sure your settlement destination is ready before your next ticket launch.'
-                    : 'Save your workspace and move directly into Eventora Studio.'}
+                    ? 'Set where payouts should land.'
+                    : 'Save and move into Studio.'}
               </p>
             </div>
             <div className="setup-side-panel__card">
@@ -568,7 +526,7 @@ export function SetupPage() {
                 {setupSteps.map((item, index) => (
                   <li className={completedSteps[index] ? 'is-complete' : 'is-pending'} key={item}>
                     <strong>{item.replace(/^\w/, (letter) => letter.toUpperCase())}</strong>
-                    <span>{completedSteps[index] ? 'Completed' : 'Still needs attention'}</span>
+                    <span>{completedSteps[index] ? 'Done' : 'Pending'}</span>
                   </li>
                 ))}
               </ul>
@@ -580,10 +538,7 @@ export function SetupPage() {
                 style={{ '--workspace-accent': form.brandAccentColor || '#f26b3d' } as CSSProperties}
               >
                 <strong>{form.organizerName || 'Your organizer brand'}</strong>
-                <p>
-                  {form.brandTagline ||
-                    'Add a short line that tells guests and partners what your brand feels like.'}
-                </p>
+                <p>{form.brandTagline || 'Add a short tagline.'}</p>
                 <small>
                   {form.audienceCity || 'Accra'} • {form.businessType || 'Event organizer'}
                 </small>

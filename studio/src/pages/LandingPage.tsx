@@ -101,6 +101,38 @@ export function LandingPage() {
     }
   }
 
+  async function handleGoogle() {
+    setError('')
+    setIsBusy(true)
+    try {
+      await session.signInWithGoogle({ seedOrganizerProfile: !isAdminHost })
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Could not complete Google sign-in.',
+      )
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function handleApple() {
+    setError('')
+    setIsBusy(true)
+    try {
+      await session.signInWithApple({ seedOrganizerProfile: !isAdminHost })
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Could not complete Apple sign-in.',
+      )
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
   return (
     <main className="landing-page landing-page--reference">
       <section className="landing-hero landing-hero--reference">
@@ -116,65 +148,8 @@ export function LandingPage() {
             <span className="eyebrow">{isAdminHost ? 'Platform operations' : 'Premium event platform'}</span>
           </div>
           <h1>{isAdminHost ? 'Run approvals from one control room.' : 'Built to sell out.'}</h1>
-          <p>
-            {isAdminHost
-              ? 'Sign in as a superadmin to review organizer activity, approve teams, and keep Eventora operations moving from one secure dashboard.'
-              : 'Create your Eventora Studio account, open your workspace instantly, and launch your first event with premium tools for ticketing, payouts, promotion, and guest experience.'}
-          </p>
           <div className="hero-chip-row">
-            {isAdminHost ? (
-              <>
-                <span>Organizer approvals</span>
-                <span>Review notes</span>
-                <span>Provisioning control</span>
-              </>
-            ) : (
-                <>
-                  <span>Instant workspace</span>
-                  <span>Event publishing</span>
-                  <span>Guest-ready ticketing</span>
-                </>
-              )}
-            </div>
-
-          <div className="reference-story-card">
-            <strong>{isAdminHost ? 'What superadmins control' : 'What happens after signup'}</strong>
-            <ol className="merchant-timeline merchant-timeline--stacked">
-              {isAdminHost ? (
-                <>
-                  <li>View every organizer application in one queue</li>
-                  <li>Mark applications under review with notes</li>
-                  <li>Approve or reject submissions from the web dashboard</li>
-                  <li>Provision organizer access through the existing backend flow</li>
-                </>
-              ) : (
-                <>
-                  <li>Create your organizer account</li>
-                  <li>Open your workspace right away</li>
-                  <li>Set your brand, payouts, and launch preferences</li>
-                  <li>Create and publish your first event from the same dashboard</li>
-                </>
-              )}
-            </ol>
-          </div>
-
-          <div className="merchant-proof-grid merchant-proof-grid--reference">
-            <article className="merchant-proof-card merchant-proof-card--warm">
-              <strong>{isAdminHost ? 'One queue' : 'Single path'}</strong>
-              <p>
-                {isAdminHost
-                  ? 'Superadmins can review submitted applications without leaving the web dashboard.'
-                  : 'Account creation, workspace setup, event publishing, and payouts stay inside one clean creator flow.'}
-              </p>
-            </article>
-            <article className="merchant-proof-card merchant-proof-card--mint">
-              <strong>{isAdminHost ? 'Live status control' : 'Launch with confidence'}</strong>
-              <p>
-                {isAdminHost
-                  ? 'Approval decisions, review notes, and organization provisioning stay tied to the same backend workflow.'
-                  : 'Brand setup, payouts, promotion, and event creation are available immediately without approval bottlenecks.'}
-              </p>
-            </article>
+            <span>{isAdminHost ? 'Organizer approvals' : 'Instant workspace'}</span>
           </div>
         </div>
       </section>
@@ -189,13 +164,6 @@ export function LandingPage() {
                 ? 'Create your Eventora Studio account'
                 : 'Welcome back'}
           </h2>
-          <p>
-            {isAdminHost
-              ? 'Only superadmins can review organizer applications and provision approved teams from this site.'
-              : mode === 'signup'
-                ? 'Create your account to open Eventora Studio instantly and start building your first live event.'
-                : 'Sign in to return to your workspace, update your brand, or launch your next event.'}
-          </p>
         </div>
 
         {isAdminHost ? null : (
@@ -244,7 +212,6 @@ export function LandingPage() {
                 placeholder="024 123 4567"
                 value={signup.phone}
               />
-              <small>Used for account security and payout notifications</small>
             </label>
             <label className="field">
               <span>Email Address *</span>
@@ -259,7 +226,6 @@ export function LandingPage() {
                 type="email"
                 value={signup.email}
               />
-              <small>We&apos;ll send event updates and important notifications here</small>
             </label>
             <label className="field">
               <span>Password *</span>
@@ -284,11 +250,10 @@ export function LandingPage() {
                 </button>
               </div>
               <div className="password-rules">
-                <p>Password must include:</p>
                 <ul>
-                  <li className={hasPasswordLength ? 'is-valid' : ''}>At least 8 characters</li>
-                  <li className={hasPasswordCase ? 'is-valid' : ''}>Uppercase and lowercase letters</li>
-                  <li className={hasPasswordNumber ? 'is-valid' : ''}>At least one number</li>
+                  <li className={hasPasswordLength ? 'is-valid' : ''}>8+ characters</li>
+                  <li className={hasPasswordCase ? 'is-valid' : ''}>Upper and lower case</li>
+                  <li className={hasPasswordNumber ? 'is-valid' : ''}>1 number</li>
                 </ul>
               </div>
             </label>
@@ -370,11 +335,44 @@ export function LandingPage() {
                 : 'Sign in to Studio'}
         </button>
 
+        <div className="auth-social">
+          <div className="auth-social__divider">
+            <span>or</span>
+          </div>
+          <button
+            className="button button--secondary button--full auth-social__button"
+            disabled={isBusy}
+            onClick={handleGoogle}
+            type="button"
+          >
+            <span className="auth-social__icon" aria-hidden="true">
+              G
+            </span>
+            <span>{isAdminHost ? 'Continue with Google' : 'Start with Google'}</span>
+          </button>
+          <button
+            className="button button--secondary button--full auth-social__button"
+            disabled={isBusy}
+            onClick={handleApple}
+            type="button"
+          >
+            <span className="auth-social__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <path
+                  d="M15.4 12.6c0-2 1.7-3 1.8-3.1-1-1.5-2.5-1.7-3-1.7-1.3-.1-2.6.8-3.3.8s-1.8-.8-2.9-.8c-1.5 0-2.9.9-3.7 2.2-1.6 2.8-.4 6.9 1.1 9 .7 1 1.5 2.1 2.6 2.1s1.5-.7 2.9-.7 1.7.7 2.9.7 1.9-1 2.6-2c.8-1.2 1.1-2.3 1.1-2.3-.1 0-2.1-.8-2.1-4.2Zm-2.1-6.2c.6-.8 1.1-1.9 1-3-.9 0-2 .6-2.6 1.4-.6.7-1.1 1.8-.9 2.9 1 .1 2-.5 2.5-1.3Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            <span>{isAdminHost ? 'Continue with Apple' : 'Start with Apple'}</span>
+          </button>
+        </div>
+
         <div className="auth-panel__footer">
           <p>
             By continuing, you agree to our{' '}
             <button className="inline-link-button" type="button">
-              Terms of Service
+              Terms
             </button>{' '}
             and{' '}
             <button className="inline-link-button" type="button">

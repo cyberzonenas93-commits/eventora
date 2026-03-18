@@ -11,7 +11,7 @@ class EventoraSplashStage extends StatefulWidget {
   });
 
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final bool showLoader;
 
   @override
@@ -39,7 +39,6 @@ class _EventoraSplashStageState extends State<EventoraSplashStage>
       builder: (context, constraints) {
         final compact = constraints.maxHeight < 220;
         final badgeSize = compact ? 92.0 : 126.0;
-        final badgeRadius = compact ? 26.0 : 34.0;
         final titleStyle = compact
             ? context.text.headlineSmall
             : context.text.headlineMedium;
@@ -98,39 +97,39 @@ class _EventoraSplashStageState extends State<EventoraSplashStage>
                           animation: _glowController,
                           builder: (context, child) {
                             final glow = Tween<double>(
-                              begin: compact ? 16 : 22,
-                              end: compact ? 24 : 36,
+                              begin: compact ? 18 : 26,
+                              end: compact ? 28 : 40,
                             ).transform(_glowController.value);
-                            return Container(
+                            return SizedBox(
                               width: badgeSize,
                               height: badgeSize,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(
-                                  badgeRadius,
-                                ),
-                                color: Colors.white.withValues(alpha: 0.18),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.32),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.white.withValues(alpha: 0.22),
-                                    blurRadius: glow,
-                                    spreadRadius: 3,
-                                  ),
-                                ],
-                              ),
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
+                                  Container(
+                                    width: compact ? 56 : 72,
+                                    height: compact ? 56 : 72,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.24,
+                                          ),
+                                          blurRadius: glow,
+                                          spreadRadius: 4,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   Icon(
                                     Icons.confirmation_num_rounded,
-                                    size: compact ? 42 : 58,
+                                    size: compact ? 52 : 68,
                                     color: Colors.white,
                                   ),
                                   Positioned(
-                                    top: compact ? 18 : 28,
-                                    right: compact ? 18 : 28,
+                                    top: compact ? 18 : 26,
+                                    right: compact ? 16 : 24,
                                     child: Icon(
                                       Icons.auto_awesome_rounded,
                                       size: compact ? 12 : 16,
@@ -152,16 +151,18 @@ class _EventoraSplashStageState extends State<EventoraSplashStage>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: compact ? 6 : 10),
-                        Text(
-                          widget.subtitle,
-                          style: subtitleStyle?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.9),
+                        if ((widget.subtitle ?? '').isNotEmpty) ...[
+                          SizedBox(height: compact ? 6 : 10),
+                          Text(
+                            widget.subtitle!,
+                            style: subtitleStyle?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: compact ? 1 : 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          textAlign: TextAlign.center,
-                          maxLines: compact ? 1 : 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        ],
                         if (widget.showLoader) ...[
                           SizedBox(height: compact ? 16 : 28),
                           SizedBox(

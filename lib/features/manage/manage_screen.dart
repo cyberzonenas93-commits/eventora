@@ -86,14 +86,7 @@ class ManageScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 28),
-        SectionHeading(
-          title: 'Premium placements',
-          subtitle: session.isGuest
-              ? 'Featured banners and full-screen announcements are paid placements available once you start hosting.'
-              : organizerReady
-              ? 'Use premium inventory when an event deserves extra attention in the attendee dashboard.'
-              : 'Premium placements unlock once your hosting setup is approved.',
-        ),
+        SectionHeading(title: 'Premium placements', subtitle: null),
         const SizedBox(height: 14),
         Wrap(
           spacing: 14,
@@ -101,8 +94,6 @@ class ManageScreen extends StatelessWidget {
           children: [
             _HostPlacementCard(
               title: 'Featured banner',
-              body:
-                  'Put an event into the Explore banner rail so it leads the dashboard instead of waiting inside the normal list.',
               stat: '$featuredCount campaigns',
               icon: Icons.workspace_premium_outlined,
               actionLabel: session.isGuest
@@ -121,8 +112,6 @@ class ManageScreen extends StatelessWidget {
             ),
             _HostPlacementCard(
               title: 'Fullscreen announcement',
-              body:
-                  'Book a splash-like takeover that opens before attendees start scrolling through the event feed.',
               stat: '$announcementCount campaigns',
               icon: Icons.open_in_full_outlined,
               actionLabel: session.isGuest
@@ -144,11 +133,7 @@ class ManageScreen extends StatelessWidget {
         const SizedBox(height: 28),
         SectionHeading(
           title: 'Host tools',
-          subtitle: session.isGuest
-              ? 'Create an account to draft events, set ticket prices, and start building your host profile.'
-              : organizerReady
-              ? 'Update the essentials quickly: dates, tickets, sharing, reminders, and promotions.'
-              : 'Finish your host access setup right here in the app, then publish and manage events from this workspace.',
+          subtitle: null,
           actionLabel: session.isGuest
               ? 'Get started'
               : organizerReady
@@ -164,17 +149,13 @@ class ManageScreen extends StatelessWidget {
         if (session.isGuest)
           EmptyStateCard(
             title: 'Ready to host your first event?',
-            body:
-                'Create an account when you want to build an event page, sell tickets, and share updates with guests.',
             icon: Icons.lock_outline,
             actionLabel: 'Create account',
             onAction: () => _promptForAccess(context),
           )
         else if (!organizerReady && viewer.hasPendingOrganizerApplication)
           EmptyStateCard(
-            title: 'Your host application is being reviewed',
-            body:
-                'You have already submitted your host access request. We will unlock publishing tools here as soon as approval is complete.',
+            title: 'Host setup is in review',
             icon: Icons.pending_actions_outlined,
             actionLabel: 'Review status',
             onAction: () => _openHostAccess(context),
@@ -184,8 +165,6 @@ class ManageScreen extends StatelessWidget {
                 OrganizerApplicationStatus.rejected)
           EmptyStateCard(
             title: 'Your host application needs an update',
-            body:
-                'Open your host access setup, fix the requested details, and send it back for review.',
             icon: Icons.feedback_outlined,
             actionLabel: 'Update now',
             onAction: () => _openHostAccess(context),
@@ -193,17 +172,13 @@ class ManageScreen extends StatelessWidget {
         else if (!organizerReady)
           EmptyStateCard(
             title: 'Set up host access',
-            body:
-                'Complete your organizer profile and payout setup here in the app so the hosting tools are ready when you need them.',
             icon: Icons.storefront_outlined,
             actionLabel: 'Start setup',
             onAction: () => _openHostAccess(context),
           )
         else if (events.isEmpty)
           EmptyStateCard(
-            title: 'You have not created an event yet',
-            body:
-                'Start with a public event, a ticketed launch, or a private guest list. You can edit everything later.',
+            title: 'No events yet',
             icon: Icons.add_circle_outline,
             actionLabel: 'Create event',
             onAction: () => _openEditor(context),
@@ -272,9 +247,8 @@ class ManageScreen extends StatelessWidget {
   void _promptForAccess(BuildContext context) {
     showAuthPromptSheet(
       context,
-      title: 'Hosting starts with an account',
-      body:
-          'Create an Eventora account to build events, set ticket options, and share updates with guests.',
+      title: 'Create an account to host',
+      body: 'Hosting needs an account.',
     );
   }
 
@@ -328,19 +302,19 @@ class _ManageHero extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Start hosting when you are ready.'
+                ? 'Start hosting.'
                 : !organizerReady
-                ? 'Finish your host access setup before you publish from the app.'
-                : 'Everything you need to keep your events moving, $organizerName.',
+                ? 'Finish setup to publish.'
+                : 'Keep events moving, $organizerName.',
             style: context.text.headlineSmall,
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'You can keep browsing as a guest. Sign in later to build an event page, sell tickets, and promote it.'
+                ? 'Host with an account.'
                 : !organizerReady
-                ? 'Current setup status: $organizerStatusLabel.'
-                : 'You have tracked ${formatMoney(totalRevenue)} in ticket sales so far.',
+                ? organizerStatusLabel
+                : formatMoney(totalRevenue),
             style: context.text.bodyLarge?.copyWith(color: palette.slate),
           ),
         ],
@@ -352,7 +326,6 @@ class _ManageHero extends StatelessWidget {
 class _HostPlacementCard extends StatelessWidget {
   const _HostPlacementCard({
     required this.title,
-    required this.body,
     required this.stat,
     required this.icon,
     required this.actionLabel,
@@ -360,7 +333,6 @@ class _HostPlacementCard extends StatelessWidget {
   });
 
   final String title;
-  final String body;
   final String stat;
   final IconData icon;
   final String actionLabel;
@@ -397,8 +369,6 @@ class _HostPlacementCard extends StatelessWidget {
                 title,
                 style: context.text.titleLarge?.copyWith(fontSize: 20),
               ),
-              const SizedBox(height: 8),
-              Text(body, style: context.text.bodyMedium),
               const SizedBox(height: 14),
               _FooterPill(label: stat),
               const SizedBox(height: 14),

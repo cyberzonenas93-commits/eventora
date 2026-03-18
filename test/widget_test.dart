@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -15,9 +16,23 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Explore'), findsOneWidget);
-    expect(find.text('Host'), findsOneWidget);
-    expect(find.text('Passes'), findsOneWidget);
-    expect(find.text('Reach'), findsOneWidget);
+    final navigationBar = find.byType(BottomNavigationBar);
+
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Explore')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Host')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Passes')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: navigationBar, matching: find.text('Reach')),
+      findsOneWidget,
+    );
   });
 }

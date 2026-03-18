@@ -22,12 +22,10 @@ class AccountScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
         children: [
           _AccountHero(
-            title: viewer.isGuest
-                ? 'You are browsing as a guest'
-                : viewer.displayName,
+            title: viewer.isGuest ? 'Guest mode' : viewer.displayName,
             body: viewer.isGuest
-                ? 'You can explore public events without signing in. Create an account when you want to save tickets, RSVP faster, or start hosting.'
-                : 'Signed in as ${viewer.email ?? 'your Eventora account'}.',
+                ? null
+                : viewer.email ?? 'Your Eventora account',
             photoUrl: viewer.photoUrl,
           ),
           const SizedBox(height: 22),
@@ -39,13 +37,8 @@ class AccountScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Why it is worth creating an account',
+                      'Create an account',
                       style: context.text.titleLarge?.copyWith(fontSize: 20),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Accounts let you save tickets, RSVP faster, manage reminders, keep a profile photo, and unlock hosting tools later. Date of birth is collected at signup, while your contact number stays optional.',
-                      style: context.text.bodyLarge,
                     ),
                     const SizedBox(height: 18),
                     SizedBox(
@@ -126,13 +119,6 @@ class AccountScreen extends StatelessWidget {
                         'Workspace switcher',
                         style: context.text.titleLarge?.copyWith(fontSize: 20),
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'This account can open both the Eventora app and the admin console. Switch views without signing out.',
-                        style: context.text.bodyMedium?.copyWith(
-                          color: context.palette.slate,
-                        ),
-                      ),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
@@ -159,15 +145,6 @@ class AccountScreen extends StatelessWidget {
                     Text(
                       'Want to host events?',
                       style: context.text.titleLarge?.copyWith(fontSize: 20),
-                    ),
-                    const SizedBox(height: 10),
-                      Text(
-                        viewer.hasOrganizerAccess
-                          ? 'Your account can open the full host workspace and manage live event operations.'
-                          : 'Finish your host access setup in the app so we can unlock the full publishing and operations tools.',
-                        style: context.text.bodyMedium?.copyWith(
-                          color: context.palette.slate,
-                        ),
                     ),
                     const SizedBox(height: 14),
                     _DetailRow(
@@ -209,13 +186,6 @@ class AccountScreen extends StatelessWidget {
                       'Notifications',
                       style: context.text.titleLarge?.copyWith(fontSize: 20),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Choose how Eventora keeps you updated. Promotional messages stay off unless you opt in.',
-                      style: context.text.bodyMedium?.copyWith(
-                        color: context.palette.slate,
-                      ),
-                    ),
                     const SizedBox(height: 12),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
@@ -225,9 +195,6 @@ class AccountScreen extends StatelessWidget {
                           : (value) =>
                                 _updatePrefs(context, pushEnabled: value),
                       title: const Text('Push notifications'),
-                      subtitle: const Text(
-                        'Ticket updates, reminders, and event alerts on this device.',
-                      ),
                     ),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
@@ -236,9 +203,6 @@ class AccountScreen extends StatelessWidget {
                           ? null
                           : (value) => _updatePrefs(context, smsEnabled: value),
                       title: const Text('SMS updates'),
-                      subtitle: const Text(
-                        'Transactional event texts if you add a phone number through RSVP or checkout.',
-                      ),
                     ),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
@@ -248,9 +212,6 @@ class AccountScreen extends StatelessWidget {
                           : (value) =>
                                 _updatePrefs(context, marketingOptIn: value),
                       title: const Text('Promotional campaigns'),
-                      subtitle: const Text(
-                        'Turn this on only if you want hosts to send you event promos and launch updates.',
-                      ),
                     ),
                   ],
                 ),
@@ -294,13 +255,6 @@ class AccountScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Deleting your account removes your profile from the app. You can always create a new one later.',
-                      style: context.text.bodyMedium?.copyWith(
-                        color: context.palette.slate,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -316,11 +270,6 @@ class AccountScreen extends StatelessWidget {
                   Text(
                     'Safety and support',
                     style: context.text.titleLarge?.copyWith(fontSize: 20),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'You can browse as a guest, report listings that feel unsafe, and share only the details needed for tickets, reminders, and account security.',
-                    style: context.text.bodyLarge,
                   ),
                 ],
               ),
@@ -461,10 +410,10 @@ class AccountScreen extends StatelessWidget {
 }
 
 class _AccountHero extends StatelessWidget {
-  const _AccountHero({required this.title, required this.body, this.photoUrl});
+  const _AccountHero({required this.title, this.body, this.photoUrl});
 
   final String title;
-  final String body;
+  final String? body;
   final String? photoUrl;
 
   @override
@@ -519,21 +468,22 @@ class _AccountHero extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                body,
-                style: context.text.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
+              if (body != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  body!,
+                  style: context.text.bodyLarge?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 16),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: const [
                   _HeroBadge(label: 'Tickets'),
-                  _HeroBadge(label: 'RSVPs'),
-                  _HeroBadge(label: 'Hosting tools'),
+                  _HeroBadge(label: 'Hosting'),
                 ],
               ),
             ],

@@ -22,9 +22,8 @@ class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
   static const _slides = [
     _OnboardingSlideData(
       badge: 'Discover',
-      title: 'Find the events everyone will be talking about.',
-      body:
-          'Explore premium experiences, nearby plans, and trending nights in one smooth feed built for fast decisions.',
+      title: 'Find what is next.',
+      body: null,
       statLabel: 'Discover',
       statValue: 'Curated picks',
       accent: _SlideAccent.primary,
@@ -32,9 +31,8 @@ class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
     ),
     _OnboardingSlideData(
       badge: 'Attend',
-      title: 'RSVP, buy, and show up without friction.',
-      body:
-          'Move from event details to checkout and entry with wallet-ready tickets, reminders, and clear status updates.',
+      title: 'Get in fast.',
+      body: null,
       statLabel: 'Ticketing',
       statValue: 'One flow',
       accent: _SlideAccent.accent,
@@ -42,9 +40,8 @@ class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
     ),
     _OnboardingSlideData(
       badge: 'Connect',
-      title: 'Stay close to the schedule, crowd, and conversation.',
-      body:
-          'Eventora keeps your plans, updates, and community moments together so event day feels effortless.',
+      title: 'Stay connected.',
+      body: null,
       statLabel: 'Experience',
       statValue: 'Social by design',
       accent: _SlideAccent.secondary,
@@ -231,7 +228,7 @@ class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
                                 duration: const Duration(milliseconds: 280),
                                 curve: Curves.easeOutCubic,
                               ),
-                        child: Text(isLast ? 'Maybe later' : 'Jump to the end'),
+                        child: Text(isLast ? 'Maybe later' : 'Skip ahead'),
                       ),
                     ),
                   ],
@@ -346,20 +343,23 @@ class _OnboardingSlide extends StatelessWidget {
                                 : context.text.headlineSmall)
                             ?.copyWith(height: 1.04),
                   ),
-                  SizedBox(height: compact ? 10 : 12),
-                  Text(
-                    item.body,
-                    style:
-                        (compact
-                                ? context.text.bodyMedium?.copyWith(
-                                    fontSize: 13,
-                                  )
-                                : context.text.bodyLarge)
-                            ?.copyWith(
-                              color: palette.ink.withValues(alpha: 0.86),
-                            ),
-                  ),
-                  SizedBox(height: compact ? 16 : 24),
+                  if (item.body != null) ...[
+                    SizedBox(height: compact ? 10 : 12),
+                    Text(
+                      item.body!,
+                      style:
+                          (compact
+                                  ? context.text.bodyMedium?.copyWith(
+                                      fontSize: 13,
+                                    )
+                                  : context.text.bodyLarge)
+                              ?.copyWith(
+                                color: palette.ink.withValues(alpha: 0.86),
+                              ),
+                    ),
+                    SizedBox(height: compact ? 16 : 24),
+                  ] else
+                    SizedBox(height: compact ? 16 : 24),
                   Container(
                     width: double.infinity,
                     padding: EdgeInsets.all(compact ? 14 : 18),
@@ -433,7 +433,7 @@ class _OnboardingSlideData {
 
   final String badge;
   final String title;
-  final String body;
+  final String? body;
   final String statLabel;
   final String statValue;
   final _SlideAccent accent;

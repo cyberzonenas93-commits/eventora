@@ -12,7 +12,20 @@
           "package_name": "com.eventora.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "872808273884-fifrh7n9u4e0eejkmduk3onjerobcn0t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.eventora.app",
+            "certificate_hash": "377b7e8ba2413c9c8ad243872b73bc83eb7e6893"
+          }
+        },
+        {
+          "client_id": "872808273884-b3oi71o9tnuc2n8o11ejsdn37c604mrm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB_1Baw7fcXLtG4WutG4OeUfQNSCZDRpJ8"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "872808273884-b3oi71o9tnuc2n8o11ejsdn37c604mrm.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "872808273884-4p39642fh10lh170s9r9h7v1lmm1v9s1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.eventora.app"
+              }
+            }
+          ]
         }
       }
     }

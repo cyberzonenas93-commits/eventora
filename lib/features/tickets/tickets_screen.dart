@@ -77,18 +77,11 @@ class TicketsScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 28),
-        SectionHeading(
-          title: 'Ready at the door',
-          subtitle: session.isGuest
-              ? 'Sign in to keep your tickets, reservations, and entry links in one place.'
-              : 'See which tickets are ready to use and which ones still need payment at the door.',
-        ),
+        SectionHeading(title: 'Ready at the door', subtitle: null),
         const SizedBox(height: 14),
         if (session.isGuest)
           EmptyStateCard(
-            title: 'Save your tickets to your account',
-            body:
-                'Sign in to keep every order, reservation, and ticket link together in your Eventora wallet.',
+            title: 'Save tickets to your account',
             icon: Icons.qr_code_scanner_outlined,
             actionLabel: 'Sign in',
             onAction: () => _promptForAccess(context),
@@ -96,19 +89,13 @@ class TicketsScreen extends StatelessWidget {
         else
           _GateQueue(),
         const SizedBox(height: 26),
-        SectionHeading(
-          title: 'Saved orders',
-          subtitle:
-              'Every order keeps the details, attendee names, and shareable link together so reopening it later is effortless.',
-        ),
+        SectionHeading(title: 'Saved orders', subtitle: null),
         const SizedBox(height: 14),
         if (session.isGuest)
           const SizedBox.shrink()
         else if (orders.isEmpty)
           const EmptyStateCard(
             title: 'No orders yet',
-            body:
-                'As soon as you reserve or buy a ticket, it will show up here with all of the details you need.',
             icon: Icons.receipt_long_outlined,
           )
         else
@@ -125,9 +112,8 @@ class TicketsScreen extends StatelessWidget {
   void _promptForAccess(BuildContext context) {
     showAuthPromptSheet(
       context,
-      title: 'Tickets are easier to manage with an account',
-      body:
-          'Create an Eventora account to save orders, ticket links, and reservations in one place.',
+      title: 'Save tickets with an account',
+      body: 'Create an account to keep them handy.',
     );
   }
 }
@@ -170,7 +156,7 @@ class _TicketsHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Your tickets and reservations',
+            'Tickets and reservations',
             style: context.text.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.84),
               fontWeight: FontWeight.w800,
@@ -179,15 +165,15 @@ class _TicketsHero extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Sign in once and keep every RSVP, order, and ticket link together.'
-                : '$ticketCount orders are saved in your wallet right now.',
+                ? 'Sign in once and keep every ticket together.'
+                : '$ticketCount orders are in your wallet.',
             style: context.text.headlineSmall?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'You can keep browsing as a guest. When you are ready, sign in to save tickets and open them quickly at the door.'
-                : 'Open any order to see who it is for, whether it is paid, and what is ready to scan at entry.',
+                ? 'Browse as a guest, then sign in when you want to save tickets.'
+                : 'Open any order to see what is ready to scan.',
             style: context.text.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.86),
             ),
@@ -223,8 +209,7 @@ class _GateQueue extends StatelessWidget {
 
     if (entries.isEmpty) {
       return const EmptyStateCard(
-        title: 'Nothing needs attention right now',
-        body: 'Every saved ticket in your account has already been checked in.',
+        title: 'Nothing waiting at the gate',
         icon: Icons.check_circle_outline,
       );
     }

@@ -18,13 +18,9 @@ export function PortalLayout() {
   const workspaceTagline = getWorkspaceTagline(application)
   const accentColor = getWorkspaceAccent(application)
   const payoutReadiness = getPayoutReadiness(application)
-  const statusMessage =
-    status === 'active' || status === 'approved'
-      ? 'Your workspace is live and ready for new events.'
-      : 'Keep your event portfolio fresh, accurate, and launch-ready.'
 
   return (
-    <div className="studio-shell">
+    <div className="studio-shell page-motion">
       <aside className="studio-sidebar">
         <div className="studio-sidebar__scroll">
           <div className="studio-brand">
@@ -38,15 +34,11 @@ export function PortalLayout() {
           <div className="studio-sidebar__intro">
             <p className="eyebrow">Organizer command center</p>
             <h2>{firstName}, keep every launch moving.</h2>
-            <p>
-              Run your events, update your brand, and keep payouts ready from one production workspace.
-            </p>
           </div>
 
           <div className="workspace-badge-card" style={{ '--workspace-accent': accentColor } as CSSProperties}>
             <span className="eyebrow">Workspace identity</span>
             <strong>{workspaceName}</strong>
-            <p>{workspaceTagline}</p>
             <small>
               {application?.audienceCity?.trim() || 'Accra'} • {application?.businessType?.trim() || 'Organizer workspace'}
             </small>
@@ -55,26 +47,21 @@ export function PortalLayout() {
           <nav className="studio-nav">
             <NavLink to="/overview">
               <strong>Overview</strong>
-              <small>Portfolio pulse and quick actions</small>
             </NavLink>
             <NavLink to="/events">
               <strong>Events</strong>
-              <small>Manage every live, draft, and private event</small>
             </NavLink>
             <NavLink to="/events/new">
               <strong>Create event</strong>
-              <small>Start a new launch with tickets and distribution</small>
             </NavLink>
             <NavLink to="/settings">
               <strong>Settings</strong>
-              <small>Brand, workspace, and payout details</small>
             </NavLink>
           </nav>
 
           <div className="studio-sidebar__meta">
             <span>Workspace status</span>
             <strong>{status === 'active' ? 'Live' : titleCaseStatus(status)}</strong>
-            <p>{statusMessage}</p>
             <small className={payoutReadiness.ready ? 'meta-chip meta-chip--ready' : 'meta-chip'}>
               {payoutReadiness.label}
             </small>
@@ -103,7 +90,7 @@ export function PortalLayout() {
           <div>
             <p className="eyebrow">Organizer workspace</p>
             <h1>{workspaceName}</h1>
-            <p>{workspaceTagline}</p>
+            {workspaceTagline ? <p>{workspaceTagline}</p> : null}
           </div>
           <div className="studio-topbar__actions">
             <div className={`status-pill status-pill--${status}`}>
@@ -115,7 +102,7 @@ export function PortalLayout() {
           </div>
         </header>
 
-        <section className="studio-content">
+        <section className="studio-content page-motion__content">
           <Outlet />
         </section>
       </main>

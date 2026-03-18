@@ -48,6 +48,10 @@ body,
   min-height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   min-width: 320px;
   position: relative;
@@ -250,6 +254,10 @@ textarea {
   transform: translateY(-2px);
 }
 
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
@@ -276,6 +284,58 @@ textarea {
 
 .button--full {
   width: 100%;
+}
+
+.auth-social {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.95rem;
+}
+
+.auth-social__divider {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.auth-social__divider::before {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px solid rgba(229, 231, 235, 0.92);
+  transform: translateY(-50%);
+}
+
+.auth-social__divider span {
+  position: relative;
+  padding: 0 0.75rem;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.auth-social__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.auth-social__icon {
+  width: 1.3rem;
+  height: 1.3rem;
+  display: inline-grid;
+  place-items: center;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.auth-social__icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
 }
 
 .landing-page,
@@ -326,6 +386,11 @@ textarea {
   border-radius: var(--card-radius);
   box-shadow: var(--shadow);
   backdrop-filter: blur(22px);
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease,
+    background 220ms ease;
 }
 
 .landing-hero {
@@ -717,6 +782,11 @@ textarea {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     0 8px 18px rgba(99, 102, 241, 0.06);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
 }
 
 .password-field {
@@ -978,7 +1048,83 @@ textarea {
   border-radius: 20px;
   color: var(--muted-strong);
   background: transparent;
-  transition: background 180ms ease, transform 180ms ease, color 180ms ease;
+  transition:
+    background 180ms ease,
+    transform 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.page-motion > *,
+.page-motion__content > *,
+.landing-page > *,
+.status-page > *,
+.dashboard-stack > *,
+.stats-grid > *,
+.content-grid > *,
+.event-grid > *,
+.event-list > *,
+.settings-grid > *,
+.review-grid > * {
+  animation: pageEnter 420ms ease both;
+}
+
+.page-motion > *:nth-child(2),
+.page-motion__content > *:nth-child(2),
+.landing-page > *:nth-child(2),
+.dashboard-stack > *:nth-child(2),
+.stats-grid > *:nth-child(2),
+.content-grid > *:nth-child(2),
+.event-grid > *:nth-child(2),
+.event-list > *:nth-child(2),
+.settings-grid > *:nth-child(2),
+.review-grid > *:nth-child(2) {
+  animation-delay: 70ms;
+}
+
+.page-motion__content > *:nth-child(3),
+.dashboard-stack > *:nth-child(3),
+.stats-grid > *:nth-child(3),
+.content-grid > *:nth-child(3),
+.event-grid > *:nth-child(3),
+.event-list > *:nth-child(3),
+.settings-grid > *:nth-child(3),
+.review-grid > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-hero:hover,
+  .auth-panel:hover,
+  .status-card:hover,
+  .setup-card:hover,
+  .setup-summary-card:hover,
+  .panel:hover,
+  .editor-card:hover,
+  .metric-card:hover,
+  .focus-card:hover,
+  .event-card:hover,
+  .hero-card:hover,
+  .summary-card:hover,
+  .workspace-badge-card:hover,
+  .signal-card:hover,
+  .event-row:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 26px 60px rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.18);
+  }
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .studio-nav a small {

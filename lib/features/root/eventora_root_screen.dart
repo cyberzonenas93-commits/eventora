@@ -94,10 +94,7 @@ class _RootLoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: EventoraSplashStage(
-        subtitle: 'Experience events differently',
-        showLoader: true,
-      ),
+      body: EventoraSplashStage(subtitle: null, showLoader: true),
     );
   }
 }

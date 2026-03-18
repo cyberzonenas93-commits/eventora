@@ -12,6 +12,7 @@ import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/event_card.dart';
+import '../../widgets/eventora_motion.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../events/event_detail_screen.dart';
@@ -118,41 +119,49 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
       children: [
-        _DashboardHero(
-          eventCount: events.length,
-          featuredCount: featuredCampaigns.length,
-          onShowAnnouncement: () => _showCurrentAnnouncement(repository),
+        EventoraReveal(
+          child: _DashboardHero(
+            eventCount: events.length,
+            featuredCount: featuredCampaigns.length,
+            onShowAnnouncement: () => _showCurrentAnnouncement(repository),
+          ),
         ),
         const SizedBox(height: 22),
-        _AroundYouCard(
-          currentPosition: _currentPosition,
-          events: nearbyEvents,
-          distanceForEvent: (event) {
-            final position = _currentPosition;
-            if (position == null) {
-              return null;
-            }
-            return repository.distanceKmForEvent(
-              event,
-              latitude: position.latitude,
-              longitude: position.longitude,
-            );
-          },
-          isLoading: _isLoadingNearby,
-          error: _locationError,
-          onRefresh: _loadNearbyEvents,
-          onOpenEvent: (event) => _openEvent(context, event),
+        EventoraReveal(
+          delay: const Duration(milliseconds: 70),
+          child: _AroundYouCard(
+            currentPosition: _currentPosition,
+            events: nearbyEvents,
+            distanceForEvent: (event) {
+              final position = _currentPosition;
+              if (position == null) {
+                return null;
+              }
+              return repository.distanceKmForEvent(
+                event,
+                latitude: position.latitude,
+                longitude: position.longitude,
+              );
+            },
+            isLoading: _isLoadingNearby,
+            error: _locationError,
+            onRefresh: _loadNearbyEvents,
+            onOpenEvent: (event) => _openEvent(context, event),
+          ),
         ),
         const SizedBox(height: 22),
-        _SearchPanel(
-          controller: _searchController,
-          query: _searchQuery,
-          resultCount: filteredEvents.length,
-          onChanged: (value) => setState(() => _searchQuery = value.trim()),
-          onClear: () {
-            _searchController.clear();
-            setState(() => _searchQuery = '');
-          },
+        EventoraReveal(
+          delay: const Duration(milliseconds: 120),
+          child: _SearchPanel(
+            controller: _searchController,
+            query: _searchQuery,
+            resultCount: filteredEvents.length,
+            onChanged: (value) => setState(() => _searchQuery = value.trim()),
+            onClear: () {
+              _searchController.clear();
+              setState(() => _searchQuery = '');
+            },
+          ),
         ),
         const SizedBox(height: 22),
         Wrap(
@@ -185,21 +194,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ],
         ),
         const SizedBox(height: 30),
-        SectionHeading(
-          title: 'Featured this week',
-          subtitle: _searchQuery.isEmpty
-              ? 'The biggest launches and standout nights stay pinned here so you can scan what matters first.'
-              : 'Featured events that match your search stay visible here.',
-        ),
+        SectionHeading(title: 'Featured this week', subtitle: null),
         const SizedBox(height: 14),
         if (featuredCampaigns.isEmpty)
           EmptyStateCard(
             title: _searchQuery.isEmpty
-                ? 'No featured placements are live right now'
-                : 'No featured events match your search',
-            body: _searchQuery.isEmpty
-                ? 'As new spotlight events go live, they will appear here for faster discovery.'
-                : 'Try another event name, venue, city, or tag to see matching spotlight events.',
+                ? 'No featured events right now'
+                : 'No featured matches',
+            body: _searchQuery.isEmpty ? null : 'Try another search or tag.',
             icon: Icons.star_outline,
           )
         else
@@ -224,12 +226,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ),
         const SizedBox(height: 30),
-        SectionHeading(
-          title: 'Browse by vibe',
-          subtitle: _searchQuery.isEmpty
-              ? 'Tap one filter to strip away the noise and get to the kind of event you actually want.'
-              : 'Use a vibe filter to narrow the search results even further.',
-        ),
+        SectionHeading(title: 'Browse by vibe', subtitle: null),
         const SizedBox(height: 14),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -254,7 +251,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         const SizedBox(height: 30),
         SectionHeading(
           title: _resultsTitle,
-          subtitle: _resultsSubtitle(filteredEvents.length),
+          subtitle: null,
           actionLabel: (_selectedTag != null || _searchQuery.isNotEmpty)
               ? 'Clear all'
               : null,
@@ -267,10 +264,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           EmptyStateCard(
             title: _searchQuery.isNotEmpty
                 ? 'No events match "$_searchQuery"'
-                : 'Nothing matches that vibe yet',
-            body: _searchQuery.isNotEmpty
-                ? 'Try a different name, venue, city, performer, or tag. You can also clear filters to browse everything again.'
-                : 'Try another filter or come back later. The feed will update as new public events go live.',
+                : 'No events for that vibe yet',
+            body: _searchQuery.isNotEmpty ? 'Try another name or tag.' : null,
             icon: _searchQuery.isNotEmpty
                 ? Icons.search_off_outlined
                 : Icons.filter_alt_off_outlined,
@@ -407,19 +402,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     return 'Upcoming around you';
   }
 
-  String _resultsSubtitle(int resultCount) {
-    if (_searchQuery.isNotEmpty && _selectedTag != null) {
-      return '$resultCount events match your search and the $_selectedTag vibe.';
-    }
-    if (_searchQuery.isNotEmpty) {
-      return '$resultCount events match your search right now.';
-    }
-    if (_selectedTag != null) {
-      return 'Only the listings tagged with $_selectedTag are shown below.';
-    }
-    return 'A cleaner feed of public events with the details that matter before you commit.';
-  }
-
   void _clearAllFilters() {
     _searchController.clear();
     setState(() {
@@ -541,31 +523,18 @@ class _SearchPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Search Eventora',
-              style: context.text.titleLarge?.copyWith(fontSize: 20),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Look up an event by name, city, venue, host, performer, or tag.',
-              style: context.text.bodyMedium?.copyWith(color: palette.slate),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: controller,
               onChanged: onChanged,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText:
-                    'Search by event name, venue, city, rooftop, music...',
+                hintText: 'Event, venue, city, or tag',
                 prefixIcon: const Icon(Icons.search_outlined),
                 suffixIcon: query.isEmpty
                     ? null
@@ -582,14 +551,8 @@ class _SearchPanel extends StatelessWidget {
               runSpacing: 10,
               children: [
                 _SearchHintChip(
-                  icon: Icons.location_on_outlined,
-                  label: 'City, venue, or host',
-                ),
-                _SearchHintChip(
                   icon: Icons.sell_outlined,
-                  label: query.isEmpty
-                      ? 'Try Music or Community'
-                      : '$resultCount matches right now',
+                  label: query.isEmpty ? 'Try Music' : '$resultCount matches',
                 ),
               ],
             ),
@@ -672,7 +635,7 @@ class _DashboardHero extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                'Find what is worth showing up for.',
+                'Find what matters.',
                 style: context.text.headlineMedium?.copyWith(
                   color: Colors.white,
                   height: 1.02,
@@ -680,7 +643,7 @@ class _DashboardHero extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                'Discover standout events, browse what is trending nearby, and move from curiosity to tickets without friction.',
+                'Trending, nearby, and ready to book.',
                 style: context.text.bodyLarge?.copyWith(
                   color: Colors.white.withValues(alpha: 0.86),
                 ),
@@ -697,7 +660,7 @@ class _DashboardHero extends StatelessWidget {
                       foregroundColor: palette.ink,
                     ),
                     icon: const Icon(Icons.local_fire_department_outlined),
-                    label: const Text('See spotlight'),
+                    label: const Text('Spotlight'),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -722,7 +685,7 @@ class _DashboardHero extends StatelessWidget {
                           size: 18,
                         ),
                         Text(
-                          'Curated picks below',
+                          'Curated',
                           style: context.text.bodyMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -982,7 +945,7 @@ class _AroundYouCard extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
-                  'Finding events around you...',
+                  'Finding nearby events...',
                   style: context.text.bodyLarge,
                 ),
               ),
@@ -1005,8 +968,7 @@ class _AroundYouCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                error ??
-                    'Turn on location once so Eventora can highlight events close to you.',
+                error ?? 'Turn on location to see nearby events.',
                 style: context.text.bodyMedium,
               ),
               const SizedBox(height: 14),
@@ -1066,8 +1028,8 @@ class _AroundYouCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         events.isEmpty
-                            ? 'We have your location, but there are no mapped public events close by yet.'
-                            : 'These are the closest public events with confirmed map locations.',
+                            ? 'No nearby events yet.'
+                            : 'Closest public events.',
                         style: context.text.bodyMedium,
                       ),
                     ],

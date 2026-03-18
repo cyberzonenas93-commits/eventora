@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app/eventora_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../widgets/eventora_motion.dart';
 import '../account/account_screen.dart';
 import '../discover/discover_screen.dart';
 import '../manage/manage_screen.dart';
@@ -132,109 +133,106 @@ class _ShellTopBar extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.82),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0x14FFFFFF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x12121E31),
-              blurRadius: 20,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    palette.gold.withValues(alpha: 0.22),
-                    palette.coral.withValues(alpha: 0.14),
+      child: EventoraReveal(
+        delay: const Duration(milliseconds: 50),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.82),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0x14FFFFFF)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12121E31),
+                blurRadius: 20,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      palette.gold.withValues(alpha: 0.22),
+                      palette.coral.withValues(alpha: 0.14),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badgeLabel,
+                  style: context.text.bodyMedium?.copyWith(
+                    color: palette.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isGuest ? 'Explore' : viewerName,
+                      style: context.text.bodyLarge?.copyWith(
+                        color: palette.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(
-                badgeLabel,
-                style: context.text.bodyMedium?.copyWith(
-                  color: palette.ink,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isGuest
-                        ? 'Explore as a guest'
-                        : 'Welcome back, $viewerName',
-                    style: context.text.bodyLarge?.copyWith(
-                      color: palette.ink,
-                      fontWeight: FontWeight.w700,
-                    ),
+              if (isBusy)
+                const Padding(
+                  padding: EdgeInsets.only(left: 10),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Everything important is a tap away.',
-                    style: context.text.bodySmall?.copyWith(
-                      color: palette.slate,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isBusy)
-              const Padding(
-                padding: EdgeInsets.only(left: 10),
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
                 ),
-              ),
-            if (canSwitchWorkspace)
+              if (canSwitchWorkspace)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: IconButton.filledTonal(
+                    onPressed: onSwitchWorkspace,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.swap_horiz_outlined),
+                    tooltip: 'Switch workspace',
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.only(left: 8),
                 child: IconButton.filledTonal(
-                  onPressed: onSwitchWorkspace,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const AccountScreen(),
+                      ),
+                    );
+                  },
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.swap_horiz_outlined),
-                  tooltip: 'Switch workspace',
+                  icon: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.transparent,
+                    foregroundImage: photoUrl != null
+                        ? NetworkImage(photoUrl!)
+                        : null,
+                    child: photoUrl == null
+                        ? const Icon(Icons.person_outline)
+                        : null,
+                  ),
+                  tooltip: 'Account',
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: IconButton.filledTonal(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const AccountScreen(),
-                    ),
-                  );
-                },
-                visualDensity: VisualDensity.compact,
-                icon: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.transparent,
-                  foregroundImage: photoUrl != null
-                      ? NetworkImage(photoUrl!)
-                      : null,
-                  child: photoUrl == null
-                      ? const Icon(Icons.person_outline)
-                      : null,
-                ),
-                tooltip: 'Account',
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

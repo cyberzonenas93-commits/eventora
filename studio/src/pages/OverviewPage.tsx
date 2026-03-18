@@ -71,7 +71,7 @@ export function OverviewPage() {
   const payoutReadiness = getPayoutReadiness(session.application)
 
   if (loading) {
-    return <div className="page-loader">Loading portfolio overview...</div>
+    return <div className="page-loader">Loading overview...</div>
   }
 
   return (
@@ -80,14 +80,12 @@ export function OverviewPage() {
         <div className="page-hero__content">
           <p className="eyebrow">Workspace overview</p>
           <h2>{workspaceName}</h2>
-          <p>
-            {workspaceTagline}
-          </p>
+          {workspaceTagline ? <p>{workspaceTagline}</p> : null}
           <div className="hero-chip-row">
-            <span>{publishedEvents} live event pages</span>
-            <span>{draftEvents} drafts still in progress</span>
-            <span>{formatMoney(metrics?.grossRevenue ?? 0)} tracked revenue</span>
-            <span>{payoutReadiness.ready ? 'Payout profile ready' : 'Payout profile needs attention'}</span>
+            <span>{publishedEvents} live events</span>
+            <span>{draftEvents} drafts</span>
+            <span>{formatMoney(metrics?.grossRevenue ?? 0)} revenue</span>
+            <span>{payoutReadiness.ready ? 'Payout ready' : 'Payout needs attention'}</span>
           </div>
         </div>
         <div className="page-hero__panel">
@@ -115,11 +113,7 @@ export function OverviewPage() {
             </>
           ) : (
             <>
-              <h3>Your workspace is ready for its first live event.</h3>
-              <p>
-                Create your first event page to start building ticket tiers,
-                launch-ready copy, and a premium guest experience from one dashboard.
-              </p>
+              <h3>Ready for your first event.</h3>
               <div className="hero-actions">
                 <Link className="button button--primary" to="/events/new">
                   Create event
@@ -133,37 +127,31 @@ export function OverviewPage() {
       <section className="stats-grid">
         <MetricCard
           label="Gross revenue"
-          support="Tracked across your organizer portfolio"
           tone="warm"
           value={formatMoney(metrics?.grossRevenue ?? 0)}
         />
         <MetricCard
           label="Paid orders"
-          support="Confirmed checkouts"
           tone="cool"
           value={String(metrics?.paidOrders ?? 0)}
         />
         <MetricCard
           label="RSVPs"
-          support="Guests who raised a hand"
           tone="mint"
           value={String(metrics?.totalRsvps ?? 0)}
         />
         <MetricCard
           label="Tickets issued"
-          support="Inventory already spoken for"
           tone="sun"
           value={String(metrics?.ticketsIssued ?? 0)}
         />
         <MetricCard
           label="Average revenue per event"
-          support="A quick health snapshot"
           tone="ink"
           value={formatMoney(revenuePerEvent)}
         />
         <MetricCard
           label="Planned capacity"
-          support="Seats and admissions across tiers"
           tone="rose"
           value={String(totalCapacity)}
         />
@@ -174,7 +162,7 @@ export function OverviewPage() {
           <div className="panel__header">
             <div>
               <p className="eyebrow">Focus board</p>
-              <h3>What deserves attention right now</h3>
+              <h3>What needs attention</h3>
             </div>
           </div>
 
@@ -182,17 +170,14 @@ export function OverviewPage() {
             <FocusCard
               label="Drafts waiting for a final pass"
               title={`${draftEvents} event${draftEvents === 1 ? '' : 's'} still in draft`}
-              description="Review copy, ticket tiers, and venue details before publishing to guests."
             />
             <FocusCard
               label="Live portfolio"
               title={`${publishedEvents} event${publishedEvents === 1 ? '' : 's'} already visible`}
-              description="Keep lineups, timing, and guest messaging polished as plans evolve."
             />
             <FocusCard
               label="Upcoming capacity"
               title={`${totalCapacity} tickets and admissions planned`}
-              description="Use capacity as a quick read on venue fit, pricing mix, and launch scale."
             />
           </div>
         </article>
@@ -212,7 +197,7 @@ export function OverviewPage() {
             {events.length === 0 ? (
               <div className="empty-card">
                 <h4>No events yet</h4>
-                <p>Start by creating your first Eventora event from your dashboard.</p>
+                <p>Create your first event.</p>
               </div>
             ) : (
               orderedEvents.slice(0, 4).map((event) => (
@@ -241,12 +226,10 @@ export function OverviewPage() {
 
 function MetricCard({
   label,
-  support,
   tone,
   value,
 }: {
   label: string
-  support: string
   tone: string
   value: string
 }) {
@@ -254,7 +237,6 @@ function MetricCard({
     <article className={`metric-card metric-card--${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
-      <small>{support}</small>
     </article>
   )
 }
@@ -262,17 +244,14 @@ function MetricCard({
 function FocusCard({
   label,
   title,
-  description,
 }: {
   label: string
   title: string
-  description: string
 }) {
   return (
     <article className="focus-card">
       <span>{label}</span>
       <strong>{title}</strong>
-      <p>{description}</p>
     </article>
   )
 }

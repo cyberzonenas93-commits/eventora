@@ -40,8 +40,6 @@ class EventDetailScreen extends StatelessWidget {
           padding: EdgeInsets.all(20),
           child: EmptyStateCard(
             title: 'Event not found',
-            body:
-                'This event may have been removed or is no longer available right now.',
             icon: Icons.event_busy_outlined,
           ),
         ),
@@ -171,9 +169,8 @@ class EventDetailScreen extends StatelessWidget {
                   if (session.isGuest) {
                     final authenticated = await showAuthPromptSheet(
                       context,
-                      title: 'Reminders need an account',
-                      body:
-                          'Sign in to save event reminders and keep them attached to your Eventora profile.',
+                      title: 'Sign in for reminders',
+                      body: 'Reminders need an account.',
                     );
                     if (!context.mounted || !authenticated) {
                       return;
@@ -194,11 +191,7 @@ class EventDetailScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 28),
-          SectionHeading(
-            title: 'Why people are showing up',
-            subtitle:
-                'The key details, mood, and format so you can decide quickly.',
-          ),
+          SectionHeading(title: 'Why people are showing up', subtitle: null),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -207,11 +200,7 @@ class EventDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          SectionHeading(
-            title: 'Plan the night',
-            subtitle:
-                'Everything you need before you leave home or send it to friends.',
-          ),
+          SectionHeading(title: 'Plan the night', subtitle: null),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -244,11 +233,7 @@ class EventDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           if (event.location != null) ...[
-            SectionHeading(
-              title: 'Location and directions',
-              subtitle:
-                  'Preview the venue on a live map and open turn-by-turn directions in one tap.',
-            ),
+            SectionHeading(title: 'Location and directions', subtitle: null),
             const SizedBox(height: 14),
             _EventMapCard(
               event: event,
@@ -256,11 +241,7 @@ class EventDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
           ],
-          SectionHeading(
-            title: 'Lineup and hosting',
-            subtitle:
-                'Artists, hosts, and special guests attached to this event.',
-          ),
+          SectionHeading(title: 'Lineup and hosting', subtitle: null),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -290,20 +271,11 @@ class EventDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          SectionHeading(
-            title: 'Entry options',
-            subtitle: event.ticketing.enabled
-                ? (event.ticketing.requireTicket
-                      ? 'A ticket is required before entry.'
-                      : 'Guests can RSVP first or buy a support ticket before the event.')
-                : 'This event uses RSVP only.',
-          ),
+          SectionHeading(title: 'Entry options', subtitle: null),
           const SizedBox(height: 14),
           if (!event.ticketing.enabled)
             const EmptyStateCard(
               title: 'No tickets required',
-              body:
-                  'You can still reserve a spot and set reminders even though this event is not selling tickets.',
               icon: Icons.event_available_outlined,
             )
           else
@@ -317,11 +289,7 @@ class EventDetailScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 24),
-          SectionHeading(
-            title: 'Guest settings',
-            subtitle:
-                'Helpful reminders about sharing, visibility, and guest updates.',
-          ),
+          SectionHeading(title: 'Guest settings', subtitle: null),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -356,10 +324,7 @@ class EventDetailScreen extends StatelessWidget {
           ),
           if (campaigns.isNotEmpty) ...[
             const SizedBox(height: 24),
-            SectionHeading(
-              title: 'Updates from the host',
-              subtitle: 'Recent campaign messages connected to this event.',
-            ),
+            SectionHeading(title: 'Updates from the host', subtitle: null),
             const SizedBox(height: 14),
             ...campaigns.map(
               (campaign) => Padding(
@@ -442,9 +407,8 @@ class EventDetailScreen extends StatelessWidget {
     if (session.isGuest) {
       final authenticated = await showAuthPromptSheet(
         context,
-        title: 'Save your RSVP with an account',
-        body:
-            'Create an Eventora account to save your RSVP, guest count, and any table request for this event.',
+        title: 'Sign in to save your RSVP',
+        body: 'RSVPs need an account.',
       );
       if (!context.mounted || !authenticated) {
         return;
@@ -471,9 +435,8 @@ class EventDetailScreen extends StatelessWidget {
     if (session.isGuest) {
       final authenticated = await showAuthPromptSheet(
         context,
-        title: 'Checkout is easier with an account',
-        body:
-            'Sign in to reserve tickets, pay at the door if needed, and keep your order links in one place.',
+        title: 'Sign in for checkout',
+        body: 'Checkout needs an account.',
       );
       if (!context.mounted || !authenticated) {
         return;

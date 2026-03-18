@@ -1,8 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
+  OAuthProvider,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut as firebaseSignOut,
   updateProfile,
   type User,
@@ -37,6 +40,8 @@ interface PortalSessionValue {
   isAdmin: boolean
   isSuperAdmin: boolean
   signIn: (email: string, password: string) => Promise<void>
+  signInWithGoogle: (options?: { seedOrganizerProfile?: boolean }) => Promise<void>
+  signInWithApple: (options?: { seedOrganizerProfile?: boolean }) => Promise<void>
   signUp: (input: {
     displayName: string
     email: string
@@ -142,6 +147,70 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  async function upsertOrganizerWorkspace(
+    nextUser: User,
+    input?: {
+      displayName?: string
+      email?: string
+      phone?: string
+    },
+  ) {
+    const resolvedDisplayName =
+      input?.displayName?.trim() ||
+      nextUser.displayName?.trim() ||
+      nextUser.email?.split('@').at(0)?.trim() ||
+      'Eventora Organizer'
+    const resolvedEmail = input?.email?.trim() || nextUser.email?.trim() || ''
+    const resolvedPhone = input?.phone?.trim() || null
+    const organizationId = `org_${nextUser.uid}`
+
+    await setDoc(
+      doc(db, 'users', nextUser.uid),
+      {
+        displayName: resolvedDisplayName,
+        email: resolvedEmail,
+        phone: resolvedPhone,
+        photoUrl: nextUser.photoURL ?? null,
+        roles: ['organizer'],
+        defaultOrganizationId: organizationId,
+        organizerApplicationStatus: 'active',
+        notificationPrefs: {
+          pushEnabled: true,
+          smsEnabled: true,
+          marketingOptIn: false,
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
+    await setDoc(
+      doc(db, 'organizations', organizationId),
+      {
+        id: organizationId,
+        ownerId: nextUser.uid,
+        name: resolvedDisplayName,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
+    await setDoc(
+      doc(db, 'organizer_applications', nextUser.uid),
+      createEmptyApplication({
+        userId: nextUser.uid,
+        organizerName: resolvedDisplayName,
+        contactPerson: resolvedDisplayName,
+        email: resolvedEmail,
+        phone: resolvedPhone ?? '',
+        organizationId,
+        status: 'active',
+      }),
+      { merge: true },
+    )
+  }
+
   const value = useMemo<PortalSessionValue>(() => {
     const normalizedAdminRole = adminRole.trim().toLowerCase()
     const isSuperAdmin = normalizedAdminRole === 'superadmin'
@@ -171,6 +240,23 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       async signIn(email, password) {
         await signInWithEmailAndPassword(auth, email.trim(), password)
       },
+      async signInWithGoogle(options) {
+        const provider = new GoogleAuthProvider()
+        provider.setCustomParameters({ prompt: 'select_account' })
+        const credential = await signInWithPopup(auth, provider)
+        if (options?.seedOrganizerProfile ?? true) {
+          await upsertOrganizerWorkspace(credential.user)
+        }
+      },
+      async signInWithApple(options) {
+        const provider = new OAuthProvider('apple.com')
+        provider.addScope('email')
+        provider.addScope('name')
+        const credential = await signInWithPopup(auth, provider)
+        if (options?.seedOrganizerProfile ?? true) {
+          await upsertOrganizerWorkspace(credential.user)
+        }
+      },
       async signUp(input) {
         const credential = await createUserWithEmailAndPassword(
           auth,
@@ -180,50 +266,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
         await updateProfile(credential.user, {
           displayName: input.displayName.trim(),
         })
-        await setDoc(
-          doc(db, 'users', credential.user.uid),
-          {
-            displayName: input.displayName.trim(),
-            email: input.email.trim(),
-            phone: input.phone?.trim() || null,
-            roles: ['organizer'],
-            defaultOrganizationId: `org_${credential.user.uid}`,
-            organizerApplicationStatus: 'active',
-            notificationPrefs: {
-              pushEnabled: true,
-              smsEnabled: true,
-              marketingOptIn: false,
-            },
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        )
-        await setDoc(
-          doc(db, 'organizations', `org_${credential.user.uid}`),
-          {
-            id: `org_${credential.user.uid}`,
-            ownerId: credential.user.uid,
-            name: input.displayName.trim(),
-            status: 'active',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        )
-        await setDoc(
-          doc(db, 'organizer_applications', credential.user.uid),
-          createEmptyApplication({
-            userId: credential.user.uid,
-            organizerName: input.displayName.trim(),
-            contactPerson: input.displayName.trim(),
-            email: input.email.trim(),
-            phone: input.phone?.trim() || '',
-            organizationId: `org_${credential.user.uid}`,
-            status: 'active',
-          }),
-          { merge: true },
-        )
+        await upsertOrganizerWorkspace(credential.user, input)
       },
       async signOut() {
         await firebaseSignOut(auth)

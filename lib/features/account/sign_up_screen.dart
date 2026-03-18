@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -179,6 +178,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        const _SocialDivider(),
+                        const SizedBox(height: 12),
+                        _SocialAuthButton(
+                          label: 'Continue with Google',
+                          icon: const Text(
+                            'G',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          onPressed: session.isProcessing
+                              ? null
+                              : _signUpWithGoogle,
+                        ),
+                        if (_showAppleButton) ...[
+                          const SizedBox(height: 10),
+                          _SocialAuthButton(
+                            label: 'Continue with Apple',
+                            icon: const Icon(Icons.apple, size: 20),
+                            onPressed: session.isProcessing
+                                ? null
+                                : _signUpWithApple,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -208,6 +233,46 @@ class _SignUpScreenState extends State<SignUpScreen> {
         profileImageBytes: _selectedProfileImageBytes,
         profileImageName: _selectedProfileImage?.name,
       );
+      await session.waitForAuthenticatedSession();
+      if (!mounted) {
+        return;
+      }
+      navigator.pop(true);
+    } on EventoraAuthFailure catch (error) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  bool get _showAppleButton {
+    return !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS);
+  }
+
+  Future<void> _signUpWithGoogle() async {
+    final session = context.read<EventoraSessionController>();
+    final navigator = Navigator.of(context);
+    try {
+      await session.signInWithGoogle();
+      await session.waitForAuthenticatedSession();
+      if (!mounted) {
+        return;
+      }
+      navigator.pop(true);
+    } on EventoraAuthFailure catch (error) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _signUpWithApple() async {
+    final session = context.read<EventoraSessionController>();
+    final navigator = Navigator.of(context);
+    try {
+      await session.signInWithApple();
       await session.waitForAuthenticatedSession();
       if (!mounted) {
         return;
@@ -319,6 +384,50 @@ class _ProfileImagePicker extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _SocialDivider extends StatelessWidget {
+  const _SocialDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Row(
+      children: [
+        Expanded(child: Divider(color: palette.border)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text('or', style: context.text.bodyMedium),
+        ),
+        Expanded(child: Divider(color: palette.border)),
+      ],
+    );
+  }
+}
+
+class _SocialAuthButton extends StatelessWidget {
+  const _SocialAuthButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Widget icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: icon,
+        label: Text(label),
+      ),
     );
   }
 }

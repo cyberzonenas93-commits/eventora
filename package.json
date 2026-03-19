@@ -1,5 +1,5 @@
 {
-  "name": "eventora-workspace",
+  "name": "vennuzo-workspace",
   "private": true,
   "scripts": {
     "functions:lint": "npm --prefix functions run lint",

@@ -41,7 +41,7 @@ async function getHubtelSmsConfig() {
       hubtelSmsConfigCache = {
         clientId,
         clientSecret,
-        senderId: String(fileCfg.senderId || "Eventora").substring(0, 11),
+        senderId: String(fileCfg.senderId || "Vennuzo").substring(0, 11),
       };
       return hubtelSmsConfigCache;
     }
@@ -56,7 +56,7 @@ async function getHubtelSmsConfig() {
   const clientSecret =
     config.smsClientSecret || config.clientSecret || config.smsApiSecret || config.apiSecret;
   const senderId = String(
-    config.smsSenderId || config.senderId || config.smsFrom || "Eventora",
+    config.smsSenderId || config.senderId || config.smsFrom || "Vennuzo",
   ).substring(0, 11);
 
   if (!clientId || !clientSecret) {
@@ -127,7 +127,7 @@ async function buildEventLink(eventId, eventData = null) {
     return shareLink.url;
   } catch (error) {
     console.warn("Falling back to static Eventora event link", eventId, error && error.message);
-    return `https://eventora.app/e/${encodeURIComponent(eventId)}`;
+    return `https://vennuzo.app/e/${encodeURIComponent(eventId)}`;
   }
 }
 
@@ -228,7 +228,7 @@ async function sendTicketOrderNotification({ orderId, order, reservation }) {
         eventId,
         orderId,
         route: `/tickets/${orderId}`,
-        link: `https://eventora.app/ticket/${encodeURIComponent(orderId)}`,
+        link: `https://vennuzo.app/ticket/${encodeURIComponent(orderId)}`,
       },
       eventId,
     });
@@ -241,7 +241,7 @@ async function sendTicketOrderNotification({ orderId, order, reservation }) {
       to: phone,
       message:
         `${reservation ? "Reservation created" : "Tickets confirmed"}: ${body} ` +
-        `https://eventora.app/ticket/${encodeURIComponent(orderId)}`,
+        `https://vennuzo.app/ticket/${encodeURIComponent(orderId)}`,
       reference: `order_${orderId}`,
       hubtelCfg,
     });
@@ -269,7 +269,7 @@ async function sendHubtelSms({ to, message, reference, hubtelCfg }) {
 
   const config = hubtelCfg || await getHubtelSmsConfig();
   const payload = {
-    From: String(config.senderId || "Eventora").substring(0, 11),
+    From: String(config.senderId || "Vennuzo").substring(0, 11),
     To: normalizedPhone,
     Content: String(message || "").trim().slice(0, 459),
     ClientReference: safeString(reference, `evt_${Date.now()}`),
@@ -392,7 +392,7 @@ async function queuePushNotification({
     payload,
     eventId: eventId || payload.eventId || null,
     campaignId: campaignId || null,
-    androidChannel: "eventora_event_updates",
+    androidChannel: "vennuzo_event_updates",
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -733,7 +733,7 @@ exports.processPushQueue = onDocumentCreated(
     const response = await messaging.sendEachForMulticast({
       tokens: tokenMap.map((entry) => entry.token),
       notification: {
-        title: safeString(payload.title, "Eventora"),
+        title: safeString(payload.title, "Vennuzo"),
         body: safeString(payload.body, "You have a new event update."),
       },
       data: {
@@ -744,7 +744,7 @@ exports.processPushQueue = onDocumentCreated(
       android: {
         priority: "high",
         notification: {
-          channelId: "eventora_event_updates",
+          channelId: "vennuzo_event_updates",
         },
       },
       apns: {
@@ -827,7 +827,7 @@ exports.launchEventNotificationCampaign = onCall(
     const organizationId = safeString(eventData.organizationId, `org_${request.auth.uid}`);
     const title = safeString(
       request.data && request.data.title,
-      `${safeString(eventData.title, "Eventora")} update`,
+      `${safeString(eventData.title, "Vennuzo")} update`,
     );
     const isScheduled = scheduledAt.getTime() > Date.now() + 30000;
     const shareLink = await buildEventLink(eventId, eventData);

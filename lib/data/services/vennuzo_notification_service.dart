@@ -7,15 +7,15 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../domain/models/account_models.dart';
 
-class EventoraNotificationService {
-  EventoraNotificationService._();
+class VennuzoNotificationService {
+  VennuzoNotificationService._();
 
-  static final EventoraNotificationService instance = EventoraNotificationService._();
+  static final VennuzoNotificationService instance = VennuzoNotificationService._();
 
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'eventora_event_updates',
+    'vennuzo_event_updates',
     'Event updates',
-    description: 'Ticket, reminder, and campaign alerts for Eventora.',
+    description: 'Ticket, reminder, and campaign alerts for Vennuzo.',
     importance: Importance.high,
   );
 
@@ -72,7 +72,7 @@ class EventoraNotificationService {
     _initialized = true;
   }
 
-  Future<void> bindViewer(EventoraViewer viewer) async {
+  Future<void> bindViewer(VennuzoViewer viewer) async {
     if (!_firebaseEnabled) {
       return;
     }

@@ -98,7 +98,7 @@ exports.reviewOrganizerApplication = onCall(
 
     const organizerName = safeString(
       application.organizerName,
-      safeString(application.organization, "Eventora Organizer"),
+      safeString(application.organization, "Vennuzo Organizer"),
     );
     const contactPerson = safeString(
       application.contactPerson,

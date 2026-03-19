@@ -29,6 +29,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '872808273884',
     projectId: 'eventora-10063',
     storageBucket: 'eventora-10063.firebasestorage.app',
-    iosBundleId: 'com.eventora.angelo',
+    iosBundleId: 'com.vennuzo.app',
   );
 }

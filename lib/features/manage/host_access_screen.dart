@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
-import '../../data/services/eventora_organizer_application_service.dart';
+import '../../data/services/vennuzo_organizer_application_service.dart';
 import '../../domain/models/account_models.dart';
 import '../account/sign_in_screen.dart';
 import '../account/sign_up_screen.dart';
@@ -84,7 +84,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final viewer = Provider.of<EventoraSessionController>(
+    final viewer = Provider.of<VennuzoSessionController>(
       context,
       listen: true,
     ).viewer;
@@ -120,7 +120,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
     final viewer = session.viewer;
     final palette = context.palette;
     final status = viewer.organizerApplicationStatus;
@@ -178,7 +178,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
                             _SectionCard(
                               title: 'Organizer profile',
                               subtitle:
-                                  'This is the identity the Eventora team reviews before unlocking publishing.',
+                                  'This is the identity the Vennuzo team reviews before unlocking publishing.',
                               child: Column(
                                 children: [
                                   _LogoPickerCard(
@@ -462,7 +462,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
                                     controlAffinity:
                                         ListTileControlAffinity.leading,
                                     title: const Text(
-                                      'I agree to Eventora payout review and settlement controls.',
+                                      'I agree to Vennuzo payout review and settlement controls.',
                                     ),
                                   ),
                                 ],
@@ -485,7 +485,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
                                     controlAffinity:
                                         ListTileControlAffinity.leading,
                                     title: const Text(
-                                      'I confirm these details are accurate and I agree to Eventora compliance review.',
+                                      'I confirm these details are accurate and I agree to Vennuzo compliance review.',
                                     ),
                                   ),
                                   const SizedBox(height: 18),
@@ -533,7 +533,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
                             : 'Host access status',
                         body: viewer.hasOrganizerAccess
                             ? 'Your account is ready for hosting. Use the Host tab to manage events, tickets, and campaign placements.'
-                            : 'Your submission is already with the Eventora team. We will unlock publishing tools in the app as soon as review is complete.',
+                            : 'Your submission is already with the Vennuzo team. We will unlock publishing tools in the app as soon as review is complete.',
                         badgeLabel: viewer.organizerStatusLabel,
                         badgeColor:
                             viewer.hasOrganizerAccess
@@ -599,13 +599,13 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     );
   }
 
-  Future<void> _hydrateForViewer(EventoraViewer viewer) async {
+  Future<void> _hydrateForViewer(VennuzoViewer viewer) async {
     if (!mounted) {
       return;
     }
     setState(() => _isLoading = true);
     if (viewer.isGuest || viewer.uid == null) {
-      _applyDraft(EventoraOrganizerApplicationDraft.bootstrap(viewer));
+      _applyDraft(VennuzoOrganizerApplicationDraft.bootstrap(viewer));
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -613,17 +613,17 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     }
 
     try {
-      final draft = await EventoraOrganizerApplicationService.instance
+      final draft = await VennuzoOrganizerApplicationService.instance
           .loadDraft(viewer.uid!, viewer: viewer);
       if (!mounted) {
         return;
       }
-      _applyDraft(draft ?? EventoraOrganizerApplicationDraft.bootstrap(viewer));
+      _applyDraft(draft ?? VennuzoOrganizerApplicationDraft.bootstrap(viewer));
     } catch (_) {
       if (!mounted) {
         return;
       }
-      _applyDraft(EventoraOrganizerApplicationDraft.bootstrap(viewer));
+      _applyDraft(VennuzoOrganizerApplicationDraft.bootstrap(viewer));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Could not load host access details right now.'),
@@ -636,7 +636,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     }
   }
 
-  void _applyDraft(EventoraOrganizerApplicationDraft draft) {
+  void _applyDraft(VennuzoOrganizerApplicationDraft draft) {
     _organizerNameController.text = draft.organizerName;
     _contactPersonController.text = draft.contactPerson;
     _emailController.text = draft.email;
@@ -670,8 +670,8 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     _selfieImage = null;
   }
 
-  EventoraOrganizerApplicationDraft _draftFromForm() {
-    return EventoraOrganizerApplicationDraft(
+  VennuzoOrganizerApplicationDraft _draftFromForm() {
+    return VennuzoOrganizerApplicationDraft(
       organizerName: _organizerNameController.text.trim(),
       contactPerson: _contactPersonController.text.trim(),
       email: _emailController.text.trim(),
@@ -778,7 +778,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
   }
 
   Future<void> _saveDraft() async {
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final uid = session.viewer.uid;
     if (uid == null) {
       return;
@@ -787,7 +787,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     setState(() => _isSaving = true);
     try {
       await _uploadPendingImages(uid);
-      await EventoraOrganizerApplicationService.instance.saveDraft(
+      await VennuzoOrganizerApplicationService.instance.saveDraft(
         userId: uid,
         draft: _draftFromForm(),
       );
@@ -833,7 +833,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
       return;
     }
 
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final uid = session.viewer.uid;
     if (uid == null) {
       return;
@@ -842,7 +842,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     setState(() => _isSaving = true);
     try {
       await _uploadPendingImages(uid);
-      await EventoraOrganizerApplicationService.instance.submit(
+      await VennuzoOrganizerApplicationService.instance.submit(
         userId: uid,
         draft: _draftFromForm(),
       );
@@ -868,7 +868,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
   }
 
   Future<void> _uploadPendingImages(String uid) async {
-    final service = EventoraOrganizerApplicationService.instance;
+    final service = VennuzoOrganizerApplicationService.instance;
 
     if (_logoImage != null) {
       final uploaded = await service.uploadImage(
@@ -960,18 +960,18 @@ class _HostAccessHero extends StatelessWidget {
             isGuest
                 ? 'Host access lives right here in the app.'
                 : canEdit
-                ? 'Set up your host access without leaving Eventora.'
+                ? 'Set up your host access without leaving Vennuzo.'
                 : 'Your host access profile is already in motion.',
             style: context.text.headlineSmall,
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Create or sign in to an Eventora account, then complete your organizer profile, verification details, and payout setup in this same flow.'
+                ? 'Create or sign in to an Vennuzo account, then complete your organizer profile, verification details, and payout setup in this same flow.'
                 : canEdit
                 ? 'Finish the organizer profile, upload the verification details, and submit for review when everything looks right.'
                 : reviewNotes.trim().isNotEmpty
-                ? 'You can review the latest note here while the Eventora team processes your host access.'
+                ? 'You can review the latest note here while the Vennuzo team processes your host access.'
                 : 'Your existing host access details are saved in-app so you can keep track of status without opening a browser.',
             style: context.text.bodyLarge?.copyWith(color: palette.slate),
           ),

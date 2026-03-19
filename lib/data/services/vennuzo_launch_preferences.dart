@@ -1,10 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-class EventoraLaunchPreferences {
-  EventoraLaunchPreferences._();
+class VennuzoLaunchPreferences {
+  VennuzoLaunchPreferences._();
 
-  static const _onboardingCompletedKey = 'eventora.onboarding.completed';
-  static const _discoverVisitedKey = 'eventora.discover.visited';
+  static const _onboardingCompletedKey = 'vennuzo.onboarding.completed';
+  static const _discoverVisitedKey = 'vennuzo.discover.visited';
 
   static Future<bool> shouldShowOnboarding() async {
     final prefs = await SharedPreferences.getInstance();

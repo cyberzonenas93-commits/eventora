@@ -18,7 +18,7 @@ import UIKit
 
     if let controller = window?.rootViewController as? FlutterViewController {
       let channel = FlutterMethodChannel(
-        name: "com.eventora.app/maps_config",
+        name: "com.vennuzo.app/maps_config",
         binaryMessenger: controller.binaryMessenger
       )
       channel.setMethodCallHandler { call, result in

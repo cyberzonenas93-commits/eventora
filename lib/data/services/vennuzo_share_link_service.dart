@@ -3,14 +3,14 @@ import 'package:flutter/foundation.dart';
 
 import '../../domain/models/event_models.dart';
 
-class EventoraShareLinkService {
-  EventoraShareLinkService._();
+class VennuzoShareLinkService {
+  VennuzoShareLinkService._();
 
   static FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: 'us-central1');
 
   static String fallbackEventLink(String eventId) =>
-      'https://eventora.app/e/${Uri.encodeComponent(eventId)}';
+      'https://vennuzo.app/e/${Uri.encodeComponent(eventId)}';
 
   static Future<String> createEventLink({required EventModel event}) async {
     try {

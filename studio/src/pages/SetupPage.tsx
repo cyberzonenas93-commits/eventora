@@ -155,7 +155,7 @@ export function SetupPage() {
         <div className="studio-brand studio-brand--stacked">
           <div className="studio-brand__mark">E</div>
           <div>
-            <strong>Eventora Studio</strong>
+            <strong>Vennuzo Studio</strong>
             <span>Workspace setup</span>
           </div>
         </div>
@@ -277,7 +277,7 @@ export function SetupPage() {
                   label="Instagram"
                   value={form.instagram}
                   onChange={(value) => setForm((current) => ({ ...current, instagram: value }))}
-                  placeholder="@eventora"
+                  placeholder="@vennuzo"
                 />
                 <Field
                   label="Brand tagline"

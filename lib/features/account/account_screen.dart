@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
 import '../manage/host_access_screen.dart';
@@ -13,7 +13,7 @@ class AccountScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
     final viewer = session.viewer;
 
     return Scaffold(
@@ -25,7 +25,7 @@ class AccountScreen extends StatelessWidget {
             title: viewer.isGuest ? 'Guest mode' : viewer.displayName,
             body: viewer.isGuest
                 ? null
-                : viewer.email ?? 'Your Eventora account',
+                : viewer.email ?? 'Your Vennuzo account',
             photoUrl: viewer.photoUrl,
           ),
           const SizedBox(height: 22),
@@ -96,7 +96,7 @@ class AccountScreen extends StatelessWidget {
                       label: 'App view',
                       value: viewer.isAdminWorkspace
                           ? 'Admin console'
-                          : 'Eventora app',
+                          : 'Vennuzo app',
                     ),
                     if (viewer.roles.isNotEmpty)
                       _DetailRow(
@@ -282,7 +282,7 @@ class AccountScreen extends StatelessWidget {
 
   Future<void> _signOut(BuildContext context) async {
     try {
-      await context.read<EventoraSessionController>().signOut();
+      await context.read<VennuzoSessionController>().signOut();
       if (!context.mounted) {
         return;
       }
@@ -290,7 +290,7 @@ class AccountScreen extends StatelessWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('You are signed out.')));
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       _showMessage(context, error.message);
     }
   }
@@ -307,7 +307,7 @@ class AccountScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'This permanently removes your Eventora account profile. Enter your current password to confirm.',
+                'This permanently removes your Vennuzo account profile. Enter your current password to confirm.',
               ),
               const SizedBox(height: 12),
               TextField(
@@ -340,7 +340,7 @@ class AccountScreen extends StatelessWidget {
     }
 
     try {
-      await context.read<EventoraSessionController>().deleteAccount(
+      await context.read<VennuzoSessionController>().deleteAccount(
         currentPassword: password.trim(),
       );
       if (!context.mounted) {
@@ -348,9 +348,9 @@ class AccountScreen extends StatelessWidget {
       }
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your Eventora account was deleted.')),
+        const SnackBar(content: Text('Your Vennuzo account was deleted.')),
       );
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       _showMessage(context, error.message);
     }
   }
@@ -369,7 +369,7 @@ class AccountScreen extends StatelessWidget {
       context,
     ).push<bool>(MaterialPageRoute<bool>(builder: (_) => const SignUpScreen()));
     if (created == true && context.mounted) {
-      _showMessage(context, 'Your Eventora account is ready to use.');
+      _showMessage(context, 'Your Vennuzo account is ready to use.');
     }
   }
 
@@ -392,7 +392,7 @@ class AccountScreen extends StatelessWidget {
     bool? marketingOptIn,
   }) async {
     try {
-      await context.read<EventoraSessionController>().updateNotificationPrefs(
+      await context.read<VennuzoSessionController>().updateNotificationPrefs(
         pushEnabled: pushEnabled,
         smsEnabled: smsEnabled,
         marketingOptIn: marketingOptIn,
@@ -403,7 +403,7 @@ class AccountScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Notification preferences updated.')),
       );
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       _showMessage(context, error.message);
     }
   }

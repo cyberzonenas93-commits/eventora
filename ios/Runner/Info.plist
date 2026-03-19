@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Eventora</string>
+	<string>Vennuzo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Eventora</string>
+	<string>Vennuzo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -28,10 +28,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.eventora.app</string>
+			<string>com.vennuzo.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>eventoraapp</string>
+				<string>vennuzoapp</string>
 			</array>
 		</dict>
 		<dict>
@@ -52,9 +52,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Eventora uses your location to show nearby events and help you place events accurately on the map.</string>
+	<string>Vennuzo uses your location to show nearby events and help you place events accurately on the map.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Eventora uses your photo library so you can choose an optional profile picture.</string>
+	<string>Vennuzo uses your photo library so you can choose an optional profile picture.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/theme_extensions.dart';
 
-class EventoraSplashStage extends StatefulWidget {
-  const EventoraSplashStage({
+class VennuzoSplashStage extends StatefulWidget {
+  const VennuzoSplashStage({
     super.key,
-    this.title = 'Eventora',
+    this.title = 'Vennuzo',
     this.subtitle = 'Experience events differently',
     this.showLoader = false,
   });
@@ -15,10 +15,10 @@ class EventoraSplashStage extends StatefulWidget {
   final bool showLoader;
 
   @override
-  State<EventoraSplashStage> createState() => _EventoraSplashStageState();
+  State<VennuzoSplashStage> createState() => _VennuzoSplashStageState();
 }
 
-class _EventoraSplashStageState extends State<EventoraSplashStage>
+class _VennuzoSplashStageState extends State<VennuzoSplashStage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _glowController = AnimationController(
     vsync: this,

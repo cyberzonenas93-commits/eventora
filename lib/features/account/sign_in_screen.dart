@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -33,7 +33,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sign in')),
@@ -69,7 +69,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           validator: (value) {
                             final trimmed = value?.trim() ?? '';
                             if (trimmed.isEmpty || !trimmed.contains('@')) {
-                              return 'Enter the email linked to your Eventora account.';
+                              return 'Enter the email linked to your Vennuzo account.';
                             }
                             return null;
                           },
@@ -150,7 +150,7 @@ class _SignInScreenState extends State<SignInScreen> {
       return;
     }
 
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
       await session.signIn(
@@ -162,7 +162,7 @@ class _SignInScreenState extends State<SignInScreen> {
         return;
       }
       navigator.pop(true);
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
     }
   }
@@ -174,7 +174,7 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _signInWithGoogle() async {
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
       await session.signInWithGoogle();
@@ -183,13 +183,13 @@ class _SignInScreenState extends State<SignInScreen> {
         return;
       }
       navigator.pop(true);
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
     }
   }
 
   Future<void> _signInWithApple() async {
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
       await session.signInWithApple();
@@ -198,7 +198,7 @@ class _SignInScreenState extends State<SignInScreen> {
         return;
       }
       navigator.pop(true);
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
     }
   }
@@ -238,14 +238,14 @@ class _SignInScreenState extends State<SignInScreen> {
     }
 
     try {
-      await context.read<EventoraSessionController>().sendPasswordReset(
+      await context.read<VennuzoSessionController>().sendPasswordReset(
         submitted,
       );
       if (!mounted) {
         return;
       }
       _showMessage('Password reset email sent.');
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
     }
   }

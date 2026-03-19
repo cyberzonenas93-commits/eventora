@@ -3,7 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 
 class AdminOrganizerApprovalsScreen extends StatefulWidget {
@@ -21,7 +21,7 @@ class _AdminOrganizerApprovalsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
     final isSuperAdmin = session.hasSuperAdminAccess;
 
     return Scaffold(
@@ -87,7 +87,7 @@ class _AdminOrganizerApprovalsScreenState
                 return _MessageCard(
                   title: 'No organizer applications here',
                   body:
-                      'When organizers submit through Eventora Studio, they will appear in this queue for review.',
+                      'When organizers submit through Vennuzo Studio, they will appear in this queue for review.',
                   icon: Icons.inbox_outlined,
                 );
               }
@@ -233,7 +233,7 @@ class _ApprovalHero extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             isSuperAdmin
-                ? 'Review Eventora Studio applications, mark them under review, and approve the teams that should publish and sell on the platform.'
+                ? 'Review Vennuzo Studio applications, mark them under review, and approve the teams that should publish and sell on the platform.'
                 : 'This queue is visible, but only superadmins can approve or reject organizer applications.',
             style: context.text.bodyLarge?.copyWith(
               color: context.palette.slate,

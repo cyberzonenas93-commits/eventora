@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/ticket_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
@@ -22,7 +22,7 @@ class _AdminTicketsScreenState extends State<AdminTicketsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
+    final repository = context.watch<VennuzoRepository>();
     final orders = repository.adminVisibleOrders;
     final outstandingEntries = [
       for (final order in orders)
@@ -249,7 +249,7 @@ class _GateEntryCard extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      context.read<EventoraRepository>().admitTicket(
+                      context.read<VennuzoRepository>().admitTicket(
                         entry.order.id,
                         entry.ticket.ticketId,
                       );
@@ -301,7 +301,7 @@ class _AdminOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
 
     return Card(
       child: Padding(

@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../data/services/eventora_deep_link_service.dart';
-import '../data/services/eventora_notification_service.dart';
-import '../core/theme/eventora_theme.dart';
-import '../data/repositories/eventora_repository.dart';
-import '../features/root/eventora_root_screen.dart';
-import 'eventora_session_controller.dart';
+import '../data/services/vennuzo_deep_link_service.dart';
+import '../data/services/vennuzo_notification_service.dart';
+import '../core/theme/vennuzo_theme.dart';
+import '../data/repositories/vennuzo_repository.dart';
+import '../features/root/vennuzo_root_screen.dart';
+import 'vennuzo_session_controller.dart';
 
-class EventoraApp extends StatefulWidget {
-  const EventoraApp({
+class VennuzoApp extends StatefulWidget {
+  const VennuzoApp({
     super.key,
     this.firebaseEnabled = true,
     this.skipLaunchOnboarding = false,
@@ -19,26 +19,26 @@ class EventoraApp extends StatefulWidget {
   final bool skipLaunchOnboarding;
 
   @override
-  State<EventoraApp> createState() => _EventoraAppState();
+  State<VennuzoApp> createState() => _VennuzoAppState();
 }
 
-class _EventoraAppState extends State<EventoraApp> {
+class _VennuzoAppState extends State<VennuzoApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
-    EventoraNotificationService.instance.initialize(
+    VennuzoNotificationService.instance.initialize(
       firebaseEnabled: widget.firebaseEnabled,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      EventoraDeepLinkService.instance.initialize(navigatorKey: _navigatorKey);
+      VennuzoDeepLinkService.instance.initialize(navigatorKey: _navigatorKey);
     });
   }
 
   @override
   void dispose() {
-    EventoraDeepLinkService.instance.dispose();
+    VennuzoDeepLinkService.instance.dispose();
     super.dispose();
   }
 
@@ -47,31 +47,31 @@ class _EventoraAppState extends State<EventoraApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => EventoraSessionController(
+          create: (_) => VennuzoSessionController(
             firebaseEnabled: widget.firebaseEnabled,
           ),
         ),
         ChangeNotifierProxyProvider<
-          EventoraSessionController,
-          EventoraRepository
+          VennuzoSessionController,
+          VennuzoRepository
         >(
-          create: (_) => EventoraRepository.seeded(
+          create: (_) => VennuzoRepository.seeded(
             firebaseEnabled: widget.firebaseEnabled,
           ),
           update: (_, session, repository) =>
               (repository ??
-                    EventoraRepository.seeded(
+                    VennuzoRepository.seeded(
                       firebaseEnabled: widget.firebaseEnabled,
                     ))
                 ..applyViewer(session.viewer),
         ),
       ],
       child: MaterialApp(
-        title: 'Eventora',
+        title: 'Vennuzo',
         debugShowCheckedModeBanner: false,
         navigatorKey: _navigatorKey,
-        theme: EventoraTheme.lightTheme,
-        home: EventoraRootScreen(
+        theme: VennuzoTheme.lightTheme,
+        home: VennuzoRootScreen(
           skipLaunchOnboarding: widget.skipLaunchOnboarding,
         ),
       ),

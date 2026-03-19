@@ -1,6 +1,6 @@
 import 'dart:async';
 
-class EventoraTicketOrderMonitor {
+class VennuzoTicketOrderMonitor {
   static final Map<String, Timer> _timers = <String, Timer>{};
   static final Map<String, int> _pollCounts = <String, int>{};
 

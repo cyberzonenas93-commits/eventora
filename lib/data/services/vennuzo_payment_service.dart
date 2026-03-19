@@ -7,8 +7,8 @@ import '../../domain/models/account_models.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/ticket_models.dart';
 
-class EventoraPaymentException implements Exception {
-  const EventoraPaymentException(this.message);
+class VennuzoPaymentException implements Exception {
+  const VennuzoPaymentException(this.message);
 
   final String message;
 
@@ -16,8 +16,8 @@ class EventoraPaymentException implements Exception {
   String toString() => message;
 }
 
-class EventoraCheckoutSession {
-  const EventoraCheckoutSession({
+class VennuzoCheckoutSession {
+  const VennuzoCheckoutSession({
     required this.order,
     required this.checkoutUrl,
     required this.launched,
@@ -28,19 +28,19 @@ class EventoraCheckoutSession {
   final bool launched;
 }
 
-class EventoraPaymentService {
+class VennuzoPaymentService {
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   static FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: 'us-central1');
 
-  static Future<EventoraCheckoutSession> startPaidCheckout({
+  static Future<VennuzoCheckoutSession> startPaidCheckout({
     required EventModel event,
     required Map<String, int> selections,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      throw const EventoraPaymentException(
+      throw const VennuzoPaymentException(
         'Sign in before starting ticket payment.',
       );
     }
@@ -51,7 +51,7 @@ class EventoraPaymentService {
       (runningTotal, selection) => runningTotal + selection.subtotal,
     );
     if (selectedTiers.isEmpty || totalAmount <= 0) {
-      throw const EventoraPaymentException(
+      throw const VennuzoPaymentException(
         'Select at least one paid ticket tier.',
       );
     }
@@ -59,7 +59,7 @@ class EventoraPaymentService {
     final buyerName = _firstNonEmpty(
       viewer.displayName,
       user.displayName,
-      'Eventora guest',
+      'Vennuzo guest',
     );
     final buyerPhone = _normalizePhone(viewer.phone ?? user.phoneNumber);
     final buyerEmail = _firstNonEmpty(viewer.email, user.email);
@@ -111,7 +111,7 @@ class EventoraPaymentService {
     final data = Map<String, dynamic>.from(result.data as Map);
     final checkoutUrl = (data['checkoutUrl'] as String? ?? '').trim();
     if (checkoutUrl.isEmpty) {
-      throw const EventoraPaymentException(
+      throw const VennuzoPaymentException(
         'Hubtel did not return a checkout link.',
       );
     }
@@ -135,7 +135,7 @@ class EventoraPaymentService {
       tickets: const [],
     );
 
-    return EventoraCheckoutSession(
+    return VennuzoCheckoutSession(
       order: order,
       checkoutUrl: checkoutUrl,
       launched: launched,
@@ -150,7 +150,7 @@ class EventoraPaymentService {
     final data = Map<String, dynamic>.from(result.data as Map);
     final checkoutUrl = (data['checkoutUrl'] as String? ?? '').trim();
     if (checkoutUrl.isEmpty) {
-      throw const EventoraPaymentException('Payment link unavailable.');
+      throw const VennuzoPaymentException('Payment link unavailable.');
     }
     await _launchCheckoutUrl(checkoutUrl);
     return checkoutUrl;
@@ -314,7 +314,7 @@ class EventoraPaymentService {
   static Future<bool> _launchCheckoutUrl(String checkoutUrl) async {
     final uri = Uri.tryParse(checkoutUrl);
     if (uri == null) {
-      throw const EventoraPaymentException('Checkout URL is invalid.');
+      throw const VennuzoPaymentException('Checkout URL is invalid.');
     }
     return launchUrl(uri, mode: LaunchMode.externalApplication);
   }

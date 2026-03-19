@@ -7,7 +7,7 @@ class GoogleMapsSecretsService {
   static final GoogleMapsSecretsService instance = GoogleMapsSecretsService._();
 
   static const MethodChannel _channel = MethodChannel(
-    'com.eventora.app/maps_config',
+    'com.vennuzo.app/maps_config',
   );
 
   String? _apiKey;

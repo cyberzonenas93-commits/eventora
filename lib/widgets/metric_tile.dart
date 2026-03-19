@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/theme_extensions.dart';
-import 'eventora_motion.dart';
+import 'vennuzo_motion.dart';
 
 class MetricTile extends StatelessWidget {
   const MetricTile({
@@ -22,7 +22,7 @@ class MetricTile extends StatelessWidget {
     final palette = context.palette;
     final accent = highlight ?? palette.ink;
 
-    return EventoraReveal(
+    return VennuzoReveal(
       delay: const Duration(milliseconds: 80),
       child: Container(
         constraints: const BoxConstraints(minWidth: 152),

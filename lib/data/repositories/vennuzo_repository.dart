@@ -4,21 +4,21 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
-import '../services/eventora_cloud_sync_service.dart';
-import '../services/eventora_payment_service.dart';
+import '../services/vennuzo_cloud_sync_service.dart';
+import '../services/vennuzo_payment_service.dart';
 import '../../domain/models/account_models.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../domain/models/ticket_models.dart';
 import '../mock/mock_seed.dart';
 
-class EventoraRepository extends ChangeNotifier {
-  EventoraRepository._({
+class VennuzoRepository extends ChangeNotifier {
+  VennuzoRepository._({
     required List<EventModel> events,
     required List<TicketOrder> orders,
     required List<RsvpRecord> rsvps,
     required List<PromotionCampaign> campaigns,
-    required EventoraCloudSyncService cloudSync,
+    required VennuzoCloudSyncService cloudSync,
   }) : _events = events,
        _orders = orders,
        _rsvps = rsvps,
@@ -29,13 +29,13 @@ class EventoraRepository extends ChangeNotifier {
     }
   }
 
-  factory EventoraRepository.seeded({required bool firebaseEnabled}) {
-    return EventoraRepository._(
+  factory VennuzoRepository.seeded({required bool firebaseEnabled}) {
+    return VennuzoRepository._(
       events: MockSeed.events(),
       orders: MockSeed.orders(),
       rsvps: MockSeed.rsvps(),
       campaigns: MockSeed.campaigns(),
-      cloudSync: EventoraCloudSyncService(firebaseEnabled: firebaseEnabled),
+      cloudSync: VennuzoCloudSyncService(firebaseEnabled: firebaseEnabled),
     );
   }
 
@@ -43,7 +43,7 @@ class EventoraRepository extends ChangeNotifier {
   final List<TicketOrder> _orders;
   final List<RsvpRecord> _rsvps;
   final List<PromotionCampaign> _campaigns;
-  final EventoraCloudSyncService _cloudSync;
+  final VennuzoCloudSyncService _cloudSync;
   final List<EventModel> _livePublicEvents = <EventModel>[];
   final List<EventModel> _liveWorkspaceEvents = <EventModel>[];
   final List<TicketOrder> _liveOrders = <TicketOrder>[];
@@ -60,7 +60,7 @@ class EventoraRepository extends ChangeNotifier {
   _campaignsSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
   _remindersSubscription;
-  EventoraViewer _viewer = const EventoraViewer.guest();
+  VennuzoViewer _viewer = const VennuzoViewer.guest();
   final Map<String, ReminderTiming> _reminders = {
     'event_after_dark': ReminderTiming.oneDayBefore,
   };
@@ -88,7 +88,7 @@ class EventoraRepository extends ChangeNotifier {
   String get currentUserEmail => _viewer.email ?? '';
   bool get isGuest => _viewer.isGuest;
 
-  void applyViewer(EventoraViewer viewer) {
+  void applyViewer(VennuzoViewer viewer) {
     if (_viewer.uid == viewer.uid &&
         _viewer.displayName == viewer.displayName &&
         _viewer.email == viewer.email &&
@@ -336,10 +336,10 @@ class EventoraRepository extends ChangeNotifier {
     return _reminders[eventId];
   }
 
-  String buildShareLink(String eventId) => 'https://eventora.app/e/$eventId';
+  String buildShareLink(String eventId) => 'https://vennuzo.app/e/$eventId';
 
   String buildPublicTicketLink(String orderId) =>
-      'https://eventora.app/ticket/$orderId';
+      'https://vennuzo.app/ticket/$orderId';
 
   bool hasRsvp(String eventId) {
     if (isGuest) {
@@ -971,7 +971,7 @@ class EventoraRepository extends ChangeNotifier {
         ..clear()
         ..addAll(
           snapshot.docs
-              .map(EventoraPaymentService.orderFromDocument)
+              .map(VennuzoPaymentService.orderFromDocument)
               .whereType<TicketOrder>(),
         );
       notifyListeners();

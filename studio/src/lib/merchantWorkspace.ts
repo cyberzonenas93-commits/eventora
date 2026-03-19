@@ -4,7 +4,7 @@ export function getWorkspaceName(
   application: OrganizerApplication | null,
   profile: UserProfile | null,
 ) {
-  return application?.organizerName?.trim() || profile?.displayName?.trim() || 'Eventora Studio'
+  return application?.organizerName?.trim() || profile?.displayName?.trim() || 'Vennuzo Studio'
 }
 
 export function getWorkspaceTagline(application: OrganizerApplication | null) {
@@ -69,7 +69,7 @@ export function getReviewTimeline(status: OrganizerApplicationStatus) {
     return [
       {
         label: 'Account created',
-        detail: 'Your Eventora Studio workspace is live and ready to use.',
+        detail: 'Your Vennuzo Studio workspace is live and ready to use.',
         state: 'complete',
       },
       {
@@ -97,7 +97,7 @@ export function getReviewTimeline(status: OrganizerApplicationStatus) {
     },
     {
       label: 'Application submitted',
-      detail: 'Your workspace enters the review queue for Eventora operations.',
+      detail: 'Your workspace enters the review queue for Vennuzo operations.',
       state: submittedOrBeyond ? 'complete' : 'pending',
     },
     {

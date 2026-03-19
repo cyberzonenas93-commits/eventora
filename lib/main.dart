@@ -1,7 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
-import 'app/eventora_app.dart';
+import 'app/vennuzo_app.dart';
 import 'core/firebase/firebase_bootstrap.dart';
 
 @pragma('vm:entry-point')
@@ -15,5 +15,5 @@ Future<void> main() async {
   if (firebaseEnabled) {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   }
-  runApp(EventoraApp(firebaseEnabled: firebaseEnabled));
+  runApp(VennuzoApp(firebaseEnabled: firebaseEnabled));
 }

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/event_models.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
@@ -14,8 +14,8 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
-    final session = context.watch<EventoraSessionController>();
+    final repository = context.watch<VennuzoRepository>();
+    final session = context.watch<VennuzoSessionController>();
     final events = repository.adminVisibleEvents;
     final campaigns = repository.adminVisibleCampaigns;
     final liveCampaigns = campaigns
@@ -228,7 +228,7 @@ class _WatchlistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     final orders = repository.ordersForEvent(event.id);
     final outstanding = repository.outstandingTicketsForEvent(event.id).length;
 
@@ -335,7 +335,7 @@ class _SuperAdminPanel extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Use this layer for moderator queues, admin access, support escalation, and broadcast governance as Eventora grows beyond one organizer workspace.',
+              'Use this layer for moderator queues, admin access, support escalation, and broadcast governance as Vennuzo grows beyond one organizer workspace.',
               style: context.text.bodyMedium,
             ),
             const SizedBox(height: 16),

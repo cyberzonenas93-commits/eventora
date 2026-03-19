@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
-import '../../data/services/eventora_launch_preferences.dart';
+import '../../app/vennuzo_session_controller.dart';
+import '../../data/services/vennuzo_launch_preferences.dart';
 import '../admin/admin_face_chooser_screen.dart';
-import '../onboarding/eventora_onboarding_screen.dart';
+import '../onboarding/vennuzo_onboarding_screen.dart';
 import '../admin/admin_shell_screen.dart';
-import '../shell/eventora_shell_screen.dart';
-import '../../widgets/eventora_splash_stage.dart';
+import '../shell/vennuzo_shell_screen.dart';
+import '../../widgets/vennuzo_splash_stage.dart';
 
-class EventoraRootScreen extends StatefulWidget {
-  const EventoraRootScreen({super.key, this.skipLaunchOnboarding = false});
+class VennuzoRootScreen extends StatefulWidget {
+  const VennuzoRootScreen({super.key, this.skipLaunchOnboarding = false});
 
   final bool skipLaunchOnboarding;
 
   @override
-  State<EventoraRootScreen> createState() => _EventoraRootScreenState();
+  State<VennuzoRootScreen> createState() => _VennuzoRootScreenState();
 }
 
-class _EventoraRootScreenState extends State<EventoraRootScreen> {
+class _VennuzoRootScreenState extends State<VennuzoRootScreen> {
   bool _isCheckingOnboarding = true;
   bool _showOnboarding = false;
 
@@ -40,7 +40,7 @@ class _EventoraRootScreenState extends State<EventoraRootScreen> {
       return;
     }
 
-    final shouldShow = await EventoraLaunchPreferences.shouldShowOnboarding();
+    final shouldShow = await VennuzoLaunchPreferences.shouldShowOnboarding();
     if (!mounted) {
       return;
     }
@@ -51,7 +51,7 @@ class _EventoraRootScreenState extends State<EventoraRootScreen> {
   }
 
   Future<void> _finishOnboarding() async {
-    await EventoraLaunchPreferences.markOnboardingCompleted();
+    await VennuzoLaunchPreferences.markOnboardingCompleted();
     if (!mounted) {
       return;
     }
@@ -67,10 +67,10 @@ class _EventoraRootScreenState extends State<EventoraRootScreen> {
     }
 
     if (_showOnboarding) {
-      return EventoraOnboardingScreen(onFinished: _finishOnboarding);
+      return VennuzoOnboardingScreen(onFinished: _finishOnboarding);
     }
 
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
 
     if (session.isInitializing) {
       return const _RootLoadingScreen();
@@ -84,7 +84,7 @@ class _EventoraRootScreenState extends State<EventoraRootScreen> {
       return const AdminShellScreen();
     }
 
-    return const EventoraShellScreen();
+    return const VennuzoShellScreen();
   }
 }
 
@@ -94,7 +94,7 @@ class _RootLoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: EventoraSplashStage(subtitle: null, showLoader: true),
+      body: VennuzoSplashStage(subtitle: null, showLoader: true),
     );
   }
 }

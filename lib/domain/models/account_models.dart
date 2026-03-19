@@ -1,4 +1,4 @@
-enum EventoraWorkspaceFace { attendee, admin }
+enum VennuzoWorkspaceFace { attendee, admin }
 
 enum OrganizerApplicationStatus {
   notStarted,
@@ -10,8 +10,8 @@ enum OrganizerApplicationStatus {
   rejected,
 }
 
-class EventoraNotificationPrefs {
-  const EventoraNotificationPrefs({
+class VennuzoNotificationPrefs {
+  const VennuzoNotificationPrefs({
     this.pushEnabled = true,
     this.smsEnabled = true,
     this.marketingOptIn = false,
@@ -21,12 +21,12 @@ class EventoraNotificationPrefs {
   final bool smsEnabled;
   final bool marketingOptIn;
 
-  EventoraNotificationPrefs copyWith({
+  VennuzoNotificationPrefs copyWith({
     bool? pushEnabled,
     bool? smsEnabled,
     bool? marketingOptIn,
   }) {
-    return EventoraNotificationPrefs(
+    return VennuzoNotificationPrefs(
       pushEnabled: pushEnabled ?? this.pushEnabled,
       smsEnabled: smsEnabled ?? this.smsEnabled,
       marketingOptIn: marketingOptIn ?? this.marketingOptIn,
@@ -34,13 +34,13 @@ class EventoraNotificationPrefs {
   }
 }
 
-class EventoraViewer {
-  const EventoraViewer({
+class VennuzoViewer {
+  const VennuzoViewer({
     required this.displayName,
     required this.isAuthenticated,
-    this.notificationPrefs = const EventoraNotificationPrefs(),
+    this.notificationPrefs = const VennuzoNotificationPrefs(),
     this.roles = const <String>[],
-    this.activeFace = EventoraWorkspaceFace.attendee,
+    this.activeFace = VennuzoWorkspaceFace.attendee,
     this.uid,
     this.email,
     this.phone,
@@ -54,12 +54,12 @@ class EventoraViewer {
     this.hasAdminProfile = false,
   });
 
-  const EventoraViewer.guest()
+  const VennuzoViewer.guest()
     : displayName = 'Guest',
       isAuthenticated = false,
-      notificationPrefs = const EventoraNotificationPrefs(),
+      notificationPrefs = const VennuzoNotificationPrefs(),
       roles = const <String>[],
-      activeFace = EventoraWorkspaceFace.attendee,
+      activeFace = VennuzoWorkspaceFace.attendee,
       uid = null,
       email = null,
       phone = null,
@@ -79,9 +79,9 @@ class EventoraViewer {
   final DateTime? dateOfBirth;
   final String? photoUrl;
   final bool isAuthenticated;
-  final EventoraNotificationPrefs notificationPrefs;
+  final VennuzoNotificationPrefs notificationPrefs;
   final List<String> roles;
-  final EventoraWorkspaceFace activeFace;
+  final VennuzoWorkspaceFace activeFace;
   final String? adminRole;
   final String? defaultOrganizationId;
   final OrganizerApplicationStatus organizerApplicationStatus;
@@ -90,7 +90,7 @@ class EventoraViewer {
   final bool hasAdminProfile;
 
   bool get isGuest => !isAuthenticated;
-  bool get isAdminWorkspace => activeFace == EventoraWorkspaceFace.admin;
+  bool get isAdminWorkspace => activeFace == VennuzoWorkspaceFace.admin;
   bool get hasOrganizerAccess =>
       _hasRole('organizer') ||
       organizerApplicationStatus == OrganizerApplicationStatus.active ||
@@ -134,19 +134,19 @@ class EventoraViewer {
     if (hasOrganizerAccess) {
       return 'Organizer app';
     }
-    return 'Eventora app';
+    return 'Vennuzo app';
   }
 
   String get faceTitle {
     if (isGuest) {
-      return 'Eventora';
+      return 'Vennuzo';
     }
     return isAdminWorkspace
         ? (hasSuperAdminAccess ? 'Superadmin Console' : 'Admin Console')
-        : 'Eventora';
+        : 'Vennuzo';
   }
 
-  EventoraViewer copyWith({
+  VennuzoViewer copyWith({
     String? uid,
     String? displayName,
     String? email,
@@ -154,9 +154,9 @@ class EventoraViewer {
     DateTime? dateOfBirth,
     String? photoUrl,
     bool? isAuthenticated,
-    EventoraNotificationPrefs? notificationPrefs,
+    VennuzoNotificationPrefs? notificationPrefs,
     List<String>? roles,
-    EventoraWorkspaceFace? activeFace,
+    VennuzoWorkspaceFace? activeFace,
     String? adminRole,
     bool clearAdminRole = false,
     String? defaultOrganizationId,
@@ -167,7 +167,7 @@ class EventoraViewer {
     bool? hasCustomerProfile,
     bool? hasAdminProfile,
   }) {
-    return EventoraViewer(
+    return VennuzoViewer(
       uid: uid ?? this.uid,
       displayName: displayName ?? this.displayName,
       email: email ?? this.email,

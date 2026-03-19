@@ -103,7 +103,7 @@ function StudioSplash() {
           <span>E</span>
           <i>*</i>
         </div>
-        <p className="eyebrow">Eventora</p>
+        <p className="eyebrow">Vennuzo</p>
         <h1>Experience events differently</h1>
         <p>Premium discovery, ticketing, and creator tools in one system.</p>
       </div>

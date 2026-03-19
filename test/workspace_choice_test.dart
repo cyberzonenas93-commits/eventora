@@ -1,9 +1,9 @@
-import 'package:eventora_app/domain/models/account_models.dart';
+import 'package:vennuzo/domain/models/account_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('admin-only account does not need workspace choice', () {
-    const viewer = EventoraViewer(
+    const viewer = VennuzoViewer(
       displayName: 'Admin Only',
       isAuthenticated: true,
       roles: ['admin'],
@@ -18,7 +18,7 @@ void main() {
   });
 
   test('dual-role admin organizer account can choose a workspace', () {
-    const viewer = EventoraViewer(
+    const viewer = VennuzoViewer(
       displayName: 'Dual Role',
       isAuthenticated: true,
       roles: ['admin', 'organizer'],

@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/event_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/event_card.dart';
@@ -18,7 +18,7 @@ class AdminEventsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
+    final repository = context.watch<VennuzoRepository>();
     final events = repository.adminVisibleEvents;
     final privateCount = events.where((event) => event.isPrivate).length;
     final ticketedCount = events
@@ -144,7 +144,7 @@ class _AdminEventFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     final rsvps = repository.rsvpsForEvent(event.id);
     final orders = repository.ordersForEvent(event.id);
     final outstanding = repository.outstandingTicketsForEvent(event.id).length;
@@ -212,7 +212,7 @@ class _AdminEventFooter extends StatelessWidget {
   }
 
   Future<void> _showGuestList(BuildContext context, EventModel event) async {
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     final rsvps = repository.rsvpsForEvent(event.id);
     final orders = repository.ordersForEvent(event.id);
 

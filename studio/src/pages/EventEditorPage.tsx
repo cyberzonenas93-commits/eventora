@@ -490,7 +490,7 @@ export function EventEditorPage() {
             <div className="editor-section__header">
               <div>
                 <p className="eyebrow">Distribution</p>
-                <h3>Choose how Eventora promotes and shares this page</h3>
+                <h3>Choose how Vennuzo promotes and shares this page</h3>
               </div>
             </div>
 

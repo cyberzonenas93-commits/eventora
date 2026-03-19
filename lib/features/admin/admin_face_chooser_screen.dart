@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 
 class AdminFaceChooserScreen extends StatelessWidget {
@@ -9,7 +9,7 @@ class AdminFaceChooserScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
     final viewer = session.viewer;
     final palette = context.palette;
 
@@ -91,9 +91,9 @@ class AdminFaceChooserScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 24),
                           _WorkspaceTile(
-                            title: 'Eventora app',
+                            title: 'Vennuzo app',
                             subtitle:
-                                'Open the main Eventora experience for discovery, RSVP, tickets, and organizer tools.',
+                                'Open the main Vennuzo experience for discovery, RSVP, tickets, and organizer tools.',
                             icon: Icons.explore_outlined,
                             accent: palette.coral,
                             onTap: session.enterAttendeeWorkspace,

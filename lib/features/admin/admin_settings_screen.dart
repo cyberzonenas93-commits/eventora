@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/section_heading.dart';
@@ -12,7 +12,7 @@ class AdminSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
     final viewer = session.viewer;
 
     return ListView(
@@ -90,7 +90,7 @@ class AdminSettingsScreen extends StatelessWidget {
           SectionHeading(
             title: 'Platform layer',
             subtitle:
-                'Reserved for multi-organization Eventora operations as the product grows.',
+                'Reserved for multi-organization Vennuzo operations as the product grows.',
           ),
           const SizedBox(height: 14),
           Card(
@@ -105,7 +105,7 @@ class AdminSettingsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Review Eventora Studio applications, approve organizer teams, and provision organization access from one superadmin queue.',
+                    'Review Vennuzo Studio applications, approve organizer teams, and provision organization access from one superadmin queue.',
                     style: context.text.bodyMedium?.copyWith(
                       color: context.palette.slate,
                     ),
@@ -143,7 +143,7 @@ class AdminSettingsScreen extends StatelessWidget {
         SectionHeading(
           title: 'Workspace actions',
           subtitle:
-              'Switch between the customer-facing Eventora experience and the admin console without signing out when your credentials allow both.',
+              'Switch between the customer-facing Vennuzo experience and the admin console without signing out when your credentials allow both.',
         ),
         const SizedBox(height: 14),
         Card(
@@ -186,14 +186,14 @@ class AdminSettingsScreen extends StatelessWidget {
 
   Future<void> _signOut(BuildContext context) async {
     try {
-      await context.read<EventoraSessionController>().signOut();
+      await context.read<VennuzoSessionController>().signOut();
       if (!context.mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed out of Eventora admin console.')),
+        const SnackBar(content: Text('Signed out of Vennuzo admin console.')),
       );
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       if (!context.mounted) {
         return;
       }

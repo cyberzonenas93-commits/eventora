@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 
@@ -70,7 +70,7 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
+    final repository = context.watch<VennuzoRepository>();
     final events = repository.managedEvents;
     final palette = context.palette;
     final effectiveEventId =
@@ -346,7 +346,7 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
                       }
 
                       final campaign = context
-                          .read<EventoraRepository>()
+                          .read<VennuzoRepository>()
                           .scheduleCampaign(
                             event: event,
                             name: name,

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
@@ -25,8 +25,8 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
-    final session = context.watch<EventoraSessionController>();
+    final repository = context.watch<VennuzoRepository>();
+    final session = context.watch<VennuzoSessionController>();
     final canLaunchCampaigns =
         session.viewer.hasOrganizerAccess || session.viewer.hasAdminAccess;
     final needsHostAccess = !session.isGuest && !canLaunchCampaigns;
@@ -307,7 +307,7 @@ class _PlacementInventorySection extends StatelessWidget {
 class _EventReachSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
+    final repository = context.watch<VennuzoRepository>();
     final events = repository.managedEvents;
 
     return Column(

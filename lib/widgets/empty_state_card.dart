@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/theme_extensions.dart';
-import 'eventora_motion.dart';
+import 'vennuzo_motion.dart';
 
 class EmptyStateCard extends StatelessWidget {
   const EmptyStateCard({
@@ -23,7 +23,7 @@ class EmptyStateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
 
-    return EventoraReveal(
+    return VennuzoReveal(
       delay: const Duration(milliseconds: 90),
       child: Card(
         child: Padding(

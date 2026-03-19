@@ -1,6 +1,6 @@
 {
-  "name": "eventora-functions",
-  "description": "Cloud Functions for Eventora notifications and campaigns.",
+  "name": "vennuzo-functions",
+  "description": "Cloud Functions for Vennuzo notifications and campaigns.",
   "private": true,
   "main": "index.js",
   "type": "commonjs",

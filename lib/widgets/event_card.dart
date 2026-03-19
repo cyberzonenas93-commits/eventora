@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/theme/theme_extensions.dart';
 import '../core/utils/formatters.dart';
 import '../domain/models/event_models.dart';
-import 'eventora_motion.dart';
+import 'vennuzo_motion.dart';
 
 class EventCard extends StatelessWidget {
   const EventCard({
@@ -27,7 +27,7 @@ class EventCard extends StatelessWidget {
         ? 'Free entry'
         : 'From ${formatMoney(minPrice)}';
 
-    return EventoraReveal(
+    return VennuzoReveal(
       delay: const Duration(milliseconds: 110),
       child: Container(
         decoration: BoxDecoration(

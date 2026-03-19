@@ -1,7 +1,7 @@
-# GPlus Event Notifications to Eventora
+# GPlus Event Notifications to Vennuzo
 
 This note captures how GPlus currently handles event SMS and push delivery, and
-how that setup was ported into Eventora.
+how that setup was ported into Vennuzo.
 
 ## How GPlus handles SMS
 
@@ -20,7 +20,7 @@ The important pieces are:
   transactional collections.
 - Campaigns are modeled separately from recipients, then dispatched in batches.
 
-The credentials reused in Eventora come from the existing GPlus Hubtel SMS
+The credentials reused in Vennuzo come from the existing GPlus Hubtel SMS
 gateway setup.
 
 - `clientId`: configured locally or in Firestore `app_config/hubtel`
@@ -39,12 +39,12 @@ The core pattern is:
 - it sends FCM multicast notifications
 - invalid tokens are removed from Firestore
 
-This queue pattern is the cleanest part of the original design, so Eventora
+This queue pattern is the cleanest part of the original design, so Vennuzo
 keeps it.
 
-## What Eventora now does
+## What Vennuzo now does
 
-Eventora now has its own Firebase Functions package in `functions/`.
+Vennuzo now has its own Firebase Functions package in `functions/`.
 
 Implemented backend flows:
 
@@ -79,7 +79,7 @@ Implemented Flutter-side flows:
   - reminders
   - promotion campaigns
 
-## Collections Eventora now uses for notifications
+## Collections Vennuzo now uses for notifications
 
 - `users`
 - `organizations`
@@ -94,7 +94,7 @@ Implemented Flutter-side flows:
 - `notification_jobs`
 - `push_queue`
 
-## Policy-safe behavior added in Eventora
+## Policy-safe behavior added in Vennuzo
 
 - phone number is still optional during signup
 - SMS reminders and ticket messages only send when a phone number exists

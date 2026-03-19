@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../widgets/empty_state_card.dart';
@@ -16,7 +16,7 @@ class AdminCampaignsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
+    final repository = context.watch<VennuzoRepository>();
     final campaigns = repository.adminVisibleCampaigns;
     final events = repository.adminVisibleEvents;
     final totalReach = campaigns.fold<int>(
@@ -160,7 +160,7 @@ class _EventAudienceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
 
     return Card(
       child: Padding(

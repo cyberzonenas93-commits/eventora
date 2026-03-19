@@ -159,7 +159,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       input?.displayName?.trim() ||
       nextUser.displayName?.trim() ||
       nextUser.email?.split('@').at(0)?.trim() ||
-      'Eventora Organizer'
+      'Vennuzo Organizer'
     const resolvedEmail = input?.email?.trim() || nextUser.email?.trim() || ''
     const resolvedPhone = input?.phone?.trim() || null
     const organizationId = `org_${nextUser.uid}`

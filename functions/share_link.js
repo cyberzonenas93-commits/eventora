@@ -13,7 +13,7 @@ const db = admin.firestore();
 const { FieldValue } = admin.firestore;
 
 const REGION = "us-central1";
-const EVENTORA_SCHEME = "eventoraapp";
+const VENNUZO_SCHEME = "vennuzoapp";
 
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
@@ -27,7 +27,7 @@ function projectId() {
 function functionsBaseUrl() {
   const pid = projectId();
   if (!pid) {
-    throw new Error("GCLOUD_PROJECT is not available for Eventora share links.");
+    throw new Error("GCLOUD_PROJECT is not available for Vennuzo share links.");
   }
   return `https://${REGION}-${pid}.cloudfunctions.net`;
 }
@@ -39,26 +39,26 @@ async function getShareSettings() {
     return {
       iosDownloadUrl: safeString(
         data.iosDownloadUrl,
-        "https://eventora.app/download/ios",
+        "https://vennuzo.app/download/ios",
       ),
       androidDownloadUrl: safeString(
         data.androidDownloadUrl,
-        "https://play.google.com/store/apps/details?id=com.eventora.app",
+        "https://play.google.com/store/apps/details?id=com.vennuzo.app",
       ),
-      webBaseUrl: safeString(data.webBaseUrl, "https://eventora.app"),
+      webBaseUrl: safeString(data.webBaseUrl, "https://vennuzo.app"),
       defaultImageUrl: safeString(
         data.defaultImageUrl,
-        "https://eventora.app/favicon.png",
+        "https://vennuzo.app/favicon.png",
       ),
       shareFunctionUrl: safeString(data.shareFunctionUrl),
     };
   } catch (error) {
     return {
-      iosDownloadUrl: "https://eventora.app/download/ios",
+      iosDownloadUrl: "https://vennuzo.app/download/ios",
       androidDownloadUrl:
-        "https://play.google.com/store/apps/details?id=com.eventora.app",
-      webBaseUrl: "https://eventora.app",
-      defaultImageUrl: "https://eventora.app/favicon.png",
+        "https://play.google.com/store/apps/details?id=com.vennuzo.app",
+      webBaseUrl: "https://vennuzo.app",
+      defaultImageUrl: "https://vennuzo.app/favicon.png",
       shareFunctionUrl: "",
     };
   }
@@ -124,7 +124,7 @@ function slugify(value) {
 }
 
 function buildEventDeepLink(eventId) {
-  return `${EVENTORA_SCHEME}://share/event?eventId=${encodeURIComponent(eventId)}`;
+  return `${VENNUZO_SCHEME}://share/event?eventId=${encodeURIComponent(eventId)}`;
 }
 
 async function getEventSnapshot(eventId) {
@@ -233,7 +233,7 @@ exports.createShareLink = onCall(
     if (type !== "event") {
       throw new HttpsError(
         "unimplemented",
-        "Eventora currently supports event share links only.",
+        "Vennuzo currently supports event share links only.",
       );
     }
 
@@ -287,11 +287,11 @@ exports.shareLink = onRequest(
       const settings = await getShareSettings();
       const title = safeString(
         shareData.title || eventData.title,
-        "Discover Eventora events",
+        "Discover Vennuzo events",
       );
       const description = safeString(
         shareData.description || eventData.description,
-        "Open this link in Eventora to view the event and ticket options.",
+        "Open this link in Vennuzo to view the event and ticket options.",
       );
       const imageUrl = safeString(
         shareData.imageUrl || normalizeEventImageUrl(eventData),
@@ -447,7 +447,7 @@ exports.shareLink = onRequest(
 </head>
 <body>
   <div class="card">
-    <div class="badge">Eventora share link</div>
+    <div class="badge">Vennuzo share link</div>
     <img class="art" src="${safeImageUrl}" alt="${safeTitle}" />
     <h1>${safeTitle}</h1>
     <p>${safeDescription}</p>
@@ -457,11 +457,11 @@ exports.shareLink = onRequest(
       <span>${safePriceLabel}</span>
     </div>
     <div class="actions">
-      <a class="button primary" href="${safeDeepLink}" onclick="return openApp(event)">Open in Eventora</a>
+      <a class="button primary" href="${safeDeepLink}" onclick="return openApp(event)">Open in Vennuzo</a>
       <a class="button" href="${safeIosUrl}" target="_blank" rel="noopener">Get the iPhone app</a>
       <a class="button" href="${safeAndroidUrl}" target="_blank" rel="noopener">Get the Android app</a>
     </div>
-    <p class="hint">If the app is installed, this link opens the event directly. Otherwise, download Eventora and reopen the same link.</p>
+    <p class="hint">If the app is installed, this link opens the event directly. Otherwise, download Vennuzo and reopen the same link.</p>
   </div>
   <script>
     const deepLink = "${safeDeepLink}";

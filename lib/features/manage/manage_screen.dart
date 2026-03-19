@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/account_models.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
@@ -23,8 +23,8 @@ class ManageScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
-    final session = context.watch<EventoraSessionController>();
+    final repository = context.watch<VennuzoRepository>();
+    final session = context.watch<VennuzoSessionController>();
     final events = repository.managedEvents;
     final totalRevenue = events.fold<double>(
       0,

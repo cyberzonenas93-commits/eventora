@@ -1,4 +1,4 @@
-package com.eventora.app
+package com.vennuzo.app
 
 import android.content.pm.PackageManager
 import io.flutter.embedding.android.FlutterActivity
@@ -11,7 +11,7 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "com.eventora.app/maps_config"
+            "com.vennuzo.app/maps_config"
         ).setMethodCallHandler { call, result ->
             if (call.method != "getApiKey") {
                 result.notImplemented()

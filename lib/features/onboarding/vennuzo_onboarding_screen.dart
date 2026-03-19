@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/eventora_theme.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../core/theme/theme_extensions.dart';
-import '../../widgets/eventora_splash_stage.dart';
+import '../../widgets/vennuzo_splash_stage.dart';
 
-class EventoraOnboardingScreen extends StatefulWidget {
-  const EventoraOnboardingScreen({super.key, required this.onFinished});
+class VennuzoOnboardingScreen extends StatefulWidget {
+  const VennuzoOnboardingScreen({super.key, required this.onFinished});
 
   final Future<void> Function() onFinished;
 
   @override
-  State<EventoraOnboardingScreen> createState() =>
-      _EventoraOnboardingScreenState();
+  State<VennuzoOnboardingScreen> createState() =>
+      _VennuzoOnboardingScreenState();
 }
 
-class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
+class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
   bool _isFinishing = false;
@@ -122,7 +122,7 @@ class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
                               ),
                               SizedBox(width: compact ? 6 : 8),
                               Text(
-                                'Eventora',
+                                'Vennuzo',
                                 style: context.text.bodyMedium?.copyWith(
                                   color: palette.ink,
                                   fontWeight: FontWeight.w800,
@@ -149,8 +149,8 @@ class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
                                 borderRadius: BorderRadius.circular(
                                   compact ? 26 : 32,
                                 ),
-                                child: const EventoraSplashStage(
-                                  title: 'Eventora',
+                                child: const VennuzoSplashStage(
+                                  title: 'Vennuzo',
                                   subtitle: 'Experience events differently',
                                 ),
                               ),
@@ -208,7 +208,7 @@ class _EventoraOnboardingScreenState extends State<EventoraOnboardingScreen> {
                             : _next,
                         child: Text(
                           _isFinishing
-                              ? 'Opening Eventora...'
+                              ? 'Opening Vennuzo...'
                               : isLast
                               ? 'Start exploring'
                               : 'Continue',
@@ -439,7 +439,7 @@ class _OnboardingSlideData {
   final _SlideAccent accent;
   final IconData icon;
 
-  Color resolveAccent(EventoraPalette palette) {
+  Color resolveAccent(VennuzoPalette palette) {
     return switch (accent) {
       _SlideAccent.primary => palette.primaryStart,
       _SlideAccent.accent => palette.coral,

@@ -1,4 +1,4 @@
-# Eventora Store Policy Checklist
+# Vennuzo Store Policy Checklist
 
 This app now includes the main code-level safeguards that matter most for App Store and Play review:
 

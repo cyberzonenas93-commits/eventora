@@ -7,8 +7,8 @@ import 'package:http/http.dart' as http;
 import '../../domain/models/event_models.dart';
 import 'google_maps_secrets_service.dart';
 
-class EventoraPlaceSuggestion {
-  const EventoraPlaceSuggestion({
+class VennuzoPlaceSuggestion {
+  const VennuzoPlaceSuggestion({
     required this.placeId,
     required this.title,
     required this.subtitle,
@@ -23,8 +23,8 @@ class EventoraPlaceSuggestion {
   final int? distanceMeters;
 }
 
-class EventoraPlaceSelection {
-  const EventoraPlaceSelection({
+class VennuzoPlaceSelection {
+  const VennuzoPlaceSelection({
     required this.placeId,
     required this.venueName,
     required this.city,
@@ -50,8 +50,8 @@ class EventoraPlaceSelection {
   }
 }
 
-class EventoraPlacesFailure implements Exception {
-  const EventoraPlacesFailure(this.message);
+class VennuzoPlacesFailure implements Exception {
+  const VennuzoPlacesFailure(this.message);
 
   final String message;
 
@@ -59,10 +59,10 @@ class EventoraPlacesFailure implements Exception {
   String toString() => message;
 }
 
-class EventoraPlacesService {
-  EventoraPlacesService._();
+class VennuzoPlacesService {
+  VennuzoPlacesService._();
 
-  static final EventoraPlacesService instance = EventoraPlacesService._();
+  static final VennuzoPlacesService instance = VennuzoPlacesService._();
   static FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: 'us-central1');
 
@@ -70,14 +70,14 @@ class EventoraPlacesService {
     'https://places.googleapis.com/v1/places:autocomplete',
   );
 
-  Future<List<EventoraPlaceSuggestion>> search(
+  Future<List<VennuzoPlaceSuggestion>> search(
     String query, {
     double? originLatitude,
     double? originLongitude,
   }) async {
     final trimmedQuery = query.trim();
     if (trimmedQuery.length < 2) {
-      return const <EventoraPlaceSuggestion>[];
+      return const <VennuzoPlaceSuggestion>[];
     }
 
     try {
@@ -88,7 +88,7 @@ class EventoraPlacesService {
       );
     } on FirebaseFunctionsException catch (error) {
       if (kReleaseMode) {
-        throw EventoraPlacesFailure(
+        throw VennuzoPlacesFailure(
           error.message ??
               'Venue search is not available right now. Please try again shortly.',
         );
@@ -99,11 +99,11 @@ class EventoraPlacesService {
         originLongitude: originLongitude,
       );
     } catch (error) {
-      if (error is EventoraPlacesFailure) {
+      if (error is VennuzoPlacesFailure) {
         rethrow;
       }
       if (kReleaseMode) {
-        throw const EventoraPlacesFailure(
+        throw const VennuzoPlacesFailure(
           'Venue search is not available right now. Please try again shortly.',
         );
       }
@@ -115,23 +115,23 @@ class EventoraPlacesService {
     }
   }
 
-  Future<EventoraPlaceSelection> fetchSelection(String placeId) async {
+  Future<VennuzoPlaceSelection> fetchSelection(String placeId) async {
     try {
       return await _fetchSelectionViaFunctions(placeId);
     } on FirebaseFunctionsException catch (error) {
       if (kReleaseMode) {
-        throw EventoraPlacesFailure(
+        throw VennuzoPlacesFailure(
           error.message ??
               'This location could not be loaded right now. Try another result.',
         );
       }
       return _fetchSelectionDirect(placeId);
     } catch (error) {
-      if (error is EventoraPlacesFailure) {
+      if (error is VennuzoPlacesFailure) {
         rethrow;
       }
       if (kReleaseMode) {
-        throw const EventoraPlacesFailure(
+        throw const VennuzoPlacesFailure(
           'This location could not be loaded right now. Try another result.',
         );
       }
@@ -139,7 +139,7 @@ class EventoraPlacesService {
     }
   }
 
-  Future<EventoraPlaceSelection> reverseGeocode({
+  Future<VennuzoPlaceSelection> reverseGeocode({
     required double latitude,
     required double longitude,
   }) async {
@@ -149,15 +149,15 @@ class EventoraPlacesService {
         longitude: longitude,
       );
     } on FirebaseFunctionsException catch (error) {
-      throw EventoraPlacesFailure(
+      throw VennuzoPlacesFailure(
         error.message ??
             'We could not match your current location to an address right now.',
       );
     } catch (error) {
-      if (error is EventoraPlacesFailure) {
+      if (error is VennuzoPlacesFailure) {
         rethrow;
       }
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'We could not match your current location to an address right now.',
       );
     }
@@ -166,14 +166,14 @@ class EventoraPlacesService {
   Future<String> _loadApiKey() async {
     final apiKey = await GoogleMapsSecretsService.instance.loadApiKey();
     if (apiKey == null || apiKey.isEmpty) {
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'Google Maps is not configured yet. Add the local API key to enable place search.',
       );
     }
     return apiKey;
   }
 
-  Future<List<EventoraPlaceSuggestion>> _searchViaFunctions(
+  Future<List<VennuzoPlaceSuggestion>> _searchViaFunctions(
     String query, {
     double? originLatitude,
     double? originLongitude,
@@ -192,11 +192,11 @@ class EventoraPlacesService {
 
     final data = result.data;
     if (data is! Map) {
-      return const <EventoraPlaceSuggestion>[];
+      return const <VennuzoPlaceSuggestion>[];
     }
     final suggestions = data['suggestions'];
     if (suggestions is! List) {
-      return const <EventoraPlaceSuggestion>[];
+      return const <VennuzoPlaceSuggestion>[];
     }
 
     return suggestions
@@ -208,7 +208,7 @@ class EventoraPlacesService {
           if (placeId.isEmpty) {
             return null;
           }
-          return EventoraPlaceSuggestion(
+          return VennuzoPlaceSuggestion(
             placeId: placeId,
             title: '${entry['title'] ?? ''}'.trim(),
             subtitle: '${entry['subtitle'] ?? ''}'.trim(),
@@ -216,11 +216,11 @@ class EventoraPlacesService {
             distanceMeters: (entry['distanceMeters'] as num?)?.toInt(),
           );
         })
-        .whereType<EventoraPlaceSuggestion>()
+        .whereType<VennuzoPlaceSuggestion>()
         .toList();
   }
 
-  Future<EventoraPlaceSelection> _fetchSelectionViaFunctions(
+  Future<VennuzoPlaceSelection> _fetchSelectionViaFunctions(
     String placeId,
   ) async {
     final result = await _functions.httpsCallable('getEventPlaceDetails').call(
@@ -229,7 +229,7 @@ class EventoraPlacesService {
 
     final data = result.data;
     if (data is! Map) {
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'We could not load this place. Try another result.',
       );
     }
@@ -237,7 +237,7 @@ class EventoraPlacesService {
     final latitude = (data['latitude'] as num?)?.toDouble();
     final longitude = (data['longitude'] as num?)?.toDouble();
     if (latitude == null || longitude == null) {
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'This place does not include map coordinates.',
       );
     }
@@ -246,7 +246,7 @@ class EventoraPlacesService {
     final address = '${data['address'] ?? ''}'.trim();
     final city = '${data['city'] ?? 'Accra'}'.trim();
 
-    return EventoraPlaceSelection(
+    return VennuzoPlaceSelection(
       placeId: '${data['placeId'] ?? placeId}'.trim(),
       venueName: venueName.isEmpty ? _fallbackVenueName(address) : venueName,
       city: city.isEmpty ? 'Accra' : city,
@@ -256,7 +256,7 @@ class EventoraPlacesService {
     );
   }
 
-  Future<EventoraPlaceSelection> _reverseGeocodeViaFunctions({
+  Future<VennuzoPlaceSelection> _reverseGeocodeViaFunctions({
     required double latitude,
     required double longitude,
   }) async {
@@ -266,7 +266,7 @@ class EventoraPlacesService {
 
     final data = result.data;
     if (data is! Map) {
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'We could not match your current location to an address right now.',
       );
     }
@@ -278,7 +278,7 @@ class EventoraPlacesService {
     final address = '${data['address'] ?? ''}'.trim();
     final city = '${data['city'] ?? 'Accra'}'.trim();
 
-    return EventoraPlaceSelection(
+    return VennuzoPlaceSelection(
       placeId: '${data['placeId'] ?? ''}'.trim(),
       venueName: venueName.isEmpty ? _fallbackVenueName(address) : venueName,
       city: city.isEmpty ? 'Accra' : city,
@@ -288,7 +288,7 @@ class EventoraPlacesService {
     );
   }
 
-  Future<List<EventoraPlaceSuggestion>> _searchDirect(
+  Future<List<VennuzoPlaceSuggestion>> _searchDirect(
     String query, {
     double? originLatitude,
     double? originLongitude,
@@ -326,17 +326,17 @@ class EventoraPlacesService {
     );
 
     if (response.statusCode >= 400) {
-      throw EventoraPlacesFailure(_extractErrorMessage(response.body));
+      throw VennuzoPlacesFailure(_extractErrorMessage(response.body));
     }
 
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
-      return const <EventoraPlaceSuggestion>[];
+      return const <VennuzoPlaceSuggestion>[];
     }
 
     final suggestions = decoded['suggestions'];
     if (suggestions is! List) {
-      return const <EventoraPlaceSuggestion>[];
+      return const <VennuzoPlaceSuggestion>[];
     }
 
     return suggestions
@@ -365,7 +365,7 @@ class EventoraPlacesService {
             return null;
           }
 
-          return EventoraPlaceSuggestion(
+          return VennuzoPlaceSuggestion(
             placeId: placeId,
             title: title.isEmpty ? fullText : title,
             subtitle: subtitle,
@@ -373,11 +373,11 @@ class EventoraPlacesService {
             distanceMeters: (prediction['distanceMeters'] as num?)?.toInt(),
           );
         })
-        .whereType<EventoraPlaceSuggestion>()
+        .whereType<VennuzoPlaceSuggestion>()
         .toList();
   }
 
-  Future<EventoraPlaceSelection> _fetchSelectionDirect(String placeId) async {
+  Future<VennuzoPlaceSelection> _fetchSelectionDirect(String placeId) async {
     final apiKey = await _loadApiKey();
     final response = await http.get(
       Uri.parse('https://places.googleapis.com/v1/places/$placeId'),
@@ -389,19 +389,19 @@ class EventoraPlacesService {
     );
 
     if (response.statusCode >= 400) {
-      throw EventoraPlacesFailure(_extractErrorMessage(response.body));
+      throw VennuzoPlacesFailure(_extractErrorMessage(response.body));
     }
 
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'We could not load this place. Try another result.',
       );
     }
 
     final location = decoded['location'];
     if (location is! Map<String, dynamic>) {
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'This place does not include map coordinates.',
       );
     }
@@ -409,7 +409,7 @@ class EventoraPlacesService {
     final latitude = (location['latitude'] as num?)?.toDouble();
     final longitude = (location['longitude'] as num?)?.toDouble();
     if (latitude == null || longitude == null) {
-      throw const EventoraPlacesFailure(
+      throw const VennuzoPlacesFailure(
         'This place does not include map coordinates.',
       );
     }
@@ -418,7 +418,7 @@ class EventoraPlacesService {
     final address = '${decoded['formattedAddress'] ?? ''}'.trim();
     final city = _resolveCity(decoded['addressComponents']) ?? 'Accra';
 
-    return EventoraPlaceSelection(
+    return VennuzoPlaceSelection(
       placeId: '${decoded['id'] ?? placeId}',
       venueName: displayName.isEmpty
           ? _fallbackVenueName(address)

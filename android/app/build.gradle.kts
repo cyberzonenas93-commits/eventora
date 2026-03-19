@@ -21,7 +21,7 @@ val googleMapsApiKey =
         ?: ""
 
 android {
-    namespace = "com.eventora.app"
+    namespace = "com.vennuzo.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -36,7 +36,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.eventora.app"
+        applicationId = "com.vennuzo.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

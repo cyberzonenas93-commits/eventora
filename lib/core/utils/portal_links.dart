@@ -1,1 +1,1 @@
-const eventoraStudioUrl = 'https://eventora-studio.web.app';
+const vennuzoStudioUrl = 'https://vennuzo-studio.web.app';

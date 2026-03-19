@@ -1,7 +1,7 @@
-# Eventora Firebase Architecture
+# Vennuzo Firebase Architecture
 
 This document defines the concrete Firebase data model and backend contract for
-the standalone Eventora app. It is derived from the event system inside the
+the standalone Vennuzo app. It is derived from the event system inside the
 original GPlus app, but normalized and scoped for a dedicated event platform.
 
 ## Goals
@@ -49,7 +49,7 @@ Recommended fields:
 ```json
 {
   "displayName": "Angel Artey",
-  "email": "angel@eventora.app",
+  "email": "angel@vennuzo.app",
   "phone": "+233240000000",
   "photoUrl": "",
   "defaultOrganizationId": "org_123",
@@ -66,7 +66,7 @@ Recommended fields:
 
 ## Organizations
 
-Organizations are the top-level tenant boundary for Eventora.
+Organizations are the top-level tenant boundary for Vennuzo.
 
 `organizations/{organizationId}`
 
@@ -275,7 +275,7 @@ Ticket orders remain the main checkout object.
   "buyerId": "uid_123",
   "buyerName": "Angel Artey",
   "buyerPhone": "+233240000000",
-  "buyerEmail": "angel@eventora.app",
+  "buyerEmail": "angel@vennuzo.app",
   "selectedTiers": [
     {
       "tierId": "vip",
@@ -756,7 +756,7 @@ Output:
 ```json
 {
   "shareId": "share_123",
-  "url": "https://eventora.app/e/share_123"
+  "url": "https://vennuzo.app/e/share_123"
 }
 ```
 

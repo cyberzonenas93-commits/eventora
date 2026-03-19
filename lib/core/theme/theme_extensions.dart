@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'eventora_theme.dart';
+import 'vennuzo_theme.dart';
 
-extension EventoraThemeX on BuildContext {
-  EventoraPalette get palette => Theme.of(this).extension<EventoraPalette>()!;
+extension VennuzoThemeX on BuildContext {
+  VennuzoPalette get palette => Theme.of(this).extension<VennuzoPalette>()!;
 
   TextTheme get text => Theme.of(this).textTheme;
 }

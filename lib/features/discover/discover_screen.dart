@@ -5,14 +5,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
-import '../../data/services/eventora_launch_preferences.dart';
-import '../../data/services/eventora_location_service.dart';
+import '../../data/repositories/vennuzo_repository.dart';
+import '../../data/services/vennuzo_launch_preferences.dart';
+import '../../data/services/vennuzo_location_service.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/event_card.dart';
-import '../../widgets/eventora_motion.dart';
+import '../../widgets/vennuzo_motion.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../events/event_detail_screen.dart';
@@ -64,7 +64,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Future<void> _prepareAnnouncementGate() async {
     final shouldAllow =
-        await EventoraLaunchPreferences.shouldAllowAnnouncementTakeover();
+        await VennuzoLaunchPreferences.shouldAllowAnnouncementTakeover();
     if (!mounted) {
       return;
     }
@@ -78,7 +78,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
+    final repository = context.watch<VennuzoRepository>();
     final events = repository.discoverableEvents;
     final searchFilteredEvents = _searchQuery.isEmpty
         ? events
@@ -119,7 +119,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
       children: [
-        EventoraReveal(
+        VennuzoReveal(
           child: _DashboardHero(
             eventCount: events.length,
             featuredCount: featuredCampaigns.length,
@@ -127,7 +127,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         ),
         const SizedBox(height: 22),
-        EventoraReveal(
+        VennuzoReveal(
           delay: const Duration(milliseconds: 70),
           child: _AroundYouCard(
             currentPosition: _currentPosition,
@@ -150,7 +150,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         ),
         const SizedBox(height: 22),
-        EventoraReveal(
+        VennuzoReveal(
           delay: const Duration(milliseconds: 120),
           child: _SearchPanel(
             controller: _searchController,
@@ -317,7 +317,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   List<EventModel> _nearbyEventsFor(
-    EventoraRepository repository,
+    VennuzoRepository repository,
     List<EventModel> candidateEvents,
   ) {
     final position = _currentPosition;
@@ -421,7 +421,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     });
 
     try {
-      final position = await EventoraLocationService.instance
+      final position = await VennuzoLocationService.instance
           .getCurrentPosition();
       if (!mounted) {
         return;
@@ -445,7 +445,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     if (!_announcementEligible) {
       return;
     }
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     final campaign = repository.primaryAnnouncementCampaign;
     if (campaign == null || campaign.id == _lastAnnouncementId) {
       return;
@@ -460,7 +460,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     });
   }
 
-  Future<void> _showCurrentAnnouncement(EventoraRepository repository) async {
+  Future<void> _showCurrentAnnouncement(VennuzoRepository repository) async {
     final campaign = repository.primaryAnnouncementCampaign;
     if (campaign == null || !mounted) {
       return;
@@ -1307,7 +1307,7 @@ class _AnnouncementTakeover extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                'This placement is part of Eventora premium promotion inventory for organizers.',
+                                'This placement is part of Vennuzo premium promotion inventory for organizers.',
                                 style: context.text.bodyMedium?.copyWith(
                                   color: Colors.white.withValues(alpha: 0.76),
                                 ),

@@ -9,8 +9,8 @@ import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../domain/models/ticket_models.dart';
 
-class EventoraCloudSyncService {
-  EventoraCloudSyncService({required this.firebaseEnabled});
+class VennuzoCloudSyncService {
+  VennuzoCloudSyncService({required this.firebaseEnabled});
 
   final bool firebaseEnabled;
 
@@ -20,7 +20,7 @@ class EventoraCloudSyncService {
 
   bool get isEnabled => firebaseEnabled;
 
-  String organizationIdFor(EventoraViewer viewer) {
+  String organizationIdFor(VennuzoViewer viewer) {
     final existing = viewer.defaultOrganizationId?.trim();
     if (existing != null && existing.isNotEmpty) {
       return existing;
@@ -28,7 +28,7 @@ class EventoraCloudSyncService {
     return 'org_${viewer.uid}';
   }
 
-  Future<void> ensureOrganizerWorkspace(EventoraViewer viewer) async {
+  Future<void> ensureOrganizerWorkspace(VennuzoViewer viewer) async {
     if (!isEnabled || viewer.uid == null || !viewer.hasOrganizerAccess) {
       return;
     }
@@ -90,7 +90,7 @@ class EventoraCloudSyncService {
 
   Future<void> upsertEvent({
     required EventModel event,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
     double grossRevenue = 0,
   }) async {
     if (!isEnabled || viewer.uid == null) {
@@ -148,7 +148,7 @@ class EventoraCloudSyncService {
   Future<void> upsertRsvp({
     required EventModel event,
     required RsvpRecord record,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) async {
     if (!isEnabled || viewer.uid == null) {
       return;
@@ -216,7 +216,7 @@ class EventoraCloudSyncService {
   Future<void> upsertOrder({
     required EventModel event,
     required TicketOrder order,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) async {
     if (!isEnabled || viewer.uid == null) {
       return;
@@ -325,7 +325,7 @@ class EventoraCloudSyncService {
 
   Future<void> saveReminder({
     required EventModel event,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
     required ReminderTiming timing,
   }) async {
     if (!isEnabled || viewer.uid == null) {
@@ -354,7 +354,7 @@ class EventoraCloudSyncService {
 
   Future<void> clearReminder({
     required String eventId,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) async {
     if (!isEnabled || viewer.uid == null) {
       return;
@@ -371,7 +371,7 @@ class EventoraCloudSyncService {
   Future<void> launchCampaign({
     required PromotionCampaign campaign,
     required EventModel event,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) async {
     if (!isEnabled || viewer.uid == null) {
       return;
@@ -608,7 +608,7 @@ class EventoraCloudSyncService {
 
   String _eventOrganizationId({
     required EventModel event,
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) {
     final viewerOrg = viewer.defaultOrganizationId?.trim();
     if (viewerOrg != null && viewerOrg.isNotEmpty) {
@@ -630,7 +630,7 @@ class EventoraCloudSyncService {
     try {
       await action();
     } catch (error, stackTrace) {
-      debugPrint('EventoraCloudSyncService error: $error');
+      debugPrint('VennuzoCloudSyncService error: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
   }

@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-class EventoraReveal extends StatefulWidget {
-  const EventoraReveal({
+class VennuzoReveal extends StatefulWidget {
+  const VennuzoReveal({
     super.key,
     required this.child,
     this.delay = Duration.zero,
@@ -19,10 +19,10 @@ class EventoraReveal extends StatefulWidget {
   final double beginScale;
 
   @override
-  State<EventoraReveal> createState() => _EventoraRevealState();
+  State<VennuzoReveal> createState() => _VennuzoRevealState();
 }
 
-class _EventoraRevealState extends State<EventoraReveal>
+class _VennuzoRevealState extends State<VennuzoReveal>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,

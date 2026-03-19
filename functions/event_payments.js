@@ -14,7 +14,7 @@ const db = admin.firestore();
 const { FieldValue } = admin.firestore;
 
 const REGION = "us-central1";
-const EVENTORA_SCHEME = "eventoraapp";
+const VENNUZO_SCHEME = "vennuzoapp";
 
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
@@ -48,7 +48,7 @@ function projectId() {
 function functionsBaseUrl() {
   const pid = projectId();
   if (!pid) {
-    throw new Error("GCLOUD_PROJECT is not available for Eventora payments.");
+    throw new Error("GCLOUD_PROJECT is not available for Vennuzo payments.");
   }
   return `https://${REGION}-${pid}.cloudfunctions.net`;
 }
@@ -311,8 +311,8 @@ function randomQrToken() {
 function browserRedirectHtml({ orderId, status, deepLink }) {
   const statusLabel = status === "success" ? "Payment complete" : "Payment cancelled";
   const heading = status === "success"
-    ? "Your Eventora payment is processing"
-    : "Your Eventora payment was cancelled";
+    ? "Your Vennuzo payment is processing"
+    : "Your Vennuzo payment was cancelled";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -373,9 +373,9 @@ function browserRedirectHtml({ orderId, status, deepLink }) {
   <div class="card">
     <h1>${heading}</h1>
     <p>${status === "success"
-      ? "Open Eventora to watch your ticket status. Tickets will appear automatically once Hubtel confirms the payment callback."
-      : "Reopen Eventora to review the order or try the payment again."}</p>
-    <a class="button" href="${deepLink}">Open Eventora</a>
+      ? "Open Vennuzo to watch your ticket status. Tickets will appear automatically once Hubtel confirms the payment callback."
+      : "Reopen Vennuzo to review the order or try the payment again."}</p>
+    <a class="button" href="${deepLink}">Open Vennuzo</a>
     <div class="meta">Order ID: ${orderId}</div>
   </div>
   <script>
@@ -539,7 +539,7 @@ async function handleEventTicketCallback(clientReference, data, response) {
     const buyerName = firstNonEmpty(
       buyerPatch.buyerName,
       freshOrder.buyerName,
-      "Eventora attendee",
+      "Vennuzo attendee",
     );
     const issuedTickets = {};
     const lookupWrites = [];
@@ -1055,7 +1055,7 @@ exports.hubtelReturn = onRequest(
     }
 
     const deepLink =
-      `${EVENTORA_SCHEME}://payment-status?orderId=${encodeURIComponent(orderId)}` +
+      `${VENNUZO_SCHEME}://payment-status?orderId=${encodeURIComponent(orderId)}` +
       `&status=${encodeURIComponent(status)}`;
 
     return response

@@ -1,6 +1,6 @@
 {
-    "name": "eventora_app",
-    "short_name": "eventora_app",
+    "name": "Vennuzo",
+    "short_name": "Vennuzo",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

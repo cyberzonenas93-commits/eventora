@@ -1,10 +1,10 @@
-# Eventora Firebase Functions Workflow
+# Vennuzo Firebase Functions Workflow
 
-`Eventora` is already linked to Firebase project `eventora-10063`, so Cloud Functions can be managed directly from the repo root.
+Vennuzo is linked to Firebase project `eventora-10063`, so Cloud Functions can be managed directly from the repo root.
 
 ## Root commands
 
-Run these from `/Users/angelonartey/Desktop/eventora_app`:
+Run these from the repo root (e.g. your `vennuzo` clone):
 
 - `npm run functions:lint`
 - `npm run functions:list`
@@ -57,7 +57,7 @@ Only set these locally when needed:
 - `HUBTEL_SMS_CLIENT_SECRET`
 - `HUBTEL_SMS_SENDER_ID`
 
-You can keep these in `/Users/angelonartey/Desktop/eventora_app/functions/.env.local`
+You can keep these in `functions/.env.local`
 for local emulator work. That file is gitignored and should never be committed.
 
 ## Notes

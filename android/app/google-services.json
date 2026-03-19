@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:872808273884:android:1c19ea85767aa0d88c2119",
         "android_client_info": {
-          "package_name": "com.eventora.app"
+          "package_name": "com.vennuzo.app"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "872808273884-fifrh7n9u4e0eejkmduk3onjerobcn0t.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.eventora.app",
+            "package_name": "com.vennuzo.app",
             "certificate_hash": "377b7e8ba2413c9c8ad243872b73bc83eb7e6893"
           }
         },
@@ -42,7 +42,7 @@
               "client_id": "872808273884-4p39642fh10lh170s9r9h7v1lmm1v9s1.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.eventora.app"
+                "bundle_id": "com.vennuzo.app"
               }
             }
           ]

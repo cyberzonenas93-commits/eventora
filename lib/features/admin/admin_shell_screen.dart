@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../account/account_screen.dart';
 import '../events/event_editor_screen.dart';
@@ -32,7 +32,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
 
     return Scaffold(
       body: Stack(
@@ -199,7 +199,7 @@ class _AdminHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Eventora Admin',
+                  'Vennuzo Admin',
                   style: context.text.headlineSmall?.copyWith(
                     color: Colors.white,
                   ),

@@ -9,7 +9,7 @@ export function LandingPage() {
   const session = usePortalSession()
   const isAdminHost =
     typeof window !== 'undefined' &&
-    (window.location.hostname.includes('eventora-admin') ||
+    (window.location.hostname.includes('vennuzo-admin') ||
       window.location.hostname.startsWith('admin.'))
   const [mode, setMode] = useState<AuthMode>('signup')
   const [error, setError] = useState('')
@@ -141,7 +141,7 @@ export function LandingPage() {
             <div className="studio-brand studio-brand--hero">
               <div className="studio-brand__mark">E</div>
               <div>
-                <strong>Eventora Studio</strong>
+                <strong>Vennuzo Studio</strong>
                 <span>{isAdminHost ? 'Operations Console' : 'Creator Workspace'}</span>
               </div>
             </div>
@@ -161,7 +161,7 @@ export function LandingPage() {
             {isAdminHost
               ? 'Sign in to the approvals dashboard'
               : mode === 'signup'
-                ? 'Create your Eventora Studio account'
+                ? 'Create your Vennuzo Studio account'
                 : 'Welcome back'}
           </h2>
         </div>

@@ -11,11 +11,11 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
-import '../data/services/eventora_notification_service.dart';
+import '../data/services/vennuzo_notification_service.dart';
 import '../domain/models/account_models.dart';
 
-class EventoraAuthFailure implements Exception {
-  const EventoraAuthFailure(this.message);
+class VennuzoAuthFailure implements Exception {
+  const VennuzoAuthFailure(this.message);
 
   final String message;
 
@@ -23,13 +23,13 @@ class EventoraAuthFailure implements Exception {
   String toString() => message;
 }
 
-class EventoraSessionController extends ChangeNotifier {
+class VennuzoSessionController extends ChangeNotifier {
   static const String _googleWebServerClientId =
       '872808273884-b3oi71o9tnuc2n8o11ejsdn37c604mrm.apps.googleusercontent.com';
   static const String _googleIosClientId =
       '872808273884-foqs1970kq12flua89mbg56jvuqh4hqe.apps.googleusercontent.com';
 
-  EventoraSessionController({required bool firebaseEnabled})
+  VennuzoSessionController({required bool firebaseEnabled})
     : _firebaseEnabled = firebaseEnabled {
     if (_firebaseEnabled) {
       _isInitializing = true;
@@ -42,13 +42,13 @@ class EventoraSessionController extends ChangeNotifier {
   final bool _firebaseEnabled;
   StreamSubscription<User?>? _authSubscription;
 
-  EventoraViewer _viewer = const EventoraViewer.guest();
+  VennuzoViewer _viewer = const VennuzoViewer.guest();
   bool _isInitializing = false;
   bool _isProcessing = false;
-  EventoraWorkspaceFace? _selectedFace;
+  VennuzoWorkspaceFace? _selectedFace;
   bool _googleInitialized = false;
 
-  EventoraViewer get viewer => _viewer;
+  VennuzoViewer get viewer => _viewer;
   bool get isGuest => _viewer.isGuest;
   bool get isAuthenticated => _viewer.isAuthenticated;
   bool get isInitializing => _isInitializing;
@@ -79,8 +79,8 @@ class EventoraSessionController extends ChangeNotifier {
 
     if (user == null) {
       _selectedFace = null;
-      _viewer = const EventoraViewer.guest();
-      await EventoraNotificationService.instance.bindViewer(_viewer);
+      _viewer = const VennuzoViewer.guest();
+      await VennuzoNotificationService.instance.bindViewer(_viewer);
       _isInitializing = false;
       notifyListeners();
       return;
@@ -142,7 +142,7 @@ class EventoraSessionController extends ChangeNotifier {
     final organizerReviewNotes =
         (organizerData['reviewNotes'] as String?)?.trim();
 
-    _viewer = EventoraViewer(
+    _viewer = VennuzoViewer(
       uid: user.uid,
       displayName: _resolveDisplayName(
         userData: userData,
@@ -178,7 +178,7 @@ class EventoraSessionController extends ChangeNotifier {
       hasCustomerProfile: hasCustomerProfile,
       hasAdminProfile: hasAdminProfile,
     );
-    await EventoraNotificationService.instance.bindViewer(_viewer);
+    await VennuzoNotificationService.instance.bindViewer(_viewer);
     _isInitializing = false;
     notifyListeners();
   }
@@ -201,7 +201,7 @@ class EventoraSessionController extends ChangeNotifier {
           );
       final user = credential.user;
       if (user == null) {
-        throw const EventoraAuthFailure(
+        throw const VennuzoAuthFailure(
           'We could not finish creating the account.',
         );
       }
@@ -246,7 +246,7 @@ class EventoraSessionController extends ChangeNotifier {
     await _runGuarded(() async {
       await _ensureGoogleInitialized();
       if (!GoogleSignIn.instance.supportsAuthenticate()) {
-        throw const EventoraAuthFailure(
+        throw const VennuzoAuthFailure(
           'Google sign-in is not available on this device yet.',
         );
       }
@@ -255,7 +255,7 @@ class EventoraSessionController extends ChangeNotifier {
       final googleAuth = account.authentication;
       final idToken = googleAuth.idToken;
       if (idToken == null || idToken.isEmpty) {
-        throw const EventoraAuthFailure(
+        throw const VennuzoAuthFailure(
           'Google sign-in is not fully configured yet. Add the Google OAuth client configuration and try again.',
         );
       }
@@ -276,7 +276,7 @@ class EventoraSessionController extends ChangeNotifier {
     _ensureFirebaseEnabled();
     if (defaultTargetPlatform != TargetPlatform.iOS &&
         defaultTargetPlatform != TargetPlatform.macOS) {
-      throw const EventoraAuthFailure(
+      throw const VennuzoAuthFailure(
         'Apple sign-in is only available on Apple devices.',
       );
     }
@@ -284,7 +284,7 @@ class EventoraSessionController extends ChangeNotifier {
     await _runGuarded(() async {
       final isAvailable = await SignInWithApple.isAvailable();
       if (!isAvailable) {
-        throw const EventoraAuthFailure(
+        throw const VennuzoAuthFailure(
           'Apple sign-in is not available on this device yet.',
         );
       }
@@ -300,7 +300,7 @@ class EventoraSessionController extends ChangeNotifier {
       );
       final identityToken = appleCredential.identityToken;
       if (identityToken == null || identityToken.isEmpty) {
-        throw const EventoraAuthFailure(
+        throw const VennuzoAuthFailure(
           'Apple sign-in did not return a valid identity token.',
         );
       }
@@ -329,14 +329,14 @@ class EventoraSessionController extends ChangeNotifier {
   Future<void> signOut() async {
     if (!_firebaseEnabled) {
       _selectedFace = null;
-      _viewer = const EventoraViewer.guest();
+      _viewer = const VennuzoViewer.guest();
       notifyListeners();
       return;
     }
 
     await _runGuarded(() async {
       await FirebaseAuth.instance.signOut();
-      await EventoraNotificationService.instance.clearBoundToken();
+      await VennuzoNotificationService.instance.clearBoundToken();
     });
   }
 
@@ -349,7 +349,7 @@ class EventoraSessionController extends ChangeNotifier {
       }
       final email = user.email;
       if (email == null || email.trim().isEmpty) {
-        throw const EventoraAuthFailure(
+        throw const VennuzoAuthFailure(
           'This account cannot be deleted from the app until it has a valid email.',
         );
       }
@@ -366,7 +366,7 @@ class EventoraSessionController extends ChangeNotifier {
         FirebaseFirestore.instance.collection('admins').doc(user.uid),
       );
       await batch.commit();
-      await EventoraNotificationService.instance.clearBoundToken();
+      await VennuzoNotificationService.instance.clearBoundToken();
       await user.delete();
     });
   }
@@ -379,7 +379,7 @@ class EventoraSessionController extends ChangeNotifier {
     _ensureFirebaseEnabled();
     final uid = _viewer.uid;
     if (uid == null) {
-      throw const EventoraAuthFailure(
+      throw const VennuzoAuthFailure(
         'Sign in before updating notification preferences.',
       );
     }
@@ -419,15 +419,15 @@ class EventoraSessionController extends ChangeNotifier {
 
     _viewer = _viewer.copyWith(notificationPrefs: updatedPrefs);
     notifyListeners();
-    await EventoraNotificationService.instance.bindViewer(_viewer);
+    await VennuzoNotificationService.instance.bindViewer(_viewer);
   }
 
   void enterAttendeeWorkspace() {
     if (!_viewer.canUseAttendeeWorkspace) {
       return;
     }
-    _selectedFace = EventoraWorkspaceFace.attendee;
-    _viewer = _viewer.copyWith(activeFace: EventoraWorkspaceFace.attendee);
+    _selectedFace = VennuzoWorkspaceFace.attendee;
+    _viewer = _viewer.copyWith(activeFace: VennuzoWorkspaceFace.attendee);
     notifyListeners();
   }
 
@@ -435,8 +435,8 @@ class EventoraSessionController extends ChangeNotifier {
     if (!_viewer.hasAdminAccess) {
       return;
     }
-    _selectedFace = EventoraWorkspaceFace.admin;
-    _viewer = _viewer.copyWith(activeFace: EventoraWorkspaceFace.admin);
+    _selectedFace = VennuzoWorkspaceFace.admin;
+    _viewer = _viewer.copyWith(activeFace: VennuzoWorkspaceFace.admin);
     notifyListeners();
   }
 
@@ -489,7 +489,7 @@ class EventoraSessionController extends ChangeNotifier {
     String? photoUrl,
   }) async {
     if (user == null) {
-      throw const EventoraAuthFailure(
+      throw const VennuzoAuthFailure(
         'We could not finish signing you in.',
       );
     }
@@ -537,33 +537,33 @@ class EventoraSessionController extends ChangeNotifier {
     notifyListeners();
     try {
       await action();
-    } on EventoraAuthFailure {
+    } on VennuzoAuthFailure {
       rethrow;
     } on FirebaseAuthException catch (error) {
-      throw EventoraAuthFailure(_friendlyAuthMessage(error));
+      throw VennuzoAuthFailure(_friendlyAuthMessage(error));
     } on FirebaseException catch (error) {
-      throw EventoraAuthFailure(
+      throw VennuzoAuthFailure(
         error.message ?? 'Something went wrong. Please try again.',
       );
     } on PlatformException catch (error) {
-      throw EventoraAuthFailure(
+      throw VennuzoAuthFailure(
         error.message ?? 'That sign-in flow is not configured correctly yet.',
       );
     } on SignInWithAppleAuthorizationException catch (error) {
       if (error.code == AuthorizationErrorCode.canceled) {
-        throw const EventoraAuthFailure('Apple sign-in was cancelled.');
+        throw const VennuzoAuthFailure('Apple sign-in was cancelled.');
       }
-      throw EventoraAuthFailure(error.message);
+      throw VennuzoAuthFailure(error.message);
     } on GoogleSignInException catch (error) {
       if (error.code == GoogleSignInExceptionCode.canceled) {
-        throw const EventoraAuthFailure('Google sign-in was cancelled.');
+        throw const VennuzoAuthFailure('Google sign-in was cancelled.');
       }
-      throw EventoraAuthFailure(
+      throw VennuzoAuthFailure(
         error.description ??
             'Google sign-in could not be completed. Check the Firebase OAuth setup and try again.',
       );
     } on Exception catch (error) {
-      throw EventoraAuthFailure(error.toString());
+      throw VennuzoAuthFailure(error.toString());
     } finally {
       _isProcessing = false;
       notifyListeners();
@@ -574,25 +574,25 @@ class EventoraSessionController extends ChangeNotifier {
     if (_firebaseEnabled) {
       return;
     }
-    throw const EventoraAuthFailure(
-      'Firebase auth is available on the Android and iOS builds of Eventora.',
+    throw const VennuzoAuthFailure(
+      'Firebase auth is available on the Android and iOS builds of Vennuzo.',
     );
   }
 
-  EventoraWorkspaceFace _resolveActiveFace({
+  VennuzoWorkspaceFace _resolveActiveFace({
     required bool hasCustomerProfile,
     required bool hasAdminProfile,
   }) {
-    if (_selectedFace == EventoraWorkspaceFace.admin && hasAdminProfile) {
-      return EventoraWorkspaceFace.admin;
+    if (_selectedFace == VennuzoWorkspaceFace.admin && hasAdminProfile) {
+      return VennuzoWorkspaceFace.admin;
     }
-    if (_selectedFace == EventoraWorkspaceFace.attendee && hasCustomerProfile) {
-      return EventoraWorkspaceFace.attendee;
+    if (_selectedFace == VennuzoWorkspaceFace.attendee && hasCustomerProfile) {
+      return VennuzoWorkspaceFace.attendee;
     }
     if (hasAdminProfile && !hasCustomerProfile) {
-      return EventoraWorkspaceFace.admin;
+      return VennuzoWorkspaceFace.admin;
     }
-    return EventoraWorkspaceFace.attendee;
+    return VennuzoWorkspaceFace.attendee;
   }
 
   Future<void> _ensureGoogleInitialized() async {
@@ -704,11 +704,11 @@ class EventoraSessionController extends ChangeNotifier {
 
   String _displayNameFromEmail(String? email) {
     if (email == null || email.trim().isEmpty) {
-      return 'Eventora user';
+      return 'Vennuzo user';
     }
     final local = email.split('@').first.trim();
     if (local.isEmpty) {
-      return 'Eventora user';
+      return 'Vennuzo user';
     }
     return local
         .split(RegExp(r'[._-]+'))
@@ -743,7 +743,7 @@ class EventoraSessionController extends ChangeNotifier {
     return switch (error.code) {
       'account-exists-with-different-credential' =>
         'That email is already linked to a different sign-in method.',
-      'email-already-in-use' => 'That email already has an Eventora account.',
+      'email-already-in-use' => 'That email already has an Vennuzo account.',
       'invalid-email' => 'Enter a valid email address.',
       'invalid-credential' => 'Those sign-in details did not match an account.',
       'network-request-failed' =>
@@ -755,7 +755,7 @@ class EventoraSessionController extends ChangeNotifier {
       'too-many-requests' =>
         'Too many attempts were made. Please wait and try again.',
       'user-disabled' => 'This account has been disabled.',
-      'user-not-found' => 'No Eventora account exists for that email yet.',
+      'user-not-found' => 'No Vennuzo account exists for that email yet.',
       'weak-password' =>
         'Choose a stronger password with at least 6 characters.',
       'wrong-password' => 'Those sign-in details did not match an account.',
@@ -763,15 +763,15 @@ class EventoraSessionController extends ChangeNotifier {
     };
   }
 
-  EventoraNotificationPrefs _notificationPrefsFromData(
+  VennuzoNotificationPrefs _notificationPrefsFromData(
     Map<String, dynamic> data,
   ) {
     final raw = data['notificationPrefs'];
     if (raw is! Map) {
-      return const EventoraNotificationPrefs();
+      return const VennuzoNotificationPrefs();
     }
 
-    return EventoraNotificationPrefs(
+    return VennuzoNotificationPrefs(
       pushEnabled: raw['pushEnabled'] != false,
       smsEnabled: raw['smsEnabled'] != false,
       marketingOptIn: raw['marketingOptIn'] == true,
@@ -870,7 +870,7 @@ class EventoraSessionController extends ChangeNotifier {
   @override
   void dispose() {
     _authSubscription?.cancel();
-    EventoraNotificationService.instance.dispose();
+    VennuzoNotificationService.instance.dispose();
     super.dispose();
   }
 }

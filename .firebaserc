@@ -6,10 +6,10 @@
     "eventora-10063": {
       "hosting": {
         "studio": [
-          "eventora-studio"
+          "vennuzo-studio"
         ],
         "admin": [
-          "eventora-admin"
+          "vennuzo-admin"
         ]
       }
     }

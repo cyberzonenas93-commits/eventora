@@ -5,8 +5,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../domain/models/account_models.dart';
 
-class EventoraOrganizerApplicationDraft {
-  const EventoraOrganizerApplicationDraft({
+class VennuzoOrganizerApplicationDraft {
+  const VennuzoOrganizerApplicationDraft({
     required this.organizerName,
     required this.contactPerson,
     required this.email,
@@ -37,8 +37,8 @@ class EventoraOrganizerApplicationDraft {
     required this.organizationId,
   });
 
-  factory EventoraOrganizerApplicationDraft.bootstrap(EventoraViewer viewer) {
-    return EventoraOrganizerApplicationDraft(
+  factory VennuzoOrganizerApplicationDraft.bootstrap(VennuzoViewer viewer) {
+    return VennuzoOrganizerApplicationDraft(
       organizerName: '',
       contactPerson: viewer.displayName == 'Guest' ? '' : viewer.displayName,
       email: viewer.email ?? '',
@@ -70,11 +70,11 @@ class EventoraOrganizerApplicationDraft {
     );
   }
 
-  factory EventoraOrganizerApplicationDraft.fromFirestore(
+  factory VennuzoOrganizerApplicationDraft.fromFirestore(
     Map<String, dynamic> data, {
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) {
-    final seeded = EventoraOrganizerApplicationDraft.bootstrap(viewer);
+    final seeded = VennuzoOrganizerApplicationDraft.bootstrap(viewer);
     return seeded.copyWith(
       organizerName: '${data['organizerName'] ?? ''}'.trim(),
       contactPerson: '${data['contactPerson'] ?? seeded.contactPerson}'.trim(),
@@ -144,7 +144,7 @@ class EventoraOrganizerApplicationDraft {
   final String reviewNotes;
   final String organizationId;
 
-  EventoraOrganizerApplicationDraft copyWith({
+  VennuzoOrganizerApplicationDraft copyWith({
     String? organizerName,
     String? contactPerson,
     String? email,
@@ -174,7 +174,7 @@ class EventoraOrganizerApplicationDraft {
     String? reviewNotes,
     String? organizationId,
   }) {
-    return EventoraOrganizerApplicationDraft(
+    return VennuzoOrganizerApplicationDraft(
       organizerName: organizerName ?? this.organizerName,
       contactPerson: contactPerson ?? this.contactPerson,
       email: email ?? this.email,
@@ -208,8 +208,8 @@ class EventoraOrganizerApplicationDraft {
   }
 }
 
-class EventoraOrganizerUpload {
-  const EventoraOrganizerUpload({
+class VennuzoOrganizerUpload {
+  const VennuzoOrganizerUpload({
     required this.fileName,
     required this.downloadUrl,
   });
@@ -218,18 +218,18 @@ class EventoraOrganizerUpload {
   final String downloadUrl;
 }
 
-class EventoraOrganizerApplicationService {
-  EventoraOrganizerApplicationService._();
+class VennuzoOrganizerApplicationService {
+  VennuzoOrganizerApplicationService._();
 
-  static final EventoraOrganizerApplicationService instance =
-      EventoraOrganizerApplicationService._();
+  static final VennuzoOrganizerApplicationService instance =
+      VennuzoOrganizerApplicationService._();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  Future<EventoraOrganizerApplicationDraft?> loadDraft(
+  Future<VennuzoOrganizerApplicationDraft?> loadDraft(
     String userId, {
-    required EventoraViewer viewer,
+    required VennuzoViewer viewer,
   }) async {
     final snapshot = await _firestore
         .collection('organizer_applications')
@@ -238,13 +238,13 @@ class EventoraOrganizerApplicationService {
     if (!snapshot.exists) {
       return null;
     }
-    return EventoraOrganizerApplicationDraft.fromFirestore(
+    return VennuzoOrganizerApplicationDraft.fromFirestore(
       snapshot.data() ?? <String, dynamic>{},
       viewer: viewer,
     );
   }
 
-  Future<EventoraOrganizerUpload> uploadImage({
+  Future<VennuzoOrganizerUpload> uploadImage({
     required String userId,
     required String kind,
     required Uint8List bytes,
@@ -258,7 +258,7 @@ class EventoraOrganizerApplicationService {
       bytes,
       SettableMetadata(contentType: _contentTypeFor(extension)),
     );
-    return EventoraOrganizerUpload(
+    return VennuzoOrganizerUpload(
       fileName: fileName,
       downloadUrl: await ref.getDownloadURL(),
     );
@@ -266,21 +266,21 @@ class EventoraOrganizerApplicationService {
 
   Future<void> saveDraft({
     required String userId,
-    required EventoraOrganizerApplicationDraft draft,
+    required VennuzoOrganizerApplicationDraft draft,
   }) async {
     await _persist(userId: userId, draft: draft, status: 'draft');
   }
 
   Future<void> submit({
     required String userId,
-    required EventoraOrganizerApplicationDraft draft,
+    required VennuzoOrganizerApplicationDraft draft,
   }) async {
     await _persist(userId: userId, draft: draft, status: 'submitted');
   }
 
   Future<void> _persist({
     required String userId,
-    required EventoraOrganizerApplicationDraft draft,
+    required VennuzoOrganizerApplicationDraft draft,
     required String status,
   }) async {
     final applicationRef = _firestore

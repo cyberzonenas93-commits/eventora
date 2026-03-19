@@ -286,7 +286,7 @@ export function SuperadminApprovalsPage() {
         </div>
 
         <p>
-          Every organizer submission from Eventora Studio lands here. Superadmins can
+          Every organizer submission from Vennuzo Studio lands here. Superadmins can
           move it into review, approve it, or reject it with notes.
         </p>
 
@@ -339,7 +339,7 @@ export function SuperadminApprovalsPage() {
         ) : filteredApplications.length === 0 ? (
           <div className="review-note">
             <strong>No organizer applications here yet</strong>
-            <p>When Eventora Studio submissions arrive, this queue will populate automatically.</p>
+            <p>When Vennuzo Studio submissions arrive, this queue will populate automatically.</p>
           </div>
         ) : (
           <div className="superadmin-review-shell">
@@ -575,7 +575,7 @@ export function SuperadminApprovalsPage() {
 
         <p>
           Create admin credentials from inside the console. This provisions Firebase Auth
-          access and registers the user in the Eventora admin directory.
+          access and registers the user in the Vennuzo admin directory.
         </p>
 
         <div className="superadmin-admin-grid">
@@ -607,7 +607,7 @@ export function SuperadminApprovalsPage() {
                           email: event.target.value,
                         }))
                       }
-                      placeholder="admin@eventora.com"
+                      placeholder="admin@vennuzo.com"
                       type="email"
                       value={adminForm.email}
                     />
@@ -698,7 +698,7 @@ export function SuperadminApprovalsPage() {
           <article className="superadmin-admin-card">
             <strong>Current admin directory</strong>
             <p className="superadmin-admin-card__intro">
-              Everyone who can access the Eventora admin console is listed here.
+              Everyone who can access the Vennuzo admin console is listed here.
             </p>
 
             {adminsLoading ? (

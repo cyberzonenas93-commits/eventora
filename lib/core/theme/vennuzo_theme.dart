@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class EventoraTheme {
+class VennuzoTheme {
   static const background = Color(0xFFF9FAFB);
   static const surface = Color(0xFFFFFFFF);
   static const darkSurface = Color(0xFF111827);
@@ -231,7 +231,7 @@ class EventoraTheme {
       ),
       dividerColor: border,
       extensions: const [
-        EventoraPalette(
+        VennuzoPalette(
           ink: textPrimary,
           slate: textSecondary,
           coral: accent,
@@ -252,8 +252,8 @@ class EventoraTheme {
 }
 
 @immutable
-class EventoraPalette extends ThemeExtension<EventoraPalette> {
-  const EventoraPalette({
+class VennuzoPalette extends ThemeExtension<VennuzoPalette> {
+  const VennuzoPalette({
     required this.ink,
     required this.slate,
     required this.coral,
@@ -284,7 +284,7 @@ class EventoraPalette extends ThemeExtension<EventoraPalette> {
   final Color primaryEnd;
 
   @override
-  ThemeExtension<EventoraPalette> copyWith({
+  ThemeExtension<VennuzoPalette> copyWith({
     Color? ink,
     Color? slate,
     Color? coral,
@@ -299,7 +299,7 @@ class EventoraPalette extends ThemeExtension<EventoraPalette> {
     Color? primaryStart,
     Color? primaryEnd,
   }) {
-    return EventoraPalette(
+    return VennuzoPalette(
       ink: ink ?? this.ink,
       slate: slate ?? this.slate,
       coral: coral ?? this.coral,
@@ -317,14 +317,14 @@ class EventoraPalette extends ThemeExtension<EventoraPalette> {
   }
 
   @override
-  ThemeExtension<EventoraPalette> lerp(
-    covariant ThemeExtension<EventoraPalette>? other,
+  ThemeExtension<VennuzoPalette> lerp(
+    covariant ThemeExtension<VennuzoPalette>? other,
     double t,
   ) {
-    if (other is! EventoraPalette) {
+    if (other is! VennuzoPalette) {
       return this;
     }
-    return EventoraPalette(
+    return VennuzoPalette(
       ink: Color.lerp(ink, other.ink, t) ?? ink,
       slate: Color.lerp(slate, other.slate, t) ?? slate,
       coral: Color.lerp(coral, other.coral, t) ?? coral,

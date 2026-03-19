@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/services/eventora_share_link_service.dart';
+import '../../data/services/vennuzo_share_link_service.dart';
 import '../../domain/models/event_models.dart';
 
 Future<void> showEventShareSheet(
@@ -36,7 +36,7 @@ class _EventShareSheetState extends State<_EventShareSheet> {
   @override
   void initState() {
     super.initState();
-    _shareLinkFuture = EventoraShareLinkService.createEventLink(
+    _shareLinkFuture = VennuzoShareLinkService.createEventLink(
       event: widget.event,
     );
   }
@@ -62,7 +62,7 @@ class _EventShareSheetState extends State<_EventShareSheet> {
           builder: (context, snapshot) {
             final shareLink =
                 snapshot.data ??
-                EventoraShareLinkService.fallbackEventLink(widget.event.id);
+                VennuzoShareLinkService.fallbackEventLink(widget.event.id);
             final isLoading =
                 snapshot.connectionState == ConnectionState.waiting &&
                 snapshot.data == null;
@@ -89,7 +89,7 @@ class _EventShareSheetState extends State<_EventShareSheet> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Share the same Eventora landing page used by campaigns, SMS reminders, and premium placements.',
+                    'Share the same Vennuzo landing page used by campaigns, SMS reminders, and premium placements.',
                     style: context.text.bodyMedium,
                   ),
                   const SizedBox(height: 22),
@@ -206,7 +206,7 @@ class _EventShareSheetState extends State<_EventShareSheet> {
                   const SizedBox(height: 12),
                   Center(
                     child: Text(
-                      'Scan to open the Eventora share landing page.',
+                      'Scan to open the Vennuzo share landing page.',
                       style: context.text.bodyMedium?.copyWith(
                         color: palette.slate,
                       ),

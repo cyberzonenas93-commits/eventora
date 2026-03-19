@@ -6,9 +6,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
-import '../../data/services/eventora_location_service.dart';
-import '../../data/services/eventora_places_service.dart';
+import '../../data/repositories/vennuzo_repository.dart';
+import '../../data/services/vennuzo_location_service.dart';
+import '../../data/services/vennuzo_places_service.dart';
 import '../../domain/models/event_models.dart';
 
 class EventEditorScreen extends StatefulWidget {
@@ -47,7 +47,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   DateTime? _recurrenceEndDate;
   int? _recurrenceOccurrences;
   Timer? _placesDebounce;
-  List<EventoraPlaceSuggestion> _placeSuggestions = const [];
+  List<VennuzoPlaceSuggestion> _placeSuggestions = const [];
   EventLocation? _selectedLocation;
   String? _locationMessage;
   bool _isSearchingPlaces = false;
@@ -652,7 +652,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
 
   Future<void> _searchPlaces(String query) async {
     try {
-      final suggestions = await EventoraPlacesService.instance.search(query);
+      final suggestions = await VennuzoPlacesService.instance.search(query);
       if (!mounted || _locationSearchController.text.trim() != query) {
         return;
       }
@@ -673,7 +673,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   }
 
   Future<void> _selectPlaceSuggestion(
-    EventoraPlaceSuggestion suggestion,
+    VennuzoPlaceSuggestion suggestion,
   ) async {
     FocusScope.of(context).unfocus();
     setState(() {
@@ -682,7 +682,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     });
 
     try {
-      final selection = await EventoraPlacesService.instance.fetchSelection(
+      final selection = await VennuzoPlacesService.instance.fetchSelection(
         suggestion.placeId,
       );
       if (!mounted) {
@@ -717,14 +717,14 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     });
 
     try {
-      final position = await EventoraLocationService.instance
+      final position = await VennuzoLocationService.instance
           .getCurrentPosition();
       if (!mounted) {
         return;
       }
 
       try {
-        final selection = await EventoraPlacesService.instance.reverseGeocode(
+        final selection = await VennuzoPlacesService.instance.reverseGeocode(
           latitude: position.latitude,
           longitude: position.longitude,
         );
@@ -737,7 +737,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
           message:
               'Using your current device location. Review the venue details before publishing.',
         );
-      } on EventoraPlacesFailure {
+      } on VennuzoPlacesFailure {
         if (!mounted) {
           return;
         }
@@ -746,7 +746,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
           longitude: position.longitude,
         );
       }
-    } on EventoraLocationFailure catch (error) {
+    } on VennuzoLocationFailure catch (error) {
       if (!mounted) {
         return;
       }
@@ -788,7 +788,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   }
 
   void _applyPlaceSelection(
-    EventoraPlaceSelection selection, {
+    VennuzoPlaceSelection selection, {
     required String message,
   }) {
     _isApplyingPlaceSelection = true;
@@ -848,7 +848,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     }
     if (_selectedLocation == null) {
       _showMessage(
-        'Search for a venue or address so Eventora can show guests a live map and surface the event nearby.',
+        'Search for a venue or address so Vennuzo can show guests a live map and surface the event nearby.',
       );
       return;
     }
@@ -917,7 +917,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
       location: _selectedLocation,
     );
 
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     if (_isEditing) {
       repository.updateEvent(widget.existingEvent!.id, draft);
     } else {
@@ -1143,8 +1143,8 @@ class _TierSummaryCard extends StatelessWidget {
 class _PlaceSuggestionList extends StatelessWidget {
   const _PlaceSuggestionList({required this.suggestions, required this.onTap});
 
-  final List<EventoraPlaceSuggestion> suggestions;
-  final ValueChanged<EventoraPlaceSuggestion> onTap;
+  final List<VennuzoPlaceSuggestion> suggestions;
+  final ValueChanged<VennuzoPlaceSuggestion> onTap;
 
   @override
   Widget build(BuildContext context) {

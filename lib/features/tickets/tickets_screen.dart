@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
+import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/ticket_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
@@ -17,8 +17,8 @@ class TicketsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
-    final session = context.watch<EventoraSessionController>();
+    final repository = context.watch<VennuzoRepository>();
+    final session = context.watch<VennuzoSessionController>();
     final orders = repository.orders;
     final admittedCount = orders.fold<int>(
       0,
@@ -199,7 +199,7 @@ class _TicketsHero extends StatelessWidget {
 class _GateQueue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
+    final repository = context.watch<VennuzoRepository>();
     final entries = [
       for (final order in repository.orders)
         for (final ticket in order.tickets)
@@ -272,7 +272,7 @@ class _GateQueue extends StatelessWidget {
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: () {
-                            context.read<EventoraRepository>().admitTicket(
+                            context.read<VennuzoRepository>().admitTicket(
                               entry.order.id,
                               entry.ticket.ticketId,
                             );
@@ -309,7 +309,7 @@ class _OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     final publicLink = repository.buildPublicTicketLink(order.id);
 
     return Card(

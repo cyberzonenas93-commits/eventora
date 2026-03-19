@@ -6,17 +6,17 @@ class MockSeed {
   static const organizerId = 'organizer_angel';
   static const organizerName = 'Angel Artey';
   static const organizerPhone = '+233 24 000 0000';
-  static const organizerEmail = 'angel@eventora.app';
+  static const organizerEmail = 'angel@vennuzo.app';
 
   static List<EventModel> events() {
     final now = DateTime.now();
     return [
       EventModel(
         id: 'event_test_drive',
-        title: 'Eventora Test Drive',
+        title: 'Vennuzo Test Drive',
         description:
             'A simple demo event built to help you walk through discovery, event details, RSVP, optional tickets, and reminders inside the app.',
-        venue: 'Eventora Demo Hall',
+        venue: 'Vennuzo Demo Hall',
         city: 'Accra',
         startDate: now.add(const Duration(days: 1, hours: 2)),
         endDate: now.add(const Duration(days: 1, hours: 6)),
@@ -53,7 +53,7 @@ class MockSeed {
         sendSmsNotification: true,
         allowSharing: true,
         djs: 'Demo DJ Set',
-        mcs: 'Eventora Host',
+        mcs: 'Vennuzo Host',
         performers: 'Product walkthrough and live demo',
         likesCount: 18,
         rsvpCount: 14,
@@ -63,7 +63,7 @@ class MockSeed {
           address: '4 Independence Avenue, Ridge, Accra',
           latitude: 5.5719,
           longitude: -0.1869,
-          placeId: 'mock_eventora_demo_hall',
+          placeId: 'mock_vennuzo_demo_hall',
         ),
       ),
       EventModel(

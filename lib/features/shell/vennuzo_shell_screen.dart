@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
-import '../../widgets/eventora_motion.dart';
+import '../../widgets/vennuzo_motion.dart';
 import '../account/account_screen.dart';
 import '../discover/discover_screen.dart';
 import '../manage/manage_screen.dart';
 import '../promotions/promotions_screen.dart';
 import '../tickets/tickets_screen.dart';
 
-class EventoraShellScreen extends StatefulWidget {
-  const EventoraShellScreen({super.key});
+class VennuzoShellScreen extends StatefulWidget {
+  const VennuzoShellScreen({super.key});
 
   @override
-  State<EventoraShellScreen> createState() => _EventoraShellScreenState();
+  State<VennuzoShellScreen> createState() => _VennuzoShellScreenState();
 }
 
-class _EventoraShellScreenState extends State<EventoraShellScreen> {
+class _VennuzoShellScreenState extends State<VennuzoShellScreen> {
   int _currentIndex = 0;
 
   late final List<Widget> _screens = const [
@@ -29,7 +29,7 @@ class _EventoraShellScreenState extends State<EventoraShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
 
     return Scaffold(
       extendBody: true,
@@ -133,7 +133,7 @@ class _ShellTopBar extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-      child: EventoraReveal(
+      child: VennuzoReveal(
         delay: const Duration(milliseconds: 50),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

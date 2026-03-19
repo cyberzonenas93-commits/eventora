@@ -5,11 +5,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
-import '../../data/services/eventora_payment_service.dart';
+import '../../data/repositories/vennuzo_repository.dart';
+import '../../data/services/vennuzo_payment_service.dart';
 import '../../data/services/event_safety_service.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
@@ -19,7 +19,7 @@ import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
 import 'event_share_sheet.dart';
-import '../tickets/eventora_ticket_payment_status_screen.dart';
+import '../tickets/vennuzo_ticket_payment_status_screen.dart';
 
 class EventDetailScreen extends StatelessWidget {
   const EventDetailScreen({super.key, required this.eventId});
@@ -29,8 +29,8 @@ class EventDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.watch<EventoraRepository>();
-    final session = context.watch<EventoraSessionController>();
+    final repository = context.watch<VennuzoRepository>();
+    final session = context.watch<VennuzoSessionController>();
     final event = repository.eventById(eventId);
 
     if (event == null) {
@@ -156,7 +156,7 @@ class EventDetailScreen extends StatelessWidget {
             children: [
               OutlinedButton.icon(
                 onPressed: () {
-                  context.read<EventoraRepository>().toggleLike(event.id);
+                  context.read<VennuzoRepository>().toggleLike(event.id);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Saved to your events.')),
                   );
@@ -377,7 +377,7 @@ class EventDetailScreen extends StatelessWidget {
     );
 
     if (!context.mounted) return;
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     if (result == null) {
       return;
     }
@@ -403,7 +403,7 @@ class EventDetailScreen extends StatelessWidget {
   }
 
   Future<void> _openRsvpFlow(BuildContext context, EventModel event) async {
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     if (session.isGuest) {
       final authenticated = await showAuthPromptSheet(
         context,
@@ -431,7 +431,7 @@ class EventDetailScreen extends StatelessWidget {
   }
 
   Future<void> _openCheckoutFlow(BuildContext context, EventModel event) async {
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     if (session.isGuest) {
       final authenticated = await showAuthPromptSheet(
         context,
@@ -465,7 +465,7 @@ class EventDetailScreen extends StatelessWidget {
       }
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => EventoraTicketPaymentStatusScreen(
+          builder: (_) => VennuzoTicketPaymentStatusScreen(
             orderId: result.order.id,
             initialOrder: result.order,
             checkoutUrl: result.checkoutUrl ?? '',
@@ -476,7 +476,7 @@ class EventDetailScreen extends StatelessWidget {
     }
 
     final order = result.order;
-    final link = context.read<EventoraRepository>().buildPublicTicketLink(
+    final link = context.read<VennuzoRepository>().buildPublicTicketLink(
       order.id,
     );
     await showDialog<void>(
@@ -522,7 +522,7 @@ class EventDetailScreen extends StatelessWidget {
   Future<void> _showReportSheet(
     BuildContext context,
     EventModel event,
-    EventoraSessionController session,
+    VennuzoSessionController session,
   ) async {
     final report = await showModalBottomSheet<_EventReportPayload>(
       context: context,
@@ -769,7 +769,7 @@ class _PremiumPlacementPanel extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              'This event is currently in Eventora spotlight.',
+              'This event is currently in Vennuzo spotlight.',
               style: context.text.titleLarge?.copyWith(fontSize: 20),
             ),
             const SizedBox(height: 8),
@@ -1033,7 +1033,7 @@ class _RsvpSheetState extends State<_RsvpSheet> {
   @override
   void initState() {
     super.initState();
-    final repository = context.read<EventoraRepository>();
+    final repository = context.read<VennuzoRepository>();
     _nameController = TextEditingController(text: repository.currentUserName);
     _phoneController = TextEditingController(text: repository.currentUserPhone);
   }
@@ -1130,7 +1130,7 @@ class _RsvpSheetState extends State<_RsvpSheet> {
                         return;
                       }
                       final record = context
-                          .read<EventoraRepository>()
+                          .read<VennuzoRepository>()
                           .createRsvp(
                             eventId: widget.event.id,
                             eventTitle: widget.event.title,
@@ -1353,9 +1353,9 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                             setState(() => _submitting = true);
                             try {
                               final repository = context
-                                  .read<EventoraRepository>();
+                                  .read<VennuzoRepository>();
                               final session = context
-                                  .read<EventoraSessionController>();
+                                  .read<VennuzoSessionController>();
 
                               if (_total <= 0 || !session.firebaseEnabled) {
                                 final order = repository.checkout(
@@ -1372,7 +1372,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                               }
 
                               final checkoutSession =
-                                  await EventoraPaymentService.startPaidCheckout(
+                                  await VennuzoPaymentService.startPaidCheckout(
                                     event: widget.event,
                                     selections: _selections,
                                     viewer: session.viewer,
@@ -1388,7 +1388,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                                   checkoutSession.launched,
                                 ),
                               );
-                            } on EventoraPaymentException catch (error) {
+                            } on VennuzoPaymentException catch (error) {
                               if (!context.mounted) {
                                 return;
                               }

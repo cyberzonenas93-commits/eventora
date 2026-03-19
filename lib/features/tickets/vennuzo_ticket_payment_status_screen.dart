@@ -8,13 +8,13 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
-import '../../data/repositories/eventora_repository.dart';
-import '../../data/services/eventora_payment_service.dart';
-import '../../data/services/eventora_ticket_order_monitor.dart';
+import '../../data/repositories/vennuzo_repository.dart';
+import '../../data/services/vennuzo_payment_service.dart';
+import '../../data/services/vennuzo_ticket_order_monitor.dart';
 import '../../domain/models/ticket_models.dart';
 
-class EventoraTicketPaymentStatusScreen extends StatefulWidget {
-  const EventoraTicketPaymentStatusScreen({
+class VennuzoTicketPaymentStatusScreen extends StatefulWidget {
+  const VennuzoTicketPaymentStatusScreen({
     super.key,
     required this.orderId,
     required this.initialOrder,
@@ -26,12 +26,12 @@ class EventoraTicketPaymentStatusScreen extends StatefulWidget {
   final String checkoutUrl;
 
   @override
-  State<EventoraTicketPaymentStatusScreen> createState() =>
-      _EventoraTicketPaymentStatusScreenState();
+  State<VennuzoTicketPaymentStatusScreen> createState() =>
+      _VennuzoTicketPaymentStatusScreenState();
 }
 
-class _EventoraTicketPaymentStatusScreenState
-    extends State<EventoraTicketPaymentStatusScreen> {
+class _VennuzoTicketPaymentStatusScreenState
+    extends State<VennuzoTicketPaymentStatusScreen> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _orderSubscription;
   late TicketOrder _order;
@@ -51,7 +51,7 @@ class _EventoraTicketPaymentStatusScreenState
     _order = widget.initialOrder;
     _subscribeToOrder();
     _scheduleWarmRefreshes();
-    EventoraTicketOrderMonitor.startMonitoring(
+    VennuzoTicketOrderMonitor.startMonitoring(
       orderId: widget.orderId,
       onPoll: _refreshFromHubtel,
     );
@@ -59,7 +59,7 @@ class _EventoraTicketPaymentStatusScreenState
 
   @override
   void dispose() {
-    EventoraTicketOrderMonitor.stopMonitoring(widget.orderId);
+    VennuzoTicketOrderMonitor.stopMonitoring(widget.orderId);
     _orderSubscription?.cancel();
     super.dispose();
   }
@@ -70,7 +70,7 @@ class _EventoraTicketPaymentStatusScreenState
         .doc(widget.orderId)
         .snapshots()
         .listen((snapshot) {
-          final remoteOrder = EventoraPaymentService.orderFromDocument(
+          final remoteOrder = VennuzoPaymentService.orderFromDocument(
             snapshot,
           );
           if (remoteOrder == null) {
@@ -96,13 +96,13 @@ class _EventoraTicketPaymentStatusScreenState
   }
 
   void _applyOrder(TicketOrder order) {
-    context.read<EventoraRepository>().upsertOrder(order);
+    context.read<VennuzoRepository>().upsertOrder(order);
     if (!mounted) {
       return;
     }
     setState(() => _order = order);
     if (_isPaid || _isFailed) {
-      EventoraTicketOrderMonitor.stopMonitoring(widget.orderId);
+      VennuzoTicketOrderMonitor.stopMonitoring(widget.orderId);
     }
   }
 
@@ -116,7 +116,7 @@ class _EventoraTicketPaymentStatusScreenState
       _autoChecks += 1;
     });
     try {
-      final order = await EventoraPaymentService.checkHubtelTicketStatus(
+      final order = await VennuzoPaymentService.checkHubtelTicketStatus(
         widget.orderId,
       );
       if (order != null) {
@@ -133,7 +133,7 @@ class _EventoraTicketPaymentStatusScreenState
           ),
         );
       }
-    } on EventoraPaymentException catch (error) {
+    } on VennuzoPaymentException catch (error) {
       if (!mounted) {
         return;
       }
@@ -151,14 +151,14 @@ class _EventoraTicketPaymentStatusScreenState
 
   Future<void> _openCheckoutAgain() async {
     try {
-      await EventoraPaymentService.startPaymentForExistingOrder(widget.orderId);
+      await VennuzoPaymentService.startPaymentForExistingOrder(widget.orderId);
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Hubtel checkout opened again.')),
       );
-    } on EventoraPaymentException catch (error) {
+    } on VennuzoPaymentException catch (error) {
       if (!mounted) {
         return;
       }
@@ -176,7 +176,7 @@ class _EventoraTicketPaymentStatusScreenState
   }
 
   Future<void> _copyTicketLink() async {
-    final link = context.read<EventoraRepository>().buildPublicTicketLink(
+    final link = context.read<VennuzoRepository>().buildPublicTicketLink(
       widget.orderId,
     );
     await Clipboard.setData(ClipboardData(text: link));
@@ -206,11 +206,11 @@ class _EventoraTicketPaymentStatusScreenState
         ? 'Issuing tickets'
         : 'Waiting for Hubtel';
     final statusBody = _isPaid
-        ? 'Hubtel has confirmed the payment and Eventora has issued the tickets for this order.'
+        ? 'Hubtel has confirmed the payment and Vennuzo has issued the tickets for this order.'
         : _isFailed
         ? 'This order is still open. You can reopen Hubtel and try again.'
         : _paymentConfirmed
-        ? 'Hubtel has confirmed the payment. Eventora is still attaching the QR tickets to the order.'
+        ? 'Hubtel has confirmed the payment. Vennuzo is still attaching the QR tickets to the order.'
         : 'Hubtel sometimes takes a few seconds to call back. Keep this screen open and refresh if needed.';
 
     return Scaffold(
@@ -363,7 +363,7 @@ class _EventoraTicketPaymentStatusScreenState
           const SizedBox(height: 18),
           Text(
             _autoChecks == 0
-                ? 'Eventora will keep checking Hubtel in the background while this screen is open.'
+                ? 'Vennuzo will keep checking Hubtel in the background while this screen is open.'
                 : 'Automatic checks so far: $_autoChecks',
             style: context.text.bodySmall,
           ),

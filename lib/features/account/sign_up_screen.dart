@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../app/eventora_session_controller.dart';
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
 
@@ -51,7 +51,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final session = context.watch<EventoraSessionController>();
+    final session = context.watch<VennuzoSessionController>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create account')),
@@ -68,7 +68,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
             children: [
               _AuthIntro(
-                title: 'Create your Eventora account',
+                title: 'Create your Vennuzo account',
                 body:
                     'Save tickets, RSVP faster, and keep your plans in one place. Add your date of birth now, and include a contact number if you want hosts to have it.',
               ),
@@ -221,7 +221,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
       await session.createAccount(
@@ -238,7 +238,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
       navigator.pop(true);
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
@@ -252,7 +252,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithGoogle() async {
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
       await session.signInWithGoogle();
@@ -261,7 +261,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
       navigator.pop(true);
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
@@ -269,7 +269,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithApple() async {
-    final session = context.read<EventoraSessionController>();
+    final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
       await session.signInWithApple();
@@ -278,7 +278,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
       navigator.pop(true);
-    } on EventoraAuthFailure catch (error) {
+    } on VennuzoAuthFailure catch (error) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));

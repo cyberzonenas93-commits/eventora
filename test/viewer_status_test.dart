@@ -1,15 +1,15 @@
-import 'package:eventora_app/domain/models/account_models.dart';
+import 'package:vennuzo/domain/models/account_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('EventoraViewer organizer state', () {
+  group('VennuzoViewer organizer state', () {
     test('draft and rejected viewers can keep editing host access', () {
-      const draftViewer = EventoraViewer(
+      const draftViewer = VennuzoViewer(
         displayName: 'Draft Host',
         isAuthenticated: true,
         organizerApplicationStatus: OrganizerApplicationStatus.draft,
       );
-      const rejectedViewer = EventoraViewer(
+      const rejectedViewer = VennuzoViewer(
         displayName: 'Rejected Host',
         isAuthenticated: true,
         organizerApplicationStatus: OrganizerApplicationStatus.rejected,
@@ -20,12 +20,12 @@ void main() {
     });
 
     test('submitted and under-review viewers are treated as pending', () {
-      const submittedViewer = EventoraViewer(
+      const submittedViewer = VennuzoViewer(
         displayName: 'Submitted Host',
         isAuthenticated: true,
         organizerApplicationStatus: OrganizerApplicationStatus.submitted,
       );
-      const reviewingViewer = EventoraViewer(
+      const reviewingViewer = VennuzoViewer(
         displayName: 'Reviewing Host',
         isAuthenticated: true,
         organizerApplicationStatus: OrganizerApplicationStatus.underReview,
@@ -38,7 +38,7 @@ void main() {
     });
 
     test('approved viewers gain organizer access', () {
-      const approvedViewer = EventoraViewer(
+      const approvedViewer = VennuzoViewer(
         displayName: 'Approved Host',
         isAuthenticated: true,
         organizerApplicationStatus: OrganizerApplicationStatus.approved,

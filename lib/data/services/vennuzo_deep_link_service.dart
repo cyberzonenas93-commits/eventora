@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 
 import '../../features/events/event_detail_screen.dart';
 
-class EventoraDeepLinkService {
-  EventoraDeepLinkService._();
+class VennuzoDeepLinkService {
+  VennuzoDeepLinkService._();
 
-  static final EventoraDeepLinkService instance = EventoraDeepLinkService._();
+  static final VennuzoDeepLinkService instance = VennuzoDeepLinkService._();
 
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _subscription;
@@ -67,7 +67,7 @@ class EventoraDeepLinkService {
   }
 
   String? _extractEventId(Uri? uri) {
-    if (uri == null || uri.scheme != 'eventoraapp') {
+    if (uri == null || uri.scheme != 'vennuzoapp') {
       return null;
     }
 

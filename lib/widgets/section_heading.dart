@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/theme_extensions.dart';
-import 'eventora_motion.dart';
+import 'vennuzo_motion.dart';
 
 class SectionHeading extends StatelessWidget {
   const SectionHeading({
@@ -22,7 +22,7 @@ class SectionHeading extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final palette = context.palette;
 
-    return EventoraReveal(
+    return VennuzoReveal(
       delay: const Duration(milliseconds: 40),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

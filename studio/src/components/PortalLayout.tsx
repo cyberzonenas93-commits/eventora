@@ -26,7 +26,7 @@ export function PortalLayout() {
           <div className="studio-brand">
             <div className="studio-brand__mark">E</div>
             <div>
-              <strong>Eventora Studio</strong>
+              <strong>Vennuzo Studio</strong>
               <span>Organizer portal</span>
             </div>
           </div>

@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { copy } from '../lib/copy'
 import { formatDateTime, formatMoney } from '../lib/formatters'
 import { listOrganizerEvents } from '../lib/portalData'
 import { usePortalSession } from '../lib/portalSession'
 import type { PortalEvent } from '../lib/types'
+
+type StatusFilter = 'all' | 'published' | 'draft'
 
 export function EventsPage() {
   const { organizationId } = usePortalSession()
   const [events, setEvents] = useState<PortalEvent[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   useEffect(() => {
     let cancelled = false
-    if (!organizationId) {
-      return
-    }
     const orgId = organizationId ?? ''
-
+    if (!orgId) return
     async function run() {
       setLoading(true)
       const nextEvents = await listOrganizerEvents(orgId)
@@ -27,149 +28,137 @@ export function EventsPage() {
         setLoading(false)
       }
     }
-
     void run()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [organizationId])
 
-  const publishedEvents = events.filter((event) => event.status === 'published').length
-  const draftEvents = events.filter((event) => event.status === 'draft').length
-  const totalRevenue = events.reduce((sum, event) => sum + event.grossRevenue, 0)
-  const totalTickets = events.reduce((sum, event) => sum + event.ticketCount, 0)
-  const filteredEvents = useMemo(() => {
-    const trimmed = query.trim().toLowerCase()
-    if (!trimmed) {
-      return events
-    }
+  const publishedCount = events.filter((e) => e.status === 'published').length
+  const draftCount = events.filter((e) => e.status === 'draft').length
+  const totalRevenue = events.reduce((sum, e) => sum + e.grossRevenue, 0)
+  const totalTickets = events.reduce((sum, e) => sum + e.ticketCount, 0)
 
-    return events.filter((event) =>
-      [
-        event.title,
-        event.description,
-        event.venue,
-        event.city,
-        event.performers,
-        event.djs,
-        event.mcs,
-        ...event.tags,
-      ]
+  const filteredEvents = useMemo(() => {
+    let list = events
+    if (statusFilter === 'published') list = list.filter((e) => e.status === 'published')
+    if (statusFilter === 'draft') list = list.filter((e) => e.status === 'draft')
+    const q = query.trim().toLowerCase()
+    if (!q) return list
+    return list.filter((e) =>
+      [e.title, e.description, e.venue, e.city, e.performers, e.djs, e.mcs, ...e.tags]
         .join(' ')
         .toLowerCase()
-        .includes(trimmed),
+        .includes(q),
     )
-  }, [events, query])
+  }, [events, query, statusFilter])
 
   if (loading) {
-    return <div className="page-loader">Loading events...</div>
+    return <div className="page-loader">{copy.loading}</div>
   }
 
   return (
-    <div className="dashboard-stack">
-      <section className="page-hero page-hero--events">
-        <div className="page-hero__content">
-          <p className="eyebrow">Events management</p>
-          <h2>Manage every event in one place.</h2>
-          <div className="hero-chip-row">
-            <span>{events.length} total events</span>
-            <span>{publishedEvents} published</span>
-            <span>{draftEvents} drafts</span>
-          </div>
+    <div className="dashboard-stack events-dashboard">
+      <section className="events-dashboard__hero">
+        <div className="events-dashboard__hero-content">
+          <h2>Your events</h2>
+          <p>Create and manage events, track sales and RSVPs.</p>
         </div>
-        <div className="page-hero__panel">
-          <label className="search-field">
-            <span>Search your events</span>
-            <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by title, venue, city, or artist"
-              value={query}
-            />
-          </label>
-          <div className="hero-actions">
-            <Link className="button button--primary" to="/events/new">
-              New event
-            </Link>
-            <Link className="button button--secondary" to="/overview">
-              Back to overview
-            </Link>
-          </div>
+        <div className="events-dashboard__hero-actions">
+          <Link className="button button--primary" to="/studio/events/new">
+            Create event
+          </Link>
         </div>
       </section>
 
-      <section className="stats-grid stats-grid--compact">
-        <MetricCard label="Tracked revenue" value={formatMoney(totalRevenue)} />
-        <MetricCard label="Tickets issued" value={String(totalTickets)} />
-        <MetricCard label="Showing now" value={String(filteredEvents.length)} />
+      <section className="events-dashboard__stats">
+        <div className="events-dashboard__stat">
+          <span className="events-dashboard__stat-label">Total revenue</span>
+          <strong>{formatMoney(totalRevenue)}</strong>
+        </div>
+        <div className="events-dashboard__stat">
+          <span className="events-dashboard__stat-label">Tickets sold</span>
+          <strong>{totalTickets}</strong>
+        </div>
+        <div className="events-dashboard__stat">
+          <span className="events-dashboard__stat-label">Events</span>
+          <strong>{events.length}</strong>
+          <small>{publishedCount} live · {draftCount} draft</small>
+        </div>
       </section>
 
-      <section className="event-grid">
+      <section className="events-dashboard__toolbar">
+        <div className="events-dashboard__search">
+          <input
+            type="search"
+            placeholder="Search events…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search events"
+          />
+        </div>
+        <div className="events-dashboard__filters" role="tablist" aria-label="Filter by status">
+          {(['all', 'published', 'draft'] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === key}
+              className={`events-dashboard__filter ${statusFilter === key ? 'events-dashboard__filter--active' : ''}`}
+              onClick={() => setStatusFilter(key)}
+            >
+              {key === 'all' ? 'All' : key === 'published' ? 'Published' : 'Drafts'}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="events-dashboard__list">
         {events.length === 0 ? (
-          <div className="empty-card">
-            <h4>No events created yet</h4>
+          <div className="events-dashboard__empty">
+            <div className="events-dashboard__empty-icon" aria-hidden>◎</div>
+            <h3>No events yet</h3>
+            <p>Create your first event to start selling tickets and tracking RSVPs.</p>
+            <Link className="button button--primary" to="/studio/events/new">
+              Create event
+            </Link>
           </div>
         ) : filteredEvents.length === 0 ? (
-          <div className="empty-card">
-            <h4>No matches for "{query}"</h4>
+          <div className="events-dashboard__empty">
+            <h3>No matches</h3>
+            <p>{query.trim() ? `No events match "${query}".` : `No ${statusFilter} events.`}</p>
+            <button
+              type="button"
+              className="button button--ghost"
+              onClick={() => { setQuery(''); setStatusFilter('all') }}
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
-          filteredEvents.map((event) => (
-            <article className="event-card event-card--studio" key={event.id}>
-              <div className="event-card__badges">
-                <span className={`status-pill status-pill--${event.status}`}>
-                  {event.status}
-                </span>
-                <span className="status-pill status-pill--soft">{event.visibility}</span>
-              </div>
-              <h3>{event.title}</h3>
-              <div className="event-card__meta">
-                <span>{formatDateTime(event.startAt)}</span>
-                <span>
-                  {event.venue}, {event.city}
-                </span>
-              </div>
-              <div className="event-card__stats">
-                <div>
-                  <small>Revenue</small>
-                  <strong>{formatMoney(event.grossRevenue)}</strong>
-                </div>
-                <div>
-                  <small>Tickets</small>
-                  <strong>{event.ticketCount}</strong>
-                </div>
-                <div>
-                  <small>RSVPs</small>
-                  <strong>{event.rsvpCount}</strong>
-                </div>
-              </div>
-              <div className="event-card__footer">
-                <div className="event-card__taglist">
-                  {event.tags.slice(0, 3).map((tag) => (
-                    <span className="tag-chip" key={tag}>
-                      {tag}
+          <ul className="events-dashboard__cards">
+            {filteredEvents.map((event) => (
+              <li key={event.id}>
+                <Link to={`/studio/events/${event.id}/edit`} className="events-dashboard__card">
+                  <div className="events-dashboard__card-main">
+                    <span className={`events-dashboard__card-status status-pill status-pill--${event.status}`}>
+                      {event.status}
                     </span>
-                  ))}
-                </div>
-                <Link
-                  className="button button--secondary"
-                  to={`/events/${event.id}/edit`}
-                >
-                  Edit event
+                    <h3 className="events-dashboard__card-title">{event.title}</h3>
+                    <p className="events-dashboard__card-meta">
+                      {formatDateTime(event.startAt)} · {event.venue}, {event.city}
+                    </p>
+                  </div>
+                  <div className="events-dashboard__card-metrics">
+                    <span title="Revenue">{formatMoney(event.grossRevenue)}</span>
+                    <span title="Tickets">{event.ticketCount} tickets</span>
+                    <span title="RSVPs">{event.rsvpCount} RSVPs</span>
+                  </div>
+                  <span className="events-dashboard__card-cta">Edit</span>
                 </Link>
-              </div>
-            </article>
-          ))
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </div>
-  )
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <article className="metric-card metric-card--plain">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
   )
 }

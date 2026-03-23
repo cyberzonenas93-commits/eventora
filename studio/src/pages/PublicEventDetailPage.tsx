@@ -1,0 +1,122 @@
+import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+
+import { copy } from '../lib/copy'
+import { formatDateTime, formatMoney } from '../lib/formatters'
+import { getPublicEvent } from '../lib/portalData'
+import type { PortalEvent } from '../lib/types'
+
+export function PublicEventDetailPage() {
+  const { eventId } = useParams()
+  const [event, setEvent] = useState<PortalEvent | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!eventId) {
+      setLoading(false)
+      return
+    }
+    getPublicEvent(eventId)
+      .then((e) => {
+        if (!cancelled) {
+          setEvent(e ?? null)
+          if (e == null) setError('Event not found or no longer available.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [eventId])
+
+  if (loading) {
+    return <div className="page-loader">{copy.loading}</div>
+  }
+
+  if (error || !event) {
+    return (
+      <div className="public-page">
+        <div className="empty-card">
+          <h4>{error ?? 'Event not found'}</h4>
+          <Link to="/events" className="button button--secondary" style={{ marginTop: '1rem' }}>
+            Back to events
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const hasTickets = event.ticketingEnabled && event.tiers.length > 0
+  const minPrice = hasTickets
+    ? Math.min(...event.tiers.map((t) => t.price))
+    : null
+
+  return (
+    <div className="public-page">
+      <article className="public-event-detail">
+        <div className="public-event-detail__header">
+          <p className="eyebrow">{event.city} · {event.venue}</p>
+          <h1>{event.title}</h1>
+          <p className="public-event-detail__datetime">{formatDateTime(event.startAt)}</p>
+          {minPrice !== null && (
+            <p className="public-event-detail__price">
+              {minPrice === 0 ? 'Free entry' : `From ${formatMoney(minPrice)}`}
+            </p>
+          )}
+        </div>
+
+        <div className="public-event-detail__body">
+          {event.description && (
+            <section className="public-event-detail__section">
+              <h3>About</h3>
+              <p>{event.description}</p>
+            </section>
+          )}
+          {(event.performers || event.djs || event.mcs) && (
+            <section className="public-event-detail__section">
+              <h3>Lineup</h3>
+              <p>
+                {[event.performers, event.djs, event.mcs].filter(Boolean).join(' · ') || '—'}
+              </p>
+            </section>
+          )}
+          {hasTickets && (
+            <section className="public-event-detail__section">
+              <h3>Tickets</h3>
+              <ul className="public-event-detail__tiers">
+                {event.tiers.map((tier) => (
+                  <li key={tier.tierId}>
+                    <span>{tier.name}</span>
+                    <span>{tier.price === 0 ? 'Free' : formatMoney(tier.price)}</span>
+                    {tier.maxQuantity > 0 && (
+                      <span className="public-event-detail__tier-avail">
+                        {tier.maxQuantity - tier.sold} left
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        <div className="public-event-detail__actions">
+          {/* Placeholder CTA: in a full flow this would go to checkout or RSVP */}
+          <a
+            href={`https://vennuzo.page.link/event/${event.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="button button--primary"
+          >
+            {hasTickets ? 'Get tickets' : 'View event'}
+          </a>
+          <Link to="/events" className="button button--ghost">
+            Back to events
+          </Link>
+        </div>
+      </article>
+    </div>
+  )
+}

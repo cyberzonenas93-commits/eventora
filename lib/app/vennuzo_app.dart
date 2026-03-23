@@ -5,6 +5,7 @@ import '../data/services/vennuzo_deep_link_service.dart';
 import '../data/services/vennuzo_notification_service.dart';
 import '../core/theme/vennuzo_theme.dart';
 import '../data/repositories/vennuzo_repository.dart';
+import '../features/events/event_detail_screen.dart';
 import '../features/root/vennuzo_root_screen.dart';
 import 'vennuzo_session_controller.dart';
 
@@ -33,6 +34,17 @@ class _VennuzoAppState extends State<VennuzoApp> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       VennuzoDeepLinkService.instance.initialize(navigatorKey: _navigatorKey);
+      VennuzoNotificationService.instance.setNotificationOpenedHandler((message) {
+        final eventId = message.data['eventId']?.trim();
+        if (eventId == null || eventId.isEmpty) return;
+        final navigator = _navigatorKey.currentState;
+        if (navigator == null) return;
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => EventDetailScreen(eventId: eventId),
+          ),
+        );
+      });
     });
   }
 

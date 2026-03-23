@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
-import { saveOrganizerApplicationDraft, uploadApplicationFile } from '../lib/portalData'
+import { copy } from '../lib/copy'
+import { getErrorMessage } from '../lib/errorMessages'
 import { createEmptyApplication, setupSteps } from '../lib/organizerApplication'
 import { getPayoutReadiness } from '../lib/merchantWorkspace'
 import { usePortalSession } from '../lib/portalSession'
+import { saveOrganizerApplicationDraft, uploadApplicationFile } from '../lib/portalData'
 import type { OrganizerApplication } from '../lib/types'
 
 const stepCopy = {
@@ -113,16 +115,14 @@ export function SetupPage() {
       setMessage(successMessage)
       return true
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Could not save workspace.',
-      )
+      setError(getErrorMessage(caughtError, copy.setupSaveFailed))
       return false
     } finally {
       setIsSaving(false)
     }
   }
 
-  async function handleCompleteSetup(destination: '/overview' | '/events/new') {
+  async function handleCompleteSetup(destination: '/studio/overview' | '/studio/events/new') {
     const saved = await persistWorkspace('Workspace saved successfully.')
     if (saved) {
       navigate(destination)
@@ -143,7 +143,7 @@ export function SetupPage() {
         logoFileName: uploaded.fileName,
       }))
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Could not upload file.')
+      setError(getErrorMessage(caughtError, copy.uploadFailed))
     } finally {
       setUploadingField('')
     }
@@ -262,7 +262,7 @@ export function SetupPage() {
                     { label: 'Venue', value: 'Venue' },
                     { label: 'Community', value: 'Community' },
                     { label: 'Nightlife Brand', value: 'Nightlife Brand' },
-                    { label: 'Promoter', value: 'Promoter' },
+                    { label: 'Events partner', value: 'Events partner' },
                     { label: 'Creative Collective', value: 'Creative Collective' },
                   ]}
                   onChange={(value) => setForm((current) => ({ ...current, businessType: value }))}
@@ -461,7 +461,7 @@ export function SetupPage() {
               <button
                 className="button button--ghost"
                 disabled={isSaving || currentIndex <= 0}
-                onClick={() => navigate(`/setup/${previousStep}`)}
+                onClick={() => navigate(`/studio/setup/${previousStep}`)}
                 type="button"
               >
                 Back
@@ -480,7 +480,7 @@ export function SetupPage() {
                     <button
                       className="button button--secondary"
                       disabled={isSaving}
-                      onClick={() => void handleCompleteSetup('/overview')}
+                      onClick={() => void handleCompleteSetup('/studio/overview')}
                       type="button"
                     >
                       Open dashboard
@@ -488,7 +488,7 @@ export function SetupPage() {
                     <button
                       className="button button--primary"
                       disabled={isSaving}
-                      onClick={() => void handleCompleteSetup('/events/new')}
+                      onClick={() => void handleCompleteSetup('/studio/events/new')}
                       type="button"
                     >
                       Create first event
@@ -498,7 +498,7 @@ export function SetupPage() {
                   <button
                     className="button button--primary"
                     disabled={!stepValid}
-                    onClick={() => navigate(`/setup/${nextStep}`)}
+                    onClick={() => navigate(`/studio/setup/${nextStep}`)}
                     type="button"
                   >
                     Continue

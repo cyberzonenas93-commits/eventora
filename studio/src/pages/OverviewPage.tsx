@@ -1,19 +1,65 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
+import { copy } from '../lib/copy'
 import { formatDateTime, formatMoney } from '../lib/formatters'
+import { getErrorMessage } from '../lib/errorMessages'
 import { getPayoutReadiness, getWorkspaceName, getWorkspaceTagline } from '../lib/merchantWorkspace'
-import { listOrganizerEvents, loadOverviewMetrics } from '../lib/portalData'
+import { listOrganizerEvents, listOrganizerOrders, loadOverviewMetrics } from '../lib/portalData'
 import { usePortalSession } from '../lib/portalSession'
 import type { OverviewMetrics, PortalEvent } from '../lib/types'
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function buildChartDataFromOrders(
+  orders: Array<{ createdAt: string; totalAmount: number; ticketCount: number; paymentStatus: string }>,
+): Array<{ name: string; revenue: number; registrations: number }> {
+  const now = new Date()
+  const paidStatuses = ['paid', 'cashatgatepaid', 'complimentary']
+  const months: Array<{ name: string; revenue: number; registrations: number; year: number; month: number }> = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push({
+      name: `${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`,
+      revenue: 0,
+      registrations: 0,
+      year: d.getFullYear(),
+      month: d.getMonth(),
+    })
+  }
+  for (const o of orders) {
+    const normalized = String(o.paymentStatus ?? '').replace(/_/g, '').toLowerCase()
+    const isPaid = paidStatuses.includes(normalized)
+    const date = new Date(o.createdAt)
+    if (Number.isNaN(date.getTime())) continue
+    const entry = months.find((m) => m.year === date.getFullYear() && m.month === date.getMonth())
+    if (entry) {
+      if (isPaid) entry.revenue += o.totalAmount
+      entry.registrations += o.ticketCount
+    }
+  }
+  return months.map(({ name, revenue, registrations }) => ({ name, revenue, registrations }))
+}
 
 export function OverviewPage() {
   const session = usePortalSession()
   const { organizationId } = session
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [events, setEvents] = useState<PortalEvent[]>([])
+  const [chartData, setChartData] = useState<Array<{ name: string; revenue: number; registrations: number }>>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [viewTimestamp] = useState(() => Date.now())
+  const [chartMounted, setChartMounted] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -24,14 +70,38 @@ export function OverviewPage() {
 
     async function run() {
       setLoading(true)
-      const [nextMetrics, nextEvents] = await Promise.all([
-        loadOverviewMetrics(orgId),
-        listOrganizerEvents(orgId),
-      ])
-      if (!cancelled) {
-        setMetrics(nextMetrics)
-        setEvents(nextEvents)
-        setLoading(false)
+      setError(null)
+      try {
+        const [nextMetrics, nextEvents, nextOrders] = await Promise.all([
+          loadOverviewMetrics(orgId),
+          listOrganizerEvents(orgId),
+          listOrganizerOrders(orgId),
+        ])
+        if (!cancelled) {
+          setMetrics(nextMetrics)
+          setEvents(nextEvents)
+          setChartData(
+            buildChartDataFromOrders(
+              nextOrders.map((o) => ({
+                createdAt: o.createdAt,
+                totalAmount: o.totalAmount,
+                ticketCount: o.ticketCount,
+                paymentStatus: o.paymentStatus,
+              })),
+            ),
+          )
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(getErrorMessage(e, copy.overviewLoadFailed))
+          setMetrics(null)
+          setEvents([])
+          setChartData([])
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
@@ -40,6 +110,11 @@ export function OverviewPage() {
       cancelled = true
     }
   }, [organizationId])
+
+  useEffect(() => {
+    const t = setTimeout(() => setChartMounted(true), 100)
+    return () => clearTimeout(t)
+  }, [])
 
   const orderedEvents = useMemo(
     () =>
@@ -71,7 +146,17 @@ export function OverviewPage() {
   const payoutReadiness = getPayoutReadiness(session.application)
 
   if (loading) {
-    return <div className="page-loader">Loading overview...</div>
+    return <div className="page-loader">{copy.loading}</div>
+  }
+
+  if (error) {
+    return (
+      <div className="page-loader">
+        <p>{copy.overviewLoadFailed}</p>
+        <p className="text-subtle">{error}</p>
+        <p className="text-subtle" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>{copy.pleaseTryAgain}</p>
+      </div>
+    )
   }
 
   return (
@@ -157,6 +242,86 @@ export function OverviewPage() {
         />
       </section>
 
+      <section className="overview-chart-section">
+        <article className="panel overview-chart-panel">
+          <div className="panel__header">
+            <div>
+              <p className="eyebrow">Performance over time</p>
+              <h3>Revenue and tickets by month</h3>
+            </div>
+          </div>
+          <div className="overview-chart-wrap">
+            {chartMounted && (
+              <ResponsiveContainer width="100%" height={320} minHeight={280}>
+                <AreaChart data={chartData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="overviewRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="overviewRegistrationsFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line-strong)" />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                    tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: 'var(--muted)', fontSize: 11 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--panel-strong)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--card-radius)',
+                      color: 'var(--text)',
+                    }}
+                    formatter={(value, name) => {
+                      const v = Number(value ?? 0)
+                      if (name === 'revenue') return [formatMoney(v), 'Revenue']
+                      if (name === 'registrations') return [v, 'Tickets']
+                      return [v, String(name)]
+                    }}
+                  />
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    fill="url(#overviewRevenueFill)"
+                  />
+                  <Area
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="registrations"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    fill="url(#overviewRegistrationsFill)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </article>
+      </section>
+
       <section className="content-grid content-grid--overview">
         <article className="panel panel--feature">
           <div className="panel__header">
@@ -188,7 +353,7 @@ export function OverviewPage() {
               <p className="eyebrow">Recent events</p>
               <h3>Closest events to the door and ticket desk</h3>
             </div>
-            <Link className="text-link" to="/events">
+            <Link className="text-link" to="/studio/events">
               View all
             </Link>
           </div>

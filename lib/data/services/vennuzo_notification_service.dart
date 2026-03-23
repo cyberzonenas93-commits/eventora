@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../domain/models/account_models.dart';
+
+typedef OnNotificationOpened = void Function(RemoteMessage message);
 
 class VennuzoNotificationService {
   VennuzoNotificationService._();
@@ -25,10 +28,19 @@ class VennuzoNotificationService {
   bool _firebaseEnabled = false;
   bool _initialized = false;
   bool _foregroundListenerBound = false;
+  bool _openedHandlerBound = false;
   String? _lastBoundUid;
   StreamSubscription<String>? _tokenRefreshSubscription;
+  OnNotificationOpened? _onNotificationOpened;
+  final Map<int, Map<String, String>> _foregroundNotificationData = {};
 
   FirebaseMessaging get _messaging => FirebaseMessaging.instance;
+
+  /// Call once after [initialize] with a navigator key available.
+  /// When the user taps a push notification, [onOpened] is called with the message.
+  void setNotificationOpenedHandler(OnNotificationOpened? onOpened) {
+    _onNotificationOpened = onOpened;
+  }
 
   Future<void> initialize({
     required bool firebaseEnabled,
@@ -47,7 +59,10 @@ class VennuzoNotificationService {
       ),
     );
 
-    await _localNotifications.initialize(initializationSettings);
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: _onLocalNotificationTap,
+    );
     await _localNotifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
@@ -69,7 +84,67 @@ class VennuzoNotificationService {
       });
     }
 
+    if (!_openedHandlerBound) {
+      _openedHandlerBound = true;
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpened);
+      final initialMessage = await _messaging.getInitialMessage();
+      if (initialMessage != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _handleNotificationOpened(initialMessage);
+        });
+      }
+    }
+
     _initialized = true;
+  }
+
+  void _handleNotificationOpened(RemoteMessage message) {
+    final callback = _onNotificationOpened;
+    if (callback != null) {
+      callback(message);
+    }
+  }
+
+  void _onLocalNotificationTap(NotificationResponse? response) {
+    if (response?.id == null) return;
+    final data = _foregroundNotificationData.remove(response!.id);
+    if (data != null && data.isNotEmpty) {
+      _handleNotificationOpened(RemoteMessage(data: data));
+    }
+  }
+
+  Future<void> _showForegroundNotification(RemoteMessage message) async {
+    final notification = message.notification;
+    if (notification == null) {
+      return;
+    }
+
+    final id = notification.hashCode;
+    if (message.data.isNotEmpty) {
+      _foregroundNotificationData[id] = Map<String, String>.from(message.data);
+    }
+
+    final details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channel.id,
+        _channel.name,
+        channelDescription: _channel.description,
+        importance: Importance.max,
+        priority: Priority.high,
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+
+    await _localNotifications.show(
+      notification.hashCode,
+      notification.title ?? 'Vennuzo',
+      notification.body ?? '',
+      details,
+    );
   }
 
   Future<void> bindViewer(VennuzoViewer viewer) async {
@@ -148,35 +223,6 @@ class VennuzoNotificationService {
         'updatedAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),
-    );
-  }
-
-  Future<void> _showForegroundNotification(RemoteMessage message) async {
-    final notification = message.notification;
-    if (notification == null) {
-      return;
-    }
-
-    final details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        _channel.id,
-        _channel.name,
-        channelDescription: _channel.description,
-        importance: Importance.max,
-        priority: Priority.high,
-      ),
-      iOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      ),
-    );
-
-    await _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      details,
     );
   }
 

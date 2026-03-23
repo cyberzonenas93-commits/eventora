@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 
+import { copy } from '../lib/copy'
+import { formatMoney } from '../lib/formatters'
+import { getErrorMessage } from '../lib/errorMessages'
 import {
   createEmptyEvent,
   getOrganizerEvent,
   saveOrganizerEvent,
 } from '../lib/portalData'
-import { formatMoney } from '../lib/formatters'
 import { usePortalSession } from '../lib/portalSession'
 import type { PortalEvent, PortalTicketTier } from '../lib/types'
 
@@ -15,6 +17,7 @@ export function EventEditorPage() {
   const navigate = useNavigate()
   const session = usePortalSession()
   const [eventDraft, setEventDraft] = useState<PortalEvent | null>(null)
+  const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(Boolean(eventId))
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
@@ -27,25 +30,30 @@ export function EventEditorPage() {
         return
       }
       if (!eventId) {
-        setEventDraft(
-          createEmptyEvent({
-            organizationId: session.organizationId,
-            createdBy: session.user.uid,
-          }),
-        )
+        const draft = createEmptyEvent({
+          organizationId: session.organizationId,
+          createdBy: session.user.uid,
+        })
+        if (!cancelled) {
+          setEventDraft(draft)
+          setTagsInput(draft.tags.join(', '))
+        }
         return
       }
       setLoading(true)
       const existing = await getOrganizerEvent(eventId)
       if (!cancelled) {
-        setEventDraft(
+        const draft =
           existing ??
-            createEmptyEvent({
-              id: eventId,
-              organizationId: session.organizationId,
-              createdBy: session.user.uid,
-            }),
+          createEmptyEvent({
+            id: eventId,
+            organizationId: session.organizationId,
+            createdBy: session.user.uid,
+          })
+        setEventDraft(
+          draft,
         )
+        setTagsInput(draft.tags.join(', '))
         setLoading(false)
       }
     }
@@ -114,11 +122,9 @@ export function EventEditorPage() {
     setIsSaving(true)
     try {
       const savedId = await saveOrganizerEvent(currentDraft)
-      navigate(`/events/${savedId}/edit`)
+      navigate(`/studio/events/${savedId}/edit`)
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Could not save event.',
-      )
+      setError(getErrorMessage(caughtError, copy.eventSaveFailed))
     } finally {
       setIsSaving(false)
     }
@@ -152,9 +158,14 @@ export function EventEditorPage() {
             details as your campaign or lineup evolves.
           </p>
           <div className="hero-actions">
-            <button className="button button--secondary" onClick={() => navigate('/events')} type="button">
+            <button className="button button--secondary" onClick={() => navigate('/studio/events')} type="button">
               Back to events
             </button>
+            {eventId ? (
+              <Link className="button button--secondary" to={`/promote?eventId=${eventId}`}>
+                Promote event
+              </Link>
+            ) : null}
             <button
               className="button button--primary"
               disabled={isSaving || !eventDraft.title.trim() || !eventDraft.venue.trim()}
@@ -216,21 +227,19 @@ export function EventEditorPage() {
               <Field
                 label="Tags"
                 note="Separate tags with commas. Example: Afrobeats, Rooftop, Day party"
-                onChange={(value) =>
+                onChange={(value) => {
+                  setTagsInput(value)
                   setEventDraft((current) =>
                     current
                       ? {
                           ...current,
-                          tags: value
-                            .split(',')
-                            .map((tag) => tag.trim())
-                            .filter(Boolean),
+                          tags: parseTags(value),
                         }
                       : current,
                   )
-                }
+                }}
                 placeholder="Afrobeats, Rooftop, Day party"
-                value={eventDraft.tags.join(', ')}
+                value={tagsInput}
                 wide
               />
             </div>
@@ -583,7 +592,7 @@ export function EventEditorPage() {
             <div className="editor-actions editor-actions--stacked">
               <button
                 className="button button--ghost button--full"
-                onClick={() => navigate('/events')}
+                onClick={() => navigate('/studio/events')}
                 type="button"
               >
                 Back to events
@@ -614,6 +623,13 @@ export function EventEditorPage() {
           }
         : current,
     )
+  }
+
+  function parseTags(value: string) {
+    return value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
   }
 }
 

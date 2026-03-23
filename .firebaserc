@@ -5,11 +5,14 @@
   "targets": {
     "eventora-10063": {
       "hosting": {
+        "vennuzo": [
+          "vennuzo"
+        ],
         "studio": [
-          "vennuzo-studio"
+          "eventora-studio"
         ],
         "admin": [
-          "vennuzo-admin"
+          "eventora-admin"
         ]
       }
     }

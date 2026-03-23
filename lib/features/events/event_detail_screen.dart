@@ -396,6 +396,37 @@ class EventDetailScreen extends StatelessWidget {
         content: Text('Reminder set for ${result.label.toLowerCase()}.'),
       ),
     );
+
+    final session = context.read<VennuzoSessionController>();
+    if (!session.viewer.notificationPrefs.pushEnabled && context.mounted) {
+      final enable = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Get reminders on your device'),
+          content: const Text(
+            'Enable push notifications to receive this reminder when it\'s time.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Enable'),
+            ),
+          ],
+        ),
+      );
+      if (enable == true && context.mounted) {
+        await session.updateNotificationPrefs(pushEnabled: true);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Push notifications enabled.')),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _showShareSheet(BuildContext context, EventModel event) async {

@@ -4,7 +4,9 @@ import { collection, onSnapshot, type Timestamp } from 'firebase/firestore'
 
 import { db } from '../firebaseDb'
 import { functions } from '../firebaseFunctions'
+import { copy } from '../lib/copy'
 import { titleCaseStatus } from '../lib/formatters'
+import { getErrorMessage } from '../lib/errorMessages'
 import { createEmptyApplication } from '../lib/organizerApplication'
 import { usePortalSession } from '../lib/portalSession'
 import type { OrganizerApplication, OrganizerApplicationStatus } from '../lib/types'
@@ -126,7 +128,7 @@ export function SuperadminApprovalsPage() {
         setLoading(false)
       },
       () => {
-        setError('Could not load organizer applications.')
+        setError(copy.applicationsLoadFailed)
         setLoading(false)
       },
     )
@@ -172,7 +174,7 @@ export function SuperadminApprovalsPage() {
         setAdminsLoading(false)
       },
       () => {
-        setAdminError('Could not load admin accounts.')
+        setAdminError(copy.adminAccountsLoadFailed)
         setAdminsLoading(false)
       },
     )
@@ -213,11 +215,7 @@ export function SuperadminApprovalsPage() {
             : 'Application moved into review successfully.',
       )
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Could not update organizer application.',
-      )
+      setError(getErrorMessage(caughtError, copy.reviewFailed))
     } finally {
       setBusyId('')
     }
@@ -266,9 +264,7 @@ export function SuperadminApprovalsPage() {
       })
       setShowAdminPassword(false)
     } catch (caughtError) {
-      setAdminError(
-        caughtError instanceof Error ? caughtError.message : 'Could not create admin account.',
-      )
+      setAdminError(getErrorMessage(caughtError, copy.adminCreateFailed))
     } finally {
       setAdminBusy(false)
     }

@@ -44,6 +44,7 @@ interface PortalSessionValue {
   signInWithApple: (options?: { seedOrganizerProfile?: boolean }) => Promise<void>
   signUp: (input: {
     displayName: string
+    contactPerson?: string
     email: string
     password: string
     phone?: string
@@ -150,6 +151,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
   async function upsertOrganizerWorkspace(
     nextUser: User,
     input?: {
+      contactPerson?: string
       displayName?: string
       email?: string
       phone?: string
@@ -160,6 +162,8 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       nextUser.displayName?.trim() ||
       nextUser.email?.split('@').at(0)?.trim() ||
       'Vennuzo Organizer'
+    const resolvedContactPerson =
+      input?.contactPerson?.trim() || resolvedDisplayName
     const resolvedEmail = input?.email?.trim() || nextUser.email?.trim() || ''
     const resolvedPhone = input?.phone?.trim() || null
     const organizationId = `org_${nextUser.uid}`
@@ -201,7 +205,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       createEmptyApplication({
         userId: nextUser.uid,
         organizerName: resolvedDisplayName,
-        contactPerson: resolvedDisplayName,
+        contactPerson: resolvedContactPerson,
         email: resolvedEmail,
         phone: resolvedPhone ?? '',
         organizationId,
@@ -266,7 +270,12 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
         await updateProfile(credential.user, {
           displayName: input.displayName.trim(),
         })
-        await upsertOrganizerWorkspace(credential.user, input)
+        await upsertOrganizerWorkspace(credential.user, {
+          contactPerson: input.contactPerson,
+          displayName: input.displayName,
+          email: input.email,
+          phone: input.phone,
+        })
       },
       async signOut() {
         await firebaseSignOut(auth)

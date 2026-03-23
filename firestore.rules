@@ -10,6 +10,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isOrgOwner(organizationId) {
+      return isSignedIn()
+        && organizationId is string
+        && organizationId == 'org_' + request.auth.uid;
+    }
+
     function isOrgMember(organizationId) {
       return isSignedIn()
         && organizationId is string
@@ -22,7 +28,7 @@ service cloud.firestore {
     }
 
     function isEventManager(organizationId) {
-      return isAdmin() || isOrgMember(organizationId);
+      return isAdmin() || isOrgOwner(organizationId) || isOrgMember(organizationId);
     }
 
     function canWriteOwnOrganizerApplication(applicationId) {
@@ -35,7 +41,13 @@ service cloud.firestore {
     function validOwnUserProfile(userId) {
       return isSignedIn()
         && request.auth.uid == userId
+        // Prevent clients from escalating their own privileges
         && !request.resource.data.keys().hasAny(['roles', 'adminRole'])
+        // Display name must be a non-empty string if provided
+        && (
+          !request.resource.data.keys().hasAny(['displayName'])
+          || (request.resource.data.displayName is string && request.resource.data.displayName.size() > 0)
+        )
         && (
           !request.resource.data.keys().hasAny(['organizerApplicationStatus'])
           || request.resource.data.organizerApplicationStatus in ['notStarted', 'draft', 'submitted']
@@ -125,6 +137,29 @@ service cloud.firestore {
         && request.auth.uid == request.resource.data.userId;
     }
 
+    match /event_reports/{reportId} {
+      allow create: if request.resource.data.keys().hasAll(['eventId', 'eventTitle', 'reason', 'details', 'createdAt'])
+        && request.resource.data.eventId is string
+        && request.resource.data.eventId.size() > 0
+        && request.resource.data.eventTitle is string
+        && request.resource.data.eventTitle.size() > 0
+        && request.resource.data.eventTitle.size() <= 500
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 3
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.details is string
+        && request.resource.data.details.size() >= 10
+        && request.resource.data.details.size() <= 4000
+        // Prevent clients from writing arbitrary extra fields
+        && request.resource.data.keys().hasOnly(['eventId', 'eventTitle', 'reason', 'details', 'createdAt']);
+      allow read: if isAdmin();
+    }
+
+    match /payout_requests/{requestId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /share_links/{shareLinkId} {
       allow read: if resource.data.status == 'active'
         || isEventManager(resource.data.organizationId);
@@ -144,6 +179,25 @@ service cloud.firestore {
 
     match /push_queue/{queueId} {
       allow read: if isAdmin();
+    }
+
+    match /advertiser_wallets/{walletId} {
+      allow read: if isOrgOwner(walletId);
+      allow create, update, delete: if false;
+    }
+
+    match /wallet_transactions/{transactionId} {
+      allow read: if isSignedIn()
+        && resource.data.walletId == 'org_' + request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    match /sms_opt_out/{phone} {
+      allow read, write: if false;
+    }
+
+    match /promo_packages/{packageId} {
+      allow read, write: if false;
     }
   }
 }

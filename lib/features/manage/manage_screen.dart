@@ -61,76 +61,63 @@ class ManageScreen extends StatelessWidget {
           organizerReady: organizerReady,
           organizerStatusLabel: viewer.organizerStatusLabel,
         ),
-        const SizedBox(height: 22),
-        Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: [
-            MetricTile(
-              label: 'Hosted events',
-              value: '${events.length}',
-              icon: Icons.calendar_month_outlined,
-            ),
-            MetricTile(
-              label: 'Tickets sold',
-              value: '$totalSold',
-              icon: Icons.local_activity_outlined,
-              highlight: context.palette.coral,
-            ),
-            MetricTile(
-              label: 'Sales so far',
-              value: formatMoney(totalRevenue),
-              icon: Icons.payments_outlined,
-              highlight: context.palette.teal,
-            ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        SectionHeading(title: 'Premium placements', subtitle: null),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: [
-            _HostPlacementCard(
-              title: 'Featured banner',
-              stat: '$featuredCount campaigns',
-              icon: Icons.workspace_premium_outlined,
-              actionLabel: session.isGuest
-                  ? 'Get started'
-                  : organizerReady
-                  ? 'Promote an event'
-                  : 'Finish setup',
-              onAction: () => session.isGuest
-                  ? _promptForAccess(context)
-                  : organizerReady
-                  ? _launchGeneralCampaign(
-                      context,
-                      events.isNotEmpty ? events.first : null,
-                    )
-                  : _openHostAccess(context),
-            ),
-            _HostPlacementCard(
-              title: 'Fullscreen announcement',
-              stat: '$announcementCount campaigns',
-              icon: Icons.open_in_full_outlined,
-              actionLabel: session.isGuest
-                  ? 'Create account'
-                  : organizerReady
-                  ? 'Launch campaign'
-                  : 'Finish setup',
-              onAction: () => session.isGuest
-                  ? _promptForAccess(context)
-                  : organizerReady
-                  ? _launchGeneralCampaign(
-                      context,
-                      events.isNotEmpty ? events.first : null,
-                    )
-                  : _openHostAccess(context),
-            ),
-          ],
-        ),
-        const SizedBox(height: 28),
+        if (organizerReady) ...[
+          const SizedBox(height: 22),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              MetricTile(
+                label: 'Hosted events',
+                value: '${events.length}',
+                icon: Icons.calendar_month_outlined,
+              ),
+              MetricTile(
+                label: 'Tickets sold',
+                value: '$totalSold',
+                icon: Icons.local_activity_outlined,
+                highlight: context.palette.coral,
+              ),
+              MetricTile(
+                label: 'Sales so far',
+                value: formatMoney(totalRevenue),
+                icon: Icons.payments_outlined,
+                highlight: context.palette.teal,
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          SectionHeading(title: 'Premium placements', subtitle: null),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              _HostPlacementCard(
+                title: 'Featured banner',
+                stat: '$featuredCount campaigns',
+                icon: Icons.workspace_premium_outlined,
+                actionLabel: 'Promote an event',
+                onAction: () => _launchGeneralCampaign(
+                  context,
+                  events.isNotEmpty ? events.first : null,
+                ),
+              ),
+              _HostPlacementCard(
+                title: 'Fullscreen announcement',
+                stat: '$announcementCount campaigns',
+                icon: Icons.open_in_full_outlined,
+                actionLabel: 'Launch campaign',
+                onAction: () => _launchGeneralCampaign(
+                  context,
+                  events.isNotEmpty ? events.first : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+        ],
+        if (!organizerReady) const SizedBox(height: 22),
         SectionHeading(
           title: 'Host tools',
           subtitle: null,
@@ -148,14 +135,17 @@ class ManageScreen extends StatelessWidget {
         const SizedBox(height: 14),
         if (session.isGuest)
           EmptyStateCard(
-            title: 'Ready to host your first event?',
+            title: 'Create an account to host events',
+            body:
+                'Sign up or sign in to create events, sell tickets, and run campaigns. Your host account is where you manage everything.',
             icon: Icons.lock_outline,
-            actionLabel: 'Create account',
+            actionLabel: 'Create account or sign in',
             onAction: () => _promptForAccess(context),
           )
         else if (!organizerReady && viewer.hasPendingOrganizerApplication)
           EmptyStateCard(
             title: 'Host setup is in review',
+            body: 'Once approved, you can create events and sell tickets from this tab.',
             icon: Icons.pending_actions_outlined,
             actionLabel: 'Review status',
             onAction: () => _openHostAccess(context),
@@ -165,13 +155,16 @@ class ManageScreen extends StatelessWidget {
                 OrganizerApplicationStatus.rejected)
           EmptyStateCard(
             title: 'Your host application needs an update',
+            body: 'Update your details and resubmit to get host access and create events.',
             icon: Icons.feedback_outlined,
             actionLabel: 'Update now',
             onAction: () => _openHostAccess(context),
           )
         else if (!organizerReady)
           EmptyStateCard(
-            title: 'Set up host access',
+            title: 'Set up host access to create events',
+            body:
+                'Complete the host setup once to create events, sell tickets, and run promotions from this tab.',
             icon: Icons.storefront_outlined,
             actionLabel: 'Start setup',
             onAction: () => _openHostAccess(context),

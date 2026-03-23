@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 
+import { copy } from '../lib/copy'
+import { getErrorMessage } from '../lib/errorMessages'
 import { usePortalSession } from '../lib/portalSession'
 
 type AuthMode = 'signup' | 'login'
@@ -21,6 +23,7 @@ export function LandingPage() {
   const loginPasswordRef = useRef<HTMLInputElement | null>(null)
   const [signup, setSignup] = useState({
     displayName: '',
+    contactPerson: '',
     email: '',
     phone: '',
     password: '',
@@ -39,6 +42,7 @@ export function LandingPage() {
   const signupValid = useMemo(
     () =>
       signup.displayName.trim().length >= 2 &&
+      signup.contactPerson.trim().length >= 2 &&
       signup.email.includes('@') &&
       hasPasswordLength &&
       hasPasswordCase &&
@@ -50,24 +54,24 @@ export function LandingPage() {
 
   if (session.user) {
     if (isAdminHost && session.isAdmin) {
-      return <Navigate replace to="/superadmin/approvals" />
+      return <Navigate replace to="/superadmin" />
     }
     if (session.isSuperAdmin) {
-      return <Navigate replace to="/superadmin/approvals" />
+      return <Navigate replace to="/superadmin" />
     }
-    return <Navigate replace to="/overview" />
+    return <Navigate replace to="/studio/overview" />
   }
 
   async function handleSubmit() {
     setError('')
 
     if (!isAdminHost && mode === 'signup' && !signupValid) {
-      setError('Please complete all required fields and use a stronger password.')
+      setError(copy.completeRequiredFields)
       return
     }
 
     if (!isAdminHost && mode === 'login' && !loginValid) {
-      setError('Enter a valid email address and password to continue.')
+      setError(copy.validEmailAndPassword)
       return
     }
 
@@ -76,6 +80,7 @@ export function LandingPage() {
       if (!isAdminHost && mode === 'signup') {
         await session.signUp({
           displayName: signup.displayName,
+          contactPerson: signup.contactPerson,
           email: signup.email,
           password: signup.password,
           phone: signup.phone,
@@ -91,11 +96,7 @@ export function LandingPage() {
         await session.signIn(email, password)
       }
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Could not complete authentication.',
-      )
+      setError(getErrorMessage(caughtError, copy.authFailed))
     } finally {
       setIsBusy(false)
     }
@@ -107,11 +108,7 @@ export function LandingPage() {
     try {
       await session.signInWithGoogle({ seedOrganizerProfile: !isAdminHost })
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Could not complete Google sign-in.',
-      )
+      setError(getErrorMessage(caughtError, copy.googleSignInFailed))
     } finally {
       setIsBusy(false)
     }
@@ -123,11 +120,7 @@ export function LandingPage() {
     try {
       await session.signInWithApple({ seedOrganizerProfile: !isAdminHost })
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Could not complete Apple sign-in.',
-      )
+      setError(getErrorMessage(caughtError, copy.appleSignInFailed))
     } finally {
       setIsBusy(false)
     }
@@ -201,6 +194,19 @@ export function LandingPage() {
               />
             </label>
             <label className="field">
+              <span>Contact Person *</span>
+              <input
+                onChange={(event) =>
+                  setSignup((current) => ({
+                    ...current,
+                    contactPerson: event.target.value,
+                  }))
+                }
+                placeholder="e.g., Jane Doe"
+                value={signup.contactPerson}
+              />
+            </label>
+            <label className="field">
               <span>Phone Number *</span>
               <input
                 onChange={(event) =>
@@ -212,6 +218,7 @@ export function LandingPage() {
                 placeholder="024 123 4567"
                 value={signup.phone}
               />
+              <small className="field-helper">Used for account security and payout notifications</small>
             </label>
             <label className="field">
               <span>Email Address *</span>
@@ -226,6 +233,7 @@ export function LandingPage() {
                 type="email"
                 value={signup.email}
               />
+              <small className="field-helper">We&apos;ll send event updates and important notifications here</small>
             </label>
             <label className="field">
               <span>Password *</span>

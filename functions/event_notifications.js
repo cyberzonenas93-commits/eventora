@@ -1,10 +1,12 @@
 "use strict";
 
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 const shareLinks = require("./share_link");
+const { checkRateLimit } = require("./rate_limiter");
+const logger = require("./logger");
 
 try {
   admin.app();
@@ -71,6 +73,175 @@ async function getHubtelSmsConfig() {
     senderId,
   };
   return hubtelSmsConfigCache;
+}
+
+const DEFAULT_SMS_RATE_GHS = 0.05;
+const DEFAULT_SMS_MARGIN_MULTIPLIER = 1.5;
+
+async function getPricingConfig(packageId) {
+  let defaultSmsRateGhs = DEFAULT_SMS_RATE_GHS;
+  let smsMarginMultiplier = DEFAULT_SMS_MARGIN_MULTIPLIER;
+
+  if (packageId) {
+    const pkgSnap = await db.collection("promo_packages").doc(packageId).get();
+    if (pkgSnap.exists) {
+      const pkg = pkgSnap.data() || {};
+      if (Number(pkg.defaultSmsRateGhs) > 0) defaultSmsRateGhs = Number(pkg.defaultSmsRateGhs);
+      if (Number(pkg.smsMarginMultiplier) > 0) smsMarginMultiplier = Number(pkg.smsMarginMultiplier);
+    }
+  }
+
+  const globalSnap = await db.collection("app_config").doc("pricing").get();
+  const data = globalSnap.exists ? globalSnap.data() || {} : {};
+  defaultSmsRateGhs = Number(data.defaultSmsRateGhs) || defaultSmsRateGhs;
+  smsMarginMultiplier = Number(data.smsMarginMultiplier) || smsMarginMultiplier;
+
+  const platformSmsUnitPriceGhs = Math.max(0.01, Math.ceil(defaultSmsRateGhs * smsMarginMultiplier * 100) / 100);
+  return {
+    defaultSmsRateGhs,
+    smsMarginMultiplier,
+    platformSmsUnitPriceGhs,
+  };
+}
+
+async function reserveCampaignBudget(organizationId, campaignId, amountGhs) {
+  if (!amountGhs || amountGhs <= 0) {
+    return { reserved: false };
+  }
+  const walletRef = db.collection("advertiser_wallets").doc(organizationId);
+  const clientReference = `campaign_${campaignId}_reserve`;
+  const txnRef = db.collection("wallet_transactions").doc(clientReference);
+
+  return await db.runTransaction(async (transaction) => {
+    const walletSnap = await transaction.get(walletRef);
+    const walletData = walletSnap.exists ? walletSnap.data() || {} : {};
+    const available = Number(walletData.availableBalance ?? 0);
+    if (available < amountGhs) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Insufficient wallet balance. Need ${amountGhs.toFixed(2)} GHS; available ${available.toFixed(2)} GHS. Load your wallet in Payments & Payouts.`,
+      );
+    }
+    const existingTxn = await transaction.get(txnRef);
+    if (existingTxn.exists && existingTxn.data().status === "completed") {
+      return { reserved: true, alreadyReserved: true };
+    }
+    transaction.update(walletRef, {
+      availableBalance: FieldValue.increment(-amountGhs),
+      heldBalance: FieldValue.increment(amountGhs),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.set(txnRef, {
+      walletId: organizationId,
+      type: "campaign_reservation",
+      amount: amountGhs,
+      clientReference,
+      campaignId,
+      status: "completed",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { reserved: true, amountGhs };
+  });
+}
+
+async function chargeCampaignSms(campaignId, jobId, sentCount, unitPriceGhs) {
+  const chargeAmount = Math.round(sentCount * unitPriceGhs * 100) / 100;
+  if (chargeAmount <= 0) {
+    return;
+  }
+  const campaignRef = db.collection("promotion_campaigns").doc(campaignId);
+  const campaignSnap = await campaignRef.get();
+  if (!campaignSnap.exists) {
+    return;
+  }
+  const campaignData = campaignSnap.data() || {};
+  const organizationId = safeString(campaignData.organizationId);
+  const reservedAmount = Number(campaignData.walletReservationAmount ?? 0);
+  if (reservedAmount <= 0) {
+    return;
+  }
+  const walletRef = db.collection("advertiser_wallets").doc(organizationId);
+  const clientReference = `campaign_${campaignId}_charge_${jobId}`;
+  const txnRef = db.collection("wallet_transactions").doc(clientReference);
+
+  await db.runTransaction(async (transaction) => {
+    const existingTxn = await transaction.get(txnRef);
+    if (existingTxn.exists && existingTxn.data().status === "completed") {
+      return;
+    }
+    const campaignDoc = await transaction.get(campaignRef);
+    const currentCharged = Number((campaignDoc.data() || {}).totalSmsCharged ?? 0);
+    transaction.update(campaignRef, {
+      totalSmsCharged: FieldValue.increment(chargeAmount),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.update(walletRef, {
+      heldBalance: FieldValue.increment(-chargeAmount),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.set(txnRef, {
+      walletId: organizationId,
+      type: "campaign_charge",
+      amount: chargeAmount,
+      clientReference,
+      campaignId,
+      jobId,
+      sentCount,
+      unitPriceGhs,
+      status: "completed",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+}
+
+async function finalizeCampaignWallet(campaignId) {
+  const campaignRef = db.collection("promotion_campaigns").doc(campaignId);
+  const campaignSnap = await campaignRef.get();
+  if (!campaignSnap.exists) {
+    return;
+  }
+  const data = campaignSnap.data() || {};
+  if (data.walletFinalized === true) {
+    return;
+  }
+  const organizationId = safeString(data.organizationId);
+  const reservedAmount = Number(data.walletReservationAmount ?? 0);
+  const totalCharged = Number(data.totalSmsCharged ?? 0);
+  if (reservedAmount <= 0) {
+    await campaignRef.set({ walletFinalized: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return;
+  }
+  const releaseAmount = Math.round((reservedAmount - totalCharged) * 100) / 100;
+  const walletRef = db.collection("advertiser_wallets").doc(organizationId);
+  const clientReference = `campaign_${campaignId}_release`;
+  const txnRef = db.collection("wallet_transactions").doc(clientReference);
+
+  await db.runTransaction(async (transaction) => {
+    const campaignDoc = await transaction.get(campaignRef);
+    if (campaignDoc.data() && campaignDoc.data().walletFinalized === true) {
+      return;
+    }
+    transaction.set(campaignRef, { walletFinalized: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    transaction.update(walletRef, {
+      availableBalance: FieldValue.increment(releaseAmount),
+      heldBalance: FieldValue.increment(-releaseAmount),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.set(txnRef, {
+      walletId: organizationId,
+      type: "campaign_release",
+      amount: releaseAmount,
+      clientReference,
+      campaignId,
+      reservedAmount,
+      totalCharged,
+      status: "completed",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
 }
 
 function normalizePhoneNumber(phone) {
@@ -246,6 +417,16 @@ async function sendTicketOrderNotification({ orderId, order, reservation }) {
       hubtelCfg,
     });
   }
+
+  await notifyOrganizersOfEventActivity({
+    eventId,
+    eventData,
+    title: reservation ? "New reservation" : "New ticket sale",
+    body: reservation
+      ? `A reservation was made for ${eventTitle}.`
+      : `Tickets were sold for ${eventTitle}.`,
+    kind: reservation ? "organizer_reservation_alert" : "organizer_ticket_alert",
+  });
 }
 
 function pickPhone(data, fieldNames) {
@@ -399,6 +580,140 @@ async function queuePushNotification({
   return queueRef.id;
 }
 
+/** Resolve organizer UIDs for an event who have push enabled and fcmToken (so they can receive admin alerts). */
+async function getOrganizerPushTargets(eventData) {
+  const createdBy = safeString(eventData.createdBy);
+  if (!createdBy) {
+    return [];
+  }
+
+  const userSnap = await db.collection("users").doc(createdBy).get();
+  if (!userSnap.exists) {
+    return [];
+  }
+
+  const user = userSnap.data() || {};
+  const prefs = user.notificationPrefs || {};
+  if (prefs.pushEnabled === false || !user.fcmToken) {
+    return [];
+  }
+
+  return [createdBy];
+}
+
+/** Send a push to event organizers (e.g. new RSVP or ticket sale). */
+async function notifyOrganizersOfEventActivity({
+  eventId,
+  eventData,
+  title,
+  body,
+  kind,
+}) {
+  const targets = await getOrganizerPushTargets(eventData);
+  if (targets.length === 0) {
+    return;
+  }
+
+  await queuePushNotification({
+    kind: kind || "organizer_alert",
+    targets,
+    payload: {
+      title,
+      body,
+      eventId,
+      route: `/events/${eventId}`,
+    },
+    eventId,
+  });
+}
+
+/** Resolve superadmin UIDs who have push enabled and fcmToken (for admin alerts). Optionally exclude UIDs. */
+async function getSuperAdminPushTargets(options = {}) {
+  const excludeUids = new Set(options.excludeUids || []);
+  const adminSnap = await db.collection("admins").get();
+  const uids = [];
+  for (const doc of adminSnap.docs) {
+    const data = doc.data() || {};
+    const role = safeString(data.role).toLowerCase();
+    if (role !== "superadmin") {
+      continue;
+    }
+    const uid = doc.id;
+    if (excludeUids.has(uid)) {
+      continue;
+    }
+    const userSnap = await db.collection("users").doc(uid).get();
+    if (!userSnap.exists) {
+      continue;
+    }
+    const user = userSnap.data() || {};
+    const prefs = user.notificationPrefs || {};
+    if (prefs.pushEnabled === false || !user.fcmToken) {
+      continue;
+    }
+    uids.push(uid);
+  }
+  return uids;
+}
+
+/** Send a push to all superadmins (e.g. new organizer application, admin created). */
+async function notifySuperAdmins({
+  title,
+  body,
+  route,
+  kind,
+  applicationId,
+  eventId,
+  excludeUids,
+}) {
+  const targets = await getSuperAdminPushTargets({ excludeUids });
+  if (targets.length === 0) {
+    return;
+  }
+
+  const payload = {
+    title,
+    body,
+    route: route || "/admin/approvals",
+  };
+  if (applicationId) {
+    payload.applicationId = applicationId;
+  }
+  if (eventId) {
+    payload.eventId = eventId;
+  }
+
+  await queuePushNotification({
+    kind: kind || "superadmin_alert",
+    targets,
+    payload,
+  });
+}
+
+/** Notify a single user by UID (e.g. applicant when application is reviewed). */
+async function notifyUserPush(uid, { title, body, route, kind }) {
+  if (!uid) {
+    return;
+  }
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) {
+    return;
+  }
+  const user = userSnap.data() || {};
+  const prefs = user.notificationPrefs || {};
+  if (prefs.pushEnabled === false || !user.fcmToken) {
+    return;
+  }
+  await queuePushNotification({
+    kind: kind || "user_alert",
+    targets: [uid],
+    payload: { title, body, route: route || "/" },
+  });
+}
+
+exports.notifySuperAdmins = notifySuperAdmins;
+exports.notifyUserPush = notifyUserPush;
+
 async function getEventAudience({ eventId, marketingOnly = false }) {
   const [rsvpSnap, orderSnap] = await Promise.all([
     db.collection("event_rsvps").where("eventId", "==", eventId).limit(1000).get(),
@@ -483,7 +798,39 @@ async function getEventAudience({ eventId, marketingOnly = false }) {
     });
   }
 
-  return [...audienceMap.values()];
+  const audience = [...audienceMap.values()];
+  const phones = [...new Set(audience.map((e) => e.phone).filter(Boolean))];
+  const optedOutPhones = await getSmsOptedOutPhones(phones);
+  if (optedOutPhones.size === 0) {
+    return audience;
+  }
+  return audience.map((entry) =>
+    entry.phone && optedOutPhones.has(entry.phone)
+      ? { ...entry, allowSms: false }
+      : entry,
+  );
+}
+
+const SMS_OPT_OUT_BATCH = 30;
+
+async function getSmsOptedOutPhones(phoneList) {
+  if (!Array.isArray(phoneList) || phoneList.length === 0) {
+    return new Set();
+  }
+  const normalized = phoneList.map((p) => normalizePhoneNumber(p)).filter(Boolean);
+  const unique = [...new Set(normalized)];
+  const optedOut = new Set();
+  for (let i = 0; i < unique.length; i += SMS_OPT_OUT_BATCH) {
+    const chunk = unique.slice(i, i + SMS_OPT_OUT_BATCH);
+    const refs = chunk.map((phone) => db.collection("sms_opt_out").doc(phone));
+    const snap = await db.getAll(...refs);
+    for (const doc of snap) {
+      if (doc.exists) {
+        optedOut.add(doc.id);
+      }
+    }
+  }
+  return optedOut;
 }
 
 async function assertEventManager(uid, eventData) {
@@ -495,6 +842,10 @@ async function assertEventManager(uid, eventData) {
   const organizationId = safeString(eventData.organizationId);
   if (!organizationId) {
     throw new HttpsError("permission-denied", "You do not have access to this event.");
+  }
+
+  if (organizationId === `org_${uid}`) {
+    return;
   }
 
   const membershipSnap = await db.collection("organization_members").doc(`${organizationId}_${uid}`).get();
@@ -609,6 +960,22 @@ async function dispatchNotificationJob(jobRef, jobData) {
           },
           { merge: true },
         );
+        if (sentCount > 0) {
+          try {
+            const campaignSnap = await db.collection("promotion_campaigns").doc(safeString(jobData.campaignId)).get();
+            const campaignData = campaignSnap.exists ? campaignSnap.data() || {} : {};
+            const packageId = safeString(campaignData.packageId);
+            const pricing = await getPricingConfig(packageId || undefined);
+            await chargeCampaignSms(
+              safeString(jobData.campaignId),
+              queueRef.id,
+              sentCount,
+              pricing.platformSmsUnitPriceGhs,
+            );
+          } catch (err) {
+            console.error("Campaign SMS charge failed", jobData.campaignId, queueRef.id, err);
+          }
+        }
       }
     } else {
       await queueRef.set(
@@ -669,6 +1036,14 @@ async function refreshCampaignStatus(campaignId) {
     },
     { merge: true },
   );
+
+  if (status === "completed") {
+    try {
+      await finalizeCampaignWallet(campaignId);
+    } catch (err) {
+      console.error("Finalize campaign wallet failed", campaignId, err);
+    }
+  }
 }
 
 exports.processPushQueue = onDocumentCreated(
@@ -780,11 +1155,15 @@ exports.processPushQueue = onDocumentCreated(
       await removeInvalidFcmTokens(invalidTokens);
     }
 
+    const status =
+      response.failureCount > 0
+        ? response.successCount > 0
+          ? "partial"
+          : "failed"
+        : "sent";
     await queueRef.set(
       {
-        status: response.failureCount > 0
-          ? (response.successCount > 0 ? "partial" : "failed")
-          : "sent",
+        status,
         sentCount: response.successCount,
         failedCount: response.failureCount,
         processedAt: FieldValue.serverTimestamp(),
@@ -793,6 +1172,154 @@ exports.processPushQueue = onDocumentCreated(
       },
       { merge: true },
     );
+
+    if (
+      status === "failed" ||
+      (response.failureCount >= 5 && response.failureCount >= response.successCount)
+    ) {
+      await notifySuperAdmins({
+        title: "Delivery issues",
+        body: `High push failure rate: ${response.failureCount} failed, ${response.successCount} sent. Check logs.`,
+        route: "/admin/settings",
+        kind: "superadmin_push_delivery_alert",
+      });
+    }
+  },
+);
+
+exports.recordSmsOptOut = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    const phone = normalizePhoneNumber(request.data && request.data.phone);
+    if (!phone || !isValidGhanaMobileNumber(phone)) {
+      throw new HttpsError("invalid-argument", "A valid Ghana mobile number is required to opt out.");
+    }
+    const ref = db.collection("sms_opt_out").doc(phone);
+    await ref.set(
+      {
+        phone,
+        createdAt: FieldValue.serverTimestamp(),
+        source: safeString(request.data && request.data.source, "user"),
+      },
+      { merge: true },
+    );
+    return { success: true, phone };
+  },
+);
+
+exports.recordSmsOptOutPublic = onRequest(
+  {
+    region: REGION,
+    timeoutSeconds: 30,
+    cors: ["https://vennuzo.com", "https://www.vennuzo.com"],
+  },
+  async (req, res) => {
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+    // Rate limit by IP: max 10 opt-out requests per IP per minute
+    const ip = String(req.headers["x-forwarded-for"] || req.ip || "unknown").split(",")[0].trim();
+    try {
+      await checkRateLimit(db, `ip_${ip}`, "smsOptOutPublic", { maxCalls: 10, windowSeconds: 60 });
+    } catch (err) {
+      if (err && err.code === "resource-exhausted") {
+        res.status(429).json({ error: "Too many requests. Please try again shortly." });
+        return;
+      }
+    }
+    let phone;
+    try {
+      const body = typeof req.body === "object" ? req.body : {};
+      phone = normalizePhoneNumber(body.phone || body.Phone || req.query.phone);
+    } catch (e) {
+      res.status(400).json({ error: "Invalid request. Send JSON: { \"phone\": \"0XX XXX XXXX\" }" });
+      return;
+    }
+    if (!phone || !isValidGhanaMobileNumber(phone)) {
+      res.status(400).json({ error: "A valid Ghana mobile number is required to opt out." });
+      return;
+    }
+    const ref = db.collection("sms_opt_out").doc(phone);
+    await ref.set(
+      {
+        phone,
+        createdAt: FieldValue.serverTimestamp(),
+        source: "public_form",
+      },
+      { merge: true },
+    );
+    res.status(200).json({ success: true, message: "You have been unsubscribed from Vennuzo SMS." });
+  },
+);
+
+exports.getEventAudienceEstimate = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 60,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to view audience estimate.");
+    }
+    const eventId = safeString(request.data && request.data.eventId);
+    if (!eventId) {
+      throw new HttpsError("invalid-argument", "eventId is required.");
+    }
+    const eventSnap = await db.collection("events").doc(eventId).get();
+    if (!eventSnap.exists) {
+      throw new HttpsError("not-found", "Event not found.");
+    }
+    const eventData = eventSnap.data() || {};
+    await assertEventManager(request.auth.uid, eventData);
+    const audience = await getEventAudience({ eventId, marketingOnly: true });
+    const pushCount = audience.filter((e) => e.allowPush).length;
+    const smsCount = audience.filter((e) => e.allowSms).length;
+    const packageId = safeString(request.data && request.data.packageId);
+    const pricing = await getPricingConfig(packageId || undefined);
+    const estimatedSmsCostGhs = Math.round(smsCount * pricing.platformSmsUnitPriceGhs * 100) / 100;
+    return {
+      pushCount,
+      smsCount,
+      platformSmsUnitPriceGhs: pricing.platformSmsUnitPriceGhs,
+      estimatedSmsCostGhs,
+    };
+  },
+);
+
+exports.listPromoPackages = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 30,
+  },
+  async () => {
+    const snap = await db
+      .collection("promo_packages")
+      .where("active", "==", true)
+      .orderBy("order", "asc")
+      .limit(20)
+      .get();
+    return {
+      packages: snap.docs.map((docSnap) => {
+        const d = docSnap.data() || {};
+        return {
+          id: docSnap.id,
+          name: safeString(d.name, "Package"),
+          description: safeString(d.description),
+          defaultSmsRateGhs: Number(d.defaultSmsRateGhs) || DEFAULT_SMS_RATE_GHS,
+          smsMarginMultiplier: Number(d.smsMarginMultiplier) || DEFAULT_SMS_MARGIN_MULTIPLIER,
+          minSpend: d.minSpend != null ? Number(d.minSpend) : undefined,
+          order: Number(d.order) || 0,
+        };
+      }),
+    };
   },
 );
 
@@ -805,6 +1332,8 @@ exports.launchEventNotificationCampaign = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Sign in before launching campaigns.");
     }
+    // Rate limit: max 10 campaigns per organizer per hour
+    await checkRateLimit(db, request.auth.uid, "launchCampaign", { maxCalls: 10, windowSeconds: 3600 });
 
     const eventId = safeString(request.data && request.data.eventId);
     const message = safeString(request.data && request.data.message);
@@ -821,10 +1350,38 @@ exports.launchEventNotificationCampaign = onCall(
     const eventData = eventSnap.data() || {};
     await assertEventManager(request.auth.uid, eventData);
 
-    const scheduledAt = asDate(request.data && request.data.scheduledAt) || new Date();
-    const campaignId = safeString(request.data && request.data.campaignId) || db.collection("promotion_campaigns").doc().id;
-    const campaignRef = db.collection("promotion_campaigns").doc(campaignId);
     const organizationId = safeString(eventData.organizationId, `org_${request.auth.uid}`);
+    const packageId = safeString(request.data && request.data.packageId);
+    const audience = await getEventAudience({ eventId, marketingOnly: true });
+    const pushCount = audience.filter((e) => e.allowPush).length;
+    const smsCount = audience.filter((e) => e.allowSms).length;
+    const pricing = await getPricingConfig(packageId || undefined);
+    const hasSms = channels.includes("sms");
+    const estimatedSmsCostGhs =
+      hasSms && smsCount > 0
+        ? Math.round(smsCount * pricing.platformSmsUnitPriceGhs * 100) / 100
+        : 0;
+
+    const scheduledAt = asDate(request.data && request.data.scheduledAt) || new Date();
+    const campaignId = db.collection("promotion_campaigns").doc().id;
+    const campaignRef = db.collection("promotion_campaigns").doc(campaignId);
+
+    if (estimatedSmsCostGhs > 0) {
+      try {
+        await reserveCampaignBudget(organizationId, campaignId, estimatedSmsCostGhs);
+      } catch (err) {
+        const msg = safeString(err && err.message, "Insufficient wallet balance.");
+        await notifySuperAdmins({
+          title: "Budget alert",
+          body: `Campaign could not reserve SMS budget for "${safeString(eventData.title)}": ${msg}`,
+          route: "/admin/campaigns",
+          kind: "superadmin_budget_campaign_reserve_failed",
+          eventId,
+        });
+        throw err;
+      }
+    }
+
     const title = safeString(
       request.data && request.data.title,
       `${safeString(eventData.title, "Vennuzo")} update`,
@@ -869,10 +1426,12 @@ exports.launchEventNotificationCampaign = onCall(
         status: isScheduled ? "scheduled" : "live",
         channels: channels.map((channel) => (channel === "sharelink" ? "shareLink" : channel)),
         scheduledAt: Timestamp.fromDate(scheduledAt),
-        pushAudience: Number(request.data && request.data.pushAudience) || 0,
-        smsAudience: Number(request.data && request.data.smsAudience) || 0,
+        pushAudience: pushCount,
+        smsAudience: smsCount,
         shareLinkEnabled: request.data && request.data.shareLinkEnabled === true,
-        budget: Number(request.data && request.data.budget) || 0,
+        budget: estimatedSmsCostGhs,
+        walletReservationAmount: estimatedSmsCostGhs,
+        packageId: packageId || null,
         message,
         createdBy: request.auth.uid,
         createdAt: FieldValue.serverTimestamp(),
@@ -890,6 +1449,13 @@ exports.launchEventNotificationCampaign = onCall(
         await dispatchNotificationJob(job.ref, job.data);
       }
     }
+
+    await notifySuperAdmins({
+      title: "Campaign launched",
+      body: `A campaign was launched for ${safeString(eventData.title, "an event")}.`,
+      route: "/admin/campaigns",
+      kind: "superadmin_campaign_launched",
+    });
 
     return {
       campaignId,
@@ -1065,6 +1631,14 @@ exports.onEventRsvpCreated = onDocumentCreated(
         hubtelCfg,
       });
     }
+
+    await notifyOrganizersOfEventActivity({
+      eventId,
+      eventData,
+      title: "New RSVP",
+      body: `Someone just RSVP'd to ${eventTitle}.`,
+      kind: "organizer_rsvp_alert",
+    });
   },
 );
 
@@ -1118,6 +1692,144 @@ exports.onEventTicketOrderUpdated = onDocumentUpdated(
   },
 );
 
+function notifySuperAdminsOrganizerApplication(applicationId, applicationData) {
+  const organizerName = safeString(
+    applicationData.organizerName || applicationData.organization || "An organizer",
+  );
+  return notifySuperAdmins({
+    title: "New organizer application",
+    body: `${organizerName} submitted an application for review.`,
+    route: "/admin/approvals",
+    kind: "superadmin_organizer_application",
+    applicationId,
+  });
+}
+
+const WALLET_LOW_BALANCE_THRESHOLD_GHS = 20;
+
+exports.onAdvertiserWalletLowBalance = onDocumentUpdated(
+  {
+    document: "advertiser_wallets/{walletId}",
+    region: REGION,
+  },
+  async (event) => {
+    if (!event.data.before.exists || !event.data.after.exists) {
+      return;
+    }
+    const beforeBal = Number(event.data.before.data().availableBalance ?? 0);
+    const afterBal = Number(event.data.after.data().availableBalance ?? 0);
+    if (afterBal >= WALLET_LOW_BALANCE_THRESHOLD_GHS) {
+      return;
+    }
+    if (beforeBal < WALLET_LOW_BALANCE_THRESHOLD_GHS) {
+      return;
+    }
+    await notifySuperAdmins({
+      title: "Budget alert",
+      body: `Organization wallet ${event.params.walletId} fell below ${WALLET_LOW_BALANCE_THRESHOLD_GHS} GHS (${afterBal.toFixed(2)} GHS remaining).`,
+      route: "/admin/settings",
+      kind: "superadmin_wallet_low_balance",
+    });
+  },
+);
+
+exports.onEventReportCreated = onDocumentCreated(
+  {
+    document: "event_reports/{reportId}",
+    region: REGION,
+  },
+  async (event) => {
+    const d = event.data?.data() || {};
+    const eventTitle = safeString(d.eventTitle, "An event");
+    const reason = safeString(d.reason);
+    const eventId = safeString(d.eventId);
+    const snippet = reason.length > 100 ? `${reason.slice(0, 100)}…` : reason;
+    await notifySuperAdmins({
+      title: "Event reported",
+      body: `"${eventTitle}" reported: ${snippet || "See admin queue."}`,
+      route: "/admin/settings",
+      kind: "superadmin_event_reported",
+      eventId: eventId || undefined,
+    });
+  },
+);
+
+exports.onPayoutRequestCreated = onDocumentCreated(
+  {
+    document: "payout_requests/{requestId}",
+    region: REGION,
+  },
+  async (event) => {
+    const d = event.data?.data() || {};
+    const org = safeString(d.organizationId);
+    const amount = Number(d.amountGhs ?? d.amount ?? 0);
+    const notes = safeString(d.notes || d.description);
+    const noteSnippet = notes.length > 80 ? `${notes.slice(0, 80)}…` : notes;
+    await notifySuperAdmins({
+      title: "Payout request",
+      body: `Organizer payout: ${amount.toFixed(2)} GHS for ${org || "unknown org"}.${noteSnippet ? ` ${noteSnippet}` : ""}`,
+      route: "/admin/settings",
+      kind: "superadmin_payout_request",
+    });
+  },
+);
+
+exports.onEventPublished = onDocumentUpdated(
+  {
+    document: "events/{eventId}",
+    region: REGION,
+  },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() || {} : {};
+    const after = event.data.after.exists ? event.data.after.data() || {} : {};
+    const afterStatus = safeString(after.status).toLowerCase();
+    const beforeStatus = safeString(before.status).toLowerCase();
+    if (afterStatus !== "published" || beforeStatus === "published") {
+      return;
+    }
+
+    const eventTitle = safeString(after.title, "An event");
+    await notifySuperAdmins({
+      title: "New event live",
+      body: `${eventTitle} is now live.`,
+      route: "/admin/events",
+      kind: "superadmin_event_published",
+      eventId: event.params.eventId,
+    });
+  },
+);
+
+exports.onOrganizerApplicationCreated = onDocumentCreated(
+  {
+    document: "organizer_applications/{applicationId}",
+    region: REGION,
+  },
+  async (event) => {
+    const data = event.data?.data() || {};
+    if (safeString(data.status).toLowerCase() !== "submitted") {
+      return;
+    }
+    await notifySuperAdminsOrganizerApplication(event.params.applicationId, data);
+  },
+);
+
+exports.onOrganizerApplicationSubmitted = onDocumentUpdated(
+  {
+    document: "organizer_applications/{applicationId}",
+    region: REGION,
+  },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() || {} : {};
+    const after = event.data.after.exists ? event.data.after.data() || {} : {};
+    const afterStatus = safeString(after.status).toLowerCase();
+    const beforeStatus = safeString(before.status).toLowerCase();
+    if (afterStatus !== "submitted" || beforeStatus === "submitted") {
+      return;
+    }
+    await notifySuperAdminsOrganizerApplication(event.params.applicationId, after);
+  },
+);
+
 exports.sendTestEventSms = onCall(
   {
     region: REGION,
@@ -1164,7 +1876,7 @@ exports.sendTestEventPush = onCall(
       kind: "event_test_push",
       targets: [targetUid],
       payload: {
-        title: safeString(request.data && request.data.title, "Eventora test push"),
+        title: safeString(request.data && request.data.title, "Vennuzo test push"),
         body: safeString(
           request.data && request.data.body,
           "Push notifications are connected and ready.",

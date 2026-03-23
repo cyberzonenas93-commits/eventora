@@ -1,6 +1,7 @@
-import { Suspense, lazy, type ReactElement, useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Suspense, lazy, type ReactElement } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { PortalSessionProvider, usePortalSession } from './lib/portalSession'
 
 const LandingPage = lazy(() =>
@@ -23,44 +24,104 @@ const EventEditorPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
+const OrdersPage = lazy(() =>
+  import('./pages/OrdersPage').then((module) => ({ default: module.OrdersPage })),
+)
+const ContactsPage = lazy(() =>
+  import('./pages/ContactsPage').then((module) => ({ default: module.ContactsPage })),
+)
+const PaymentsPayoutsPage = lazy(() =>
+  import('./pages/PaymentsPayoutsPage').then((module) => ({
+    default: module.PaymentsPayoutsPage,
+  })),
+)
+const PromotersPage = lazy(() =>
+  import('./pages/PromotersPage').then((module) => ({ default: module.PromotersPage })),
+)
+const PromotePage = lazy(() =>
+  import('./pages/PromotePage').then((module) => ({ default: module.PromotePage })),
+)
 const PortalLayout = lazy(() =>
   import('./components/PortalLayout').then((module) => ({ default: module.PortalLayout })),
+)
+const SuperadminLayout = lazy(() =>
+  import('./components/SuperadminLayout').then((module) => ({ default: module.SuperadminLayout })),
 )
 const SuperadminApprovalsPage = lazy(() =>
   import('./pages/SuperadminApprovalsPage').then((module) => ({
     default: module.SuperadminApprovalsPage,
   })),
 )
+const SuperadminPricingPage = lazy(() =>
+  import('./pages/SuperadminPricingPage').then((module) => ({ default: module.SuperadminPricingPage })),
+)
+const SuperadminCampaignsPage = lazy(() =>
+  import('./pages/SuperadminCampaignsPage').then((module) => ({ default: module.SuperadminCampaignsPage })),
+)
+const SuperadminOptOutPage = lazy(() =>
+  import('./pages/SuperadminOptOutPage').then((module) => ({ default: module.SuperadminOptOutPage })),
+)
+const UnsubscribePage = lazy(() =>
+  import('./pages/UnsubscribePage').then((module) => ({ default: module.UnsubscribePage })),
+)
+const PublicLayout = lazy(() =>
+  import('./components/PublicLayout').then((module) => ({ default: module.PublicLayout })),
+)
+const HomePage = lazy(() =>
+  import('./pages/HomePage').then((module) => ({ default: module.HomePage })),
+)
+const PublicEventsPage = lazy(() =>
+  import('./pages/PublicEventsPage').then((module) => ({ default: module.PublicEventsPage })),
+)
+const PublicEventDetailPage = lazy(() =>
+  import('./pages/PublicEventDetailPage').then((module) => ({ default: module.PublicEventDetailPage })),
+)
 
 function AppRoutes() {
   const session = usePortalSession()
-  const [showSplash, setShowSplash] = useState(true)
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setShowSplash(false), 1800)
-    return () => window.clearTimeout(timer)
-  }, [])
-
-  if (showSplash || session.loading) {
+  if (session.loading) {
     return <StudioSplash />
   }
 
   return (
-    <Suspense fallback={<StudioSplash />}>
-      <Routes>
-        <Route element={<LandingPage />} path="/" />
+    <ErrorBoundary>
+      <Suspense fallback={<StudioSplash />}>
+        <Routes>
+        <Route element={<PublicLayout />} path="/">
+          <Route index element={<HomePage />} />
+          <Route element={<PublicEventsPage />} path="events" />
+          <Route element={<PublicEventDetailPage />} path="events/:eventId" />
+        </Route>
+        <Route element={<UnsubscribePage />} path="/unsubscribe" />
+        <Route path="/studio" element={session.user ? <Outlet /> : <LandingPage />}>
+          <Route index element={<Navigate replace to="/studio/overview" />} />
+          <Route
+            element={
+              <RequireSignedIn>
+                <SetupPage />
+              </RequireSignedIn>
+            }
+            path="setup/:step"
+          />
+          <Route element={<RequireOrganizer><PortalLayout /></RequireOrganizer>} path="">
+            <Route index element={<Navigate replace to="/studio/overview" />} />
+            <Route element={<OverviewPage />} path="overview" />
+            <Route element={<OrdersPage />} path="orders" />
+            <Route element={<EventsPage />} path="events" />
+            <Route element={<EventEditorPage />} path="events/new" />
+            <Route element={<EventEditorPage />} path="events/:eventId/edit" />
+            <Route element={<ContactsPage />} path="contacts" />
+            <Route element={<PaymentsPayoutsPage />} path="payments" />
+            <Route element={<PromotersPage />} path="promoters" />
+            <Route element={<PromotePage />} path="promote" />
+            <Route element={<SettingsPage />} path="settings" />
+          </Route>
+        </Route>
         <Route
           element={
             <RequireSignedIn>
-              <SetupPage />
-            </RequireSignedIn>
-          }
-          path="/setup/:step"
-        />
-        <Route
-          element={
-            <RequireSignedIn>
-              <Navigate replace to="/overview" />
+              <Navigate replace to="/studio/overview" />
             </RequireSignedIn>
           }
           path="/review"
@@ -68,28 +129,21 @@ function AppRoutes() {
         <Route
           element={
             <RequireAdmin>
-              <SuperadminApprovalsPage />
+              <SuperadminLayout />
             </RequireAdmin>
           }
-          path="/superadmin/approvals"
-        />
-        <Route
-          element={
-            <RequireOrganizer>
-              <PortalLayout />
-            </RequireOrganizer>
-          }
+          path="/superadmin"
         >
-          <Route element={<Navigate replace to="/overview" />} path="/dashboard" />
-          <Route element={<OverviewPage />} path="/overview" />
-          <Route element={<EventsPage />} path="/events" />
-          <Route element={<EventEditorPage />} path="/events/new" />
-          <Route element={<EventEditorPage />} path="/events/:eventId/edit" />
-          <Route element={<SettingsPage />} path="/settings" />
+          <Route index element={<Navigate replace to="/superadmin/approvals" />} />
+          <Route element={<SuperadminApprovalsPage />} path="approvals" />
+          <Route element={<SuperadminPricingPage />} path="pricing" />
+          <Route element={<SuperadminCampaignsPage />} path="campaigns" />
+          <Route element={<SuperadminOptOutPage />} path="optout" />
         </Route>
         <Route element={<Navigate replace to="/" />} path="*" />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   )
 }
 
@@ -100,12 +154,12 @@ function StudioSplash() {
       <div className="splash-screen__orb splash-screen__orb--bottom" />
       <div className="splash-screen__content">
         <div className="splash-screen__mark">
-          <span>E</span>
+          <span>V</span>
           <i>*</i>
         </div>
         <p className="eyebrow">Vennuzo</p>
-        <h1>Experience events differently</h1>
-        <p>Premium discovery, ticketing, and creator tools in one system.</p>
+        <h1>Discover events</h1>
+        <p>Loading…</p>
       </div>
     </div>
   )
@@ -114,10 +168,10 @@ function StudioSplash() {
 function RequireSignedIn({ children }: { children: ReactElement }) {
   const session = usePortalSession()
   if (!session.user) {
-    return <Navigate replace to="/" />
+    return <Navigate replace to="/studio" />
   }
   if (session.isAdmin) {
-    return <Navigate replace to="/superadmin/approvals" />
+    return <Navigate replace to="/superadmin" />
   }
   return children
 }
@@ -125,10 +179,10 @@ function RequireSignedIn({ children }: { children: ReactElement }) {
 function RequireOrganizer({ children }: { children: ReactElement }) {
   const session = usePortalSession()
   if (!session.user) {
-    return <Navigate replace to="/" />
+    return <Navigate replace to="/studio" />
   }
   if (session.isAdmin) {
-    return <Navigate replace to="/superadmin/approvals" />
+    return <Navigate replace to="/superadmin" />
   }
   return children
 }
@@ -136,10 +190,10 @@ function RequireOrganizer({ children }: { children: ReactElement }) {
 function RequireAdmin({ children }: { children: ReactElement }) {
   const session = usePortalSession()
   if (!session.user) {
-    return <Navigate replace to="/" />
+    return <Navigate replace to="/studio" />
   }
   if (!session.isAdmin) {
-    return <Navigate replace to="/overview" />
+    return <Navigate replace to="/studio/overview" />
   }
   return children
 }

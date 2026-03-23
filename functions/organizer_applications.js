@@ -2,6 +2,7 @@
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const { notifySuperAdmins, notifyUserPush } = require("./event_notifications");
 
 try {
   admin.app();
@@ -243,6 +244,18 @@ exports.reviewOrganizerApplication = onCall(
       );
     });
 
+    if (decision === "approved" || decision === "rejected") {
+      await notifyUserPush(userId, {
+        title: "Application reviewed",
+        body:
+          decision === "approved"
+            ? "Your organizer application was approved. You can now create events."
+            : "Your organizer application was rejected. Check the review notes for details.",
+        route: "/account",
+        kind: "organizer_application_reviewed",
+      });
+    }
+
     return {
       success: true,
       applicationId,
@@ -392,6 +405,14 @@ exports.createAdminAccount = onCall(
         },
         { merge: true },
       );
+    });
+
+    await notifySuperAdmins({
+      title: "Admin account created",
+      body: `${email} was granted ${role} by ${actorName}.`,
+      route: "/admin/settings",
+      kind: "superadmin_admin_created",
+      excludeUids: [callerUid, targetUser.uid],
     });
 
     return {

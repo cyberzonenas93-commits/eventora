@@ -17,6 +17,32 @@
   ],
   "hosting": [
     {
+      "target": "vennuzo",
+      "public": "studio/dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "/api/sms-opt-out",
+          "function": "recordSmsOptOutPublic"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
       "target": "studio",
       "public": "studio/dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],

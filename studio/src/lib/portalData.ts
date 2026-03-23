@@ -18,8 +18,12 @@ import { storage } from '../firebaseStorage'
 import type {
   OrganizerApplication,
   OverviewMetrics,
+  PortalCampaign,
+  PortalContact,
   PortalEvent,
+  PortalOrder,
   PortalTicketTier,
+  WalletTransaction,
 } from './types'
 
 export async function uploadApplicationFile(
@@ -222,6 +226,97 @@ export async function listOrganizerEvents(organizationId: string) {
   return snapshot.docs.map((docSnap) => normalizeEvent(docSnap.id, docSnap.data()))
 }
 
+/** List events visible to attendees: public and published, soonest first. */
+export async function listPublicEvents(limitCount = 50): Promise<PortalEvent[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'events'),
+      where('visibility', '==', 'public'),
+      where('status', '==', 'published'),
+      orderBy('startAt', 'asc'),
+      limit(limitCount),
+    ),
+  )
+  return snapshot.docs.map((docSnap) => normalizeEvent(docSnap.id, docSnap.data()))
+}
+
+/** Get a single event by id for public view; returns null if not public/published or not found. */
+export async function getPublicEvent(eventId: string): Promise<PortalEvent | null> {
+  const snapshot = await getDoc(doc(db, 'events', eventId))
+  if (!snapshot.exists()) return null
+  const data = snapshot.data()
+  if (data?.visibility !== 'public' || data?.status !== 'published') return null
+  return normalizeEvent(snapshot.id, data)
+}
+
+export async function listOrganizerCampaigns(organizationId: string, max = 30): Promise<PortalCampaign[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'promotion_campaigns'),
+      where('organizationId', '==', organizationId),
+      orderBy('createdAt', 'desc'),
+      limit(max),
+    ),
+  )
+  return snapshot.docs.map((docSnap) => {
+    const d = docSnap.data()
+    const createdAt = d.createdAt && typeof (d.createdAt as { toDate?: () => Date }).toDate === 'function'
+      ? (d.createdAt as { toDate: () => Date }).toDate().toISOString()
+      : typeof d.createdAt === 'string'
+        ? d.createdAt
+        : ''
+    const scheduledAt = d.scheduledAt && typeof (d.scheduledAt as { toDate?: () => Date }).toDate === 'function'
+      ? (d.scheduledAt as { toDate: () => Date }).toDate().toISOString()
+      : typeof d.scheduledAt === 'string'
+        ? d.scheduledAt
+        : undefined
+    return {
+      id: docSnap.id,
+      organizationId: String(d.organizationId ?? ''),
+      eventId: String(d.eventId ?? ''),
+      eventTitle: String(d.eventTitle ?? ''),
+      name: String(d.name ?? ''),
+      status: String(d.status ?? ''),
+      channels: Array.isArray(d.channels) ? d.channels : [],
+      pushAudience: Number(d.pushAudience ?? 0),
+      smsAudience: Number(d.smsAudience ?? 0),
+      walletReservationAmount: Number(d.walletReservationAmount ?? 0),
+      totalSmsCharged: d.totalSmsCharged != null ? Number(d.totalSmsCharged) : undefined,
+      createdAt,
+      scheduledAt,
+    }
+  })
+}
+
+export async function listWalletTransactions(walletId: string, max = 25): Promise<WalletTransaction[]> {
+  if (!walletId) return []
+  const snapshot = await getDocs(
+    query(
+      collection(db, 'wallet_transactions'),
+      where('walletId', '==', walletId),
+      orderBy('createdAt', 'desc'),
+      limit(max),
+    ),
+  )
+  return snapshot.docs.map((docSnap) => {
+    const d = docSnap.data()
+    const createdAt = d.createdAt && typeof (d.createdAt as { toDate?: () => Date }).toDate === 'function'
+      ? (d.createdAt as { toDate: () => Date }).toDate().toISOString()
+      : typeof d.createdAt === 'string'
+        ? d.createdAt
+        : ''
+    return {
+      id: docSnap.id,
+      walletId: String(d.walletId ?? ''),
+      type: (d.type as WalletTransaction['type']) || 'top_up',
+      amount: Number(d.amount ?? 0),
+      status: String(d.status ?? ''),
+      createdAt,
+      campaignId: d.campaignId != null ? String(d.campaignId) : undefined,
+    }
+  })
+}
+
 export async function getOrganizerEvent(eventId: string) {
   const snapshot = await getDoc(doc(db, 'events', eventId))
   if (!snapshot.exists()) {
@@ -393,4 +488,114 @@ export async function loadOverviewMetrics(
     draftEvents,
     ticketsIssued,
   }
+}
+
+export async function listOrganizerOrders(
+  organizationId: string,
+): Promise<PortalOrder[]> {
+  const ordersSnap = await getDocs(
+    query(
+      collection(db, 'event_ticket_orders'),
+      where('organizationId', '==', organizationId),
+      orderBy('createdAt', 'desc'),
+      limit(100),
+    ),
+  )
+  const orders = ordersSnap.docs.map((docSnap) => {
+    const d = docSnap.data()
+    const selectedTiers =
+      (d.selectedTiers as Array<{ quantity?: number }> | undefined) ?? []
+    const ticketCount = selectedTiers.reduce(
+      (sum, tier) => sum + Number(tier.quantity ?? 0),
+      0,
+    )
+    const createdAt =
+      d.createdAt instanceof Timestamp
+        ? d.createdAt.toDate().toISOString()
+        : typeof d.createdAt === 'string'
+          ? d.createdAt
+          : new Date().toISOString()
+    return {
+      id: docSnap.id,
+      organizationId: String(d.organizationId ?? ''),
+      eventId: String(d.eventId ?? ''),
+      eventTitle: '',
+      totalAmount: Number(d.totalAmount ?? 0),
+      paymentStatus: String(d.paymentStatus ?? 'pending'),
+      createdAt,
+      buyerEmail: String(d.buyerEmail ?? d.payeeEmail ?? ''),
+      ticketCount,
+    }
+  })
+  const eventIds = [...new Set(orders.map((o) => o.eventId).filter(Boolean))]
+  const eventTitles: Record<string, string> = {}
+  await Promise.all(
+    eventIds.map(async (eventId) => {
+      const snap = await getDoc(doc(db, 'events', eventId))
+      eventTitles[eventId] = snap.exists()
+        ? String(snap.data()?.title ?? 'Unknown event')
+        : 'Unknown event'
+    }),
+  )
+  return orders.map((o) => ({
+    ...o,
+    eventTitle: eventTitles[o.eventId] ?? 'Unknown event',
+  }))
+}
+
+export async function listOrganizerContacts(
+  organizationId: string,
+): Promise<PortalContact[]> {
+  const orders = await listOrganizerOrders(organizationId)
+  const byEmail = new Map<
+    string,
+    {
+      email: string
+      displayName: string
+      phone: string
+      lastEventId: string
+      lastEventTitle: string
+      lastActivityAt: string
+      orderCount: number
+      totalSpent: number
+    }
+  >()
+  for (const o of orders) {
+    const email = (o.buyerEmail || '').trim().toLowerCase()
+    if (!email) continue
+    const existing = byEmail.get(email)
+    const at = o.createdAt
+    const isNewer =
+      !existing || new Date(at) > new Date(existing.lastActivityAt)
+    if (!existing) {
+      byEmail.set(email, {
+        email: o.buyerEmail || email,
+        displayName: email.split('@')[0] || '—',
+        phone: '',
+        lastEventId: o.eventId,
+        lastEventTitle: o.eventTitle,
+        lastActivityAt: at,
+        orderCount: 1,
+        totalSpent: o.totalAmount,
+      })
+    } else {
+      existing.orderCount += 1
+      existing.totalSpent += o.totalAmount
+      if (isNewer) {
+        existing.lastEventId = o.eventId
+        existing.lastEventTitle = o.eventTitle
+        existing.lastActivityAt = at
+      }
+    }
+  }
+  return Array.from(byEmail.values())
+    .map((c) => ({
+      ...c,
+      rsvpCount: 0,
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.lastActivityAt).getTime() -
+        new Date(a.lastActivityAt).getTime(),
+    )
 }

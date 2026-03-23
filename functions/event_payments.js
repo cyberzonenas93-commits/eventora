@@ -3,6 +3,9 @@
 const crypto = require("crypto");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const { notifySuperAdmins } = require("./event_notifications");
+const { checkRateLimit } = require("./rate_limiter");
+const logger = require("./logger");
 
 try {
   admin.app();
@@ -86,6 +89,8 @@ function hubtelAuthHeader(config) {
   return `Basic ${Buffer.from(`${config.apiKey}:${config.apiSecret}`).toString("base64")}`;
 }
 
+const WALLET_RETURN_BASE = process.env.VENNUZO_STUDIO_URL || "https://vennuzo.web.app";
+
 function buildEventTicketReturnUrl(orderId, status) {
   const params = new URLSearchParams({
     type: "event_ticket",
@@ -93,6 +98,10 @@ function buildEventTicketReturnUrl(orderId, status) {
     status,
   });
   return `${functionsBaseUrl()}/hubtelReturn?${params.toString()}`;
+}
+
+function buildWalletReturnUrl(status) {
+  return `${WALLET_RETURN_BASE}/payments?topup=${encodeURIComponent(status)}`;
 }
 
 function normalizeHubtelStatus(value) {
@@ -116,6 +125,13 @@ function isPaidStatus(value) {
   return normalizeHubtelStatus(value) === "paid";
 }
 
+/** Maximum tickets a single user can purchase per order. */
+const MAX_QUANTITY_PER_TIER = 50;
+/** Maximum price (GHS) for a single ticket tier. */
+const MAX_PRICE_PER_TIER_GHS = 10_000;
+/** Maximum total order amount (GHS). */
+const MAX_ORDER_TOTAL_GHS = 100_000;
+
 function buildOrderSelections(selectedTiers) {
   const cleanedSelections = [];
   let totalAmount = 0;
@@ -125,7 +141,19 @@ function buildOrderSelections(selectedTiers) {
     if (quantity <= 0) {
       continue;
     }
+    if (!Number.isInteger(quantity) || quantity > MAX_QUANTITY_PER_TIER) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Quantity must be a whole number between 1 and ${MAX_QUANTITY_PER_TIER} per tier.`,
+      );
+    }
     const price = Number(rawSelection.price || rawSelection.amount || 0);
+    if (!Number.isFinite(price) || price < 0 || price > MAX_PRICE_PER_TIER_GHS) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Ticket price must be between 0 and ${MAX_PRICE_PER_TIER_GHS} GHS.`,
+      );
+    }
     const tierId = safeString(rawSelection.tierId);
     if (!tierId) {
       continue;
@@ -137,6 +165,13 @@ function buildOrderSelections(selectedTiers) {
       quantity,
     });
     totalAmount += price * quantity;
+  }
+
+  if (totalAmount > MAX_ORDER_TOTAL_GHS) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Order total cannot exceed ${MAX_ORDER_TOTAL_GHS} GHS.`,
+    );
   }
 
   return {
@@ -240,15 +275,19 @@ async function initiateHubtelCheckout({
   payeeName,
   payeeMobileNumber,
   payeeEmail,
+  returnUrl: customReturnUrl,
+  cancellationUrl: customCancellationUrl,
 }) {
   const config = await getHubtelConfig();
+  const defaultReturn = buildEventTicketReturnUrl(clientReference.replace(/^evt_/, ""), "success");
+  const defaultCancel = buildEventTicketReturnUrl(clientReference.replace(/^evt_/, ""), "cancelled");
   const requestBody = {
     totalAmount,
     description,
     clientReference,
     callbackUrl: `${functionsBaseUrl()}/hubtelCallback`,
-    returnUrl: buildEventTicketReturnUrl(clientReference.replace(/^evt_/, ""), "success"),
-    cancellationUrl: buildEventTicketReturnUrl(clientReference.replace(/^evt_/, ""), "cancelled"),
+    returnUrl: customReturnUrl || defaultReturn,
+    cancellationUrl: customCancellationUrl || defaultCancel,
     merchantAccountNumber: config.merchantAccount,
     payeeName,
     payeeMobileNumber: payeeMobileNumber || undefined,
@@ -286,6 +325,34 @@ async function initiateHubtelCheckout({
 
 function hasAdminAccess(adminData) {
   return Boolean(adminData && Object.keys(adminData).length > 0);
+}
+
+async function notifyPaymentWebhookAlert(body) {
+  try {
+    await notifySuperAdmins({
+      title: "Payment webhook alert",
+      body,
+      route: "/admin/settings",
+      kind: "superadmin_payment_webhook_alert",
+    });
+  } catch (err) {
+    console.error("notifyPaymentWebhookAlert failed", err);
+  }
+}
+
+async function assertOrganizerCanRequestPayout(uid, organizationId) {
+  if (!organizationId) {
+    throw new HttpsError("invalid-argument", "organizationId is required.");
+  }
+  if (organizationId === `org_${uid}`) {
+    return;
+  }
+  const memberSnap = await db.collection("organization_members").doc(`${organizationId}_${uid}`).get();
+  const member = memberSnap.exists ? memberSnap.data() || {} : {};
+  if (memberSnap.exists && safeString(member.status).toLowerCase() === "active") {
+    return;
+  }
+  throw new HttpsError("permission-denied", "You cannot request a payout for this organization.");
 }
 
 async function authorizeOrderAccess(orderData, uid, action) {
@@ -434,6 +501,9 @@ async function handleEventTicketCallback(clientReference, data, response) {
   }
 
   if (!orderSnap.exists) {
+    await notifyPaymentWebhookAlert(
+      `Hubtel ticket callback: order not found for reference ${clientReference} (parsed orderId: ${orderId || "n/a"}).`,
+    );
     return response.status(404).json({ error: "Order not found.", orderId });
   }
 
@@ -689,6 +759,8 @@ exports.createEventTicketPaymentForOrder = onCall(
     if (!uid) {
       throw new HttpsError("unauthenticated", "Sign in before paying for tickets.");
     }
+    // Rate limit: max 10 payment initiations per user per 5 minutes
+    await checkRateLimit(db, uid, "createEventTicketPayment", { maxCalls: 10, windowSeconds: 300 });
     if (!orderId) {
       throw new HttpsError("invalid-argument", "orderId is required.");
     }
@@ -860,6 +932,250 @@ exports.checkHubtelTicketStatus = onCall(
   },
 );
 
+async function ensureWallet(organizationId, ownerId) {
+  const walletRef = db.collection("advertiser_wallets").doc(organizationId);
+  const snap = await walletRef.get();
+  if (snap.exists) {
+    return snap.ref;
+  }
+  await walletRef.set({
+    organizationId,
+    ownerId,
+    availableBalance: 0,
+    heldBalance: 0,
+    currency: "GHS",
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return walletRef;
+}
+
+async function handleWalletTopUpCallback(clientReference, data, response) {
+  const normalizedStatus = normalizeHubtelStatus(data.Status);
+  const txnRef = db.collection("wallet_transactions").doc(clientReference);
+  const txnSnap = await txnRef.get();
+
+  if (!txnSnap.exists) {
+    await notifyPaymentWebhookAlert(
+      `Hubtel wallet callback: transaction not found for ${clientReference}.`,
+    );
+    return response.status(404).json({
+      error: "Wallet transaction not found.",
+      clientReference,
+    });
+  }
+
+  const txnData = txnSnap.data() || {};
+  if (txnData.status === "completed") {
+    return response.status(200).json({
+      success: true,
+      walletId: txnData.walletId,
+      status: "completed",
+      alreadyProcessed: true,
+    });
+  }
+
+  if (!isPaidStatus(normalizedStatus)) {
+    await txnRef.set(
+      {
+        status: normalizedStatus === "cancelled" ? "cancelled" : "failed",
+        hubtelResponse: data,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return response.status(200).json({
+      success: false,
+      status: normalizedStatus,
+    });
+  }
+
+  const walletId = safeString(txnData.walletId);
+  const amount = Number(txnData.amount || data.Amount || 0);
+  if (!walletId || amount <= 0) {
+    await notifyPaymentWebhookAlert(
+      `Hubtel wallet callback: invalid paid transaction data for ${clientReference} (walletId/amount).`,
+    );
+    return response.status(400).json({ error: "Invalid wallet transaction." });
+  }
+
+  const walletRef = db.collection("advertiser_wallets").doc(walletId);
+  await db.runTransaction(async (transaction) => {
+    const freshTxn = await transaction.get(txnRef);
+    if (freshTxn.data() && freshTxn.data().status === "completed") {
+      return;
+    }
+    const walletSnap = await transaction.get(walletRef);
+    if (!walletSnap.exists) {
+      throw new Error("Wallet not found.");
+    }
+    const current = walletSnap.data().availableBalance || 0;
+    transaction.update(walletRef, {
+      availableBalance: current + amount,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.set(txnRef, {
+      status: "completed",
+      completedAt: FieldValue.serverTimestamp(),
+      hubtelResponse: data,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+
+  return response.status(200).json({
+    success: true,
+    walletId,
+    status: "paid",
+    amount,
+  });
+}
+
+exports.initiateWalletTopUp = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 60,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to fund your wallet.");
+    }
+
+    const uid = request.auth.uid;
+    const organizationId = safeString(request.data && request.data.organizationId);
+    const amount = Number(request.data && request.data.amount);
+    const payeeName = safeString(request.data && request.data.payeeName);
+    const payeeMobileNumber = normalizePhoneNumber(request.data && request.data.payeeMobileNumber);
+    const payeeEmail = safeString(request.data && request.data.payeeEmail);
+
+    const effectiveOrgId = organizationId || `org_${uid}`;
+    if (effectiveOrgId !== `org_${uid}`) {
+      throw new HttpsError(
+        "permission-denied",
+        "You can only fund the wallet for your own organization.",
+      );
+    }
+    // Rate limit: max 5 top-up initiations per user per 10 minutes
+    await checkRateLimit(db, uid, "initiateWalletTopUp", { maxCalls: 5, windowSeconds: 600 });
+    if (!Number.isFinite(amount) || amount < 1) {
+      throw new HttpsError("invalid-argument", "Amount must be at least 1 GHS.");
+    }
+    if (!payeeName || !payeeMobileNumber) {
+      throw new HttpsError(
+        "invalid-argument",
+        "payeeName and payeeMobileNumber are required.",
+      );
+    }
+
+    await ensureWallet(effectiveOrgId, uid);
+    const clientReference = `wallet_${effectiveOrgId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    const checkout = await initiateHubtelCheckout({
+      totalAmount: Math.round(amount * 100) / 100,
+      description: "Vennuzo campaign wallet top-up",
+      clientReference,
+      payeeName,
+      payeeMobileNumber: payeeMobileNumber || undefined,
+      payeeEmail: payeeEmail || undefined,
+      returnUrl: buildWalletReturnUrl("success"),
+      cancellationUrl: buildWalletReturnUrl("cancelled"),
+    });
+
+    await db.collection("wallet_transactions").doc(clientReference).set({
+      walletId: effectiveOrgId,
+      type: "top_up",
+      amount,
+      clientReference,
+      status: "pending",
+      createdBy: uid,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      checkoutUrl: checkout.checkoutUrl,
+      checkoutId: checkout.checkoutId,
+      clientReference,
+      returnUrl: buildWalletReturnUrl("success"),
+      cancellationUrl: buildWalletReturnUrl("cancelled"),
+    };
+  },
+);
+
+exports.getWalletBalance = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to view wallet.");
+    }
+
+    const uid = request.auth.uid;
+    const organizationId = safeString(request.data && request.data.organizationId) || `org_${uid}`;
+    if (organizationId !== `org_${uid}`) {
+      throw new HttpsError(
+        "permission-denied",
+        "You can only view your own organization wallet.",
+      );
+    }
+
+    const walletSnap = await db.collection("advertiser_wallets").doc(organizationId).get();
+    if (!walletSnap.exists) {
+      await ensureWallet(organizationId, uid);
+      return {
+        availableBalance: 0,
+        heldBalance: 0,
+        currency: "GHS",
+      };
+    }
+
+    const data = walletSnap.data() || {};
+    return {
+      availableBalance: Number(data.availableBalance ?? 0),
+      heldBalance: Number(data.heldBalance ?? 0),
+      currency: safeString(data.currency, "GHS"),
+    };
+  },
+);
+
+exports.submitOrganizerPayoutRequest = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 60,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to request a payout.");
+    }
+    const uid = request.auth.uid;
+    const organizationId = safeString(request.data && request.data.organizationId);
+    const amountGhs = Number(request.data && request.data.amountGhs);
+    const notes = safeString(request.data && request.data.notes);
+    if (!organizationId) {
+      throw new HttpsError("invalid-argument", "organizationId is required.");
+    }
+    if (!Number.isFinite(amountGhs) || amountGhs <= 0) {
+      throw new HttpsError("invalid-argument", "amountGhs must be a positive number.");
+    }
+    await assertOrganizerCanRequestPayout(uid, organizationId);
+    // Rate limit: max 3 payout requests per user per hour
+    await checkRateLimit(db, uid, "submitPayoutRequest", { maxCalls: 3, windowSeconds: 3600 });
+    const requestRef = db.collection("payout_requests").doc();
+    await requestRef.set({
+      organizationId,
+      amountGhs: Math.round(amountGhs * 100) / 100,
+      notes: notes.slice(0, 2000),
+      requestedBy: uid,
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { success: true, requestId: requestRef.id };
+  },
+);
+
 exports.createWebEventTicketOrder = onCall(
   {
     region: REGION,
@@ -1018,12 +1334,16 @@ exports.hubtelCallback = onRequest(
           .update(JSON.stringify(payload))
           .digest("hex");
         if (!incomingSignature || incomingSignature !== expectedSignature) {
+          await notifyPaymentWebhookAlert("Hubtel callback rejected: invalid or missing x-hubtel-signature.");
           return response.status(401).json({ error: "Invalid callback signature." });
         }
       }
 
       if (clientReference.startsWith("evt_")) {
         return handleEventTicketCallback(clientReference, data, response);
+      }
+      if (clientReference.startsWith("wallet_")) {
+        return handleWalletTopUpCallback(clientReference, data, response);
       }
 
       return response.status(400).json({
@@ -1032,6 +1352,9 @@ exports.hubtelCallback = onRequest(
       });
     } catch (error) {
       console.error("hubtelCallback error", error);
+      await notifyPaymentWebhookAlert(
+        `Hubtel callback error: ${safeString(error && error.message, "unknown error")}`,
+      );
       return response.status(500).json({
         error: safeString(error && error.message, "Hubtel callback failed."),
       });

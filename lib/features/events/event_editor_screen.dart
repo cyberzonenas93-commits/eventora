@@ -538,10 +538,15 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
                 title: 'Tags',
                 body: TextField(
                   controller: _tagsController,
+                  keyboardType: TextInputType.multiline,
+                  minLines: 1,
+                  maxLines: 3,
                   textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
                     labelText: 'Tags',
                     hintText: 'Music, Rooftop, Family-friendly',
+                    helperText:
+                        'Separate tags with commas, semicolons, or put one tag on each line.',
                   ),
                 ),
               ),
@@ -672,9 +677,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     }
   }
 
-  Future<void> _selectPlaceSuggestion(
-    VennuzoPlaceSuggestion suggestion,
-  ) async {
+  Future<void> _selectPlaceSuggestion(VennuzoPlaceSuggestion suggestion) async {
     FocusScope.of(context).unfocus();
     setState(() {
       _isResolvingPlace = true;
@@ -909,11 +912,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
       mcs: _mcsController.text.trim(),
       performers: _performersController.text.trim(),
       mood: _mood,
-      tags: _tagsController.text
-          .split(',')
-          .map((tag) => tag.trim())
-          .where((tag) => tag.isNotEmpty)
-          .toList(),
+      tags: _parseTags(_tagsController.text),
       location: _selectedLocation,
     );
 
@@ -934,6 +933,14 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<String> _parseTags(String input) {
+    return input
+        .split(RegExp(r'[,;\n]+'))
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
   }
 
   String _moodLabel(EventMood mood) => switch (mood) {

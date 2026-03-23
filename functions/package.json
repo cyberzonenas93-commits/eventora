@@ -10,11 +10,31 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "lint": "node --check index.js && node --check event_notifications.js && node --check event_payments.js && node --check organizer_applications.js && node --check places_lookup.js && node --check share_link.js",
-    "test": "npm run lint"
+    "lint": "node --check index.js && node --check event_notifications.js && node --check event_payments.js && node --check organizer_applications.js && node --check places_lookup.js && node --check share_link.js && node --check logger.js && node --check rate_limiter.js",
+    "test": "npm run lint && jest --runInBand --forceExit",
+    "test:unit": "jest --runInBand --forceExit",
+    "test:watch": "jest --watch"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "*.js",
+      "!index.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 40
+      }
+    }
   },
   "dependencies": {
     "firebase-admin": "^13.5.0",
     "firebase-functions": "^6.4.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }

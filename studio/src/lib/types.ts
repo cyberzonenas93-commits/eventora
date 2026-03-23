@@ -100,3 +100,53 @@ export interface OverviewMetrics {
   draftEvents: number
   ticketsIssued: number
 }
+
+export interface PortalOrder {
+  id: string
+  organizationId: string
+  eventId: string
+  eventTitle: string
+  totalAmount: number
+  paymentStatus: string
+  createdAt: string
+  buyerEmail: string
+  ticketCount: number
+}
+
+export interface PortalContact {
+  email: string
+  displayName: string
+  phone: string
+  lastEventId: string
+  lastEventTitle: string
+  lastActivityAt: string
+  orderCount: number
+  rsvpCount: number
+  totalSpent: number
+}
+
+export interface PortalCampaign {
+  id: string
+  organizationId: string
+  eventId: string
+  eventTitle: string
+  name: string
+  status: string
+  channels: string[]
+  pushAudience: number
+  smsAudience: number
+  walletReservationAmount: number
+  totalSmsCharged?: number
+  createdAt: string
+  scheduledAt?: string
+}
+
+export interface WalletTransaction {
+  id: string
+  walletId: string
+  type: 'top_up' | 'campaign_reservation' | 'campaign_charge' | 'campaign_release'
+  amount: number
+  status: string
+  createdAt: string
+  campaignId?: string
+}

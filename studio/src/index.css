@@ -2562,13 +2562,13 @@ textarea { resize: vertical; }
   -webkit-text-fill-color:transparent;
   animation:shimmerText 5s linear infinite;
 }
-.home-hero__empty-sub { margin:0;color:rgba(255,255,255,0.68);font-size:1.1rem;line-height:1.7;max-width:38ch; }
+.home-hero__empty-sub { margin:0;color:rgba(255,255,255,0.90);font-size:1.1rem;line-height:1.7;max-width:38ch; }
 .hero-features { display:flex;flex-wrap:wrap;gap:0.65rem; }
 .hero-feature-pill {
   display:inline-flex;align-items:center;gap:0.4rem;
   padding:0.4rem 0.9rem;border-radius:100px;
-  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);
-  color:rgba(255,255,255,0.8);font-size:0.78rem;font-weight:600;
+  background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.30);
+  color:#f0f0f0;font-size:0.78rem;font-weight:600;
 }
 .hero-cta-row { display:flex;gap:0.75rem;flex-wrap:wrap; }
 .hero-cta-row .button--primary {

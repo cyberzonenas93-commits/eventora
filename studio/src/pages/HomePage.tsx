@@ -95,22 +95,6 @@ export function HomePage() {
                 </div>
               </div>
 
-              {/* Decorative floating glassmorphism cards */}
-              <div className="hero-deco" aria-hidden="true">
-                <div className="hero-deco__card hero-deco__card--1">
-                  <div className="hero-deco__card-live">
-                    <span className="hero-deco__card-live-dot" />
-                    Live now
-                  </div>
-                  <div className="hero-deco__card-value">Lagos Jazz Night</div>
-                  <div className="hero-deco__card-sub">🔥 Sold out · 340 attending</div>
-                </div>
-                <div className="hero-deco__card hero-deco__card--2">
-                  <div className="hero-deco__card-label">Next up</div>
-                  <div className="hero-deco__card-value">Accra Rooftop Sessions</div>
-                  <div className="hero-deco__card-sub">Sat, 29 Mar · 7PM</div>
-                </div>
-              </div>
             </div>
           )}
           {!loading && hasAnyEvents && (

@@ -78,6 +78,11 @@ async function getHubtelSmsConfig() {
 const DEFAULT_SMS_RATE_GHS = 0.05;
 const DEFAULT_SMS_MARGIN_MULTIPLIER = 1.5;
 
+// Platform service fee charged on ticket sales.
+// Launch pricing: 5% for the first 6 months.
+// Standard rate after launch period: 8%.
+const PLATFORM_SERVICE_FEE_PERCENT = 0.05;
+
 async function getPricingConfig(packageId) {
   let defaultSmsRateGhs = DEFAULT_SMS_RATE_GHS;
   let smsMarginMultiplier = DEFAULT_SMS_MARGIN_MULTIPLIER;

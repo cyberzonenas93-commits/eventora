@@ -7,11 +7,11 @@ import { getErrorMessage } from '../lib/errorMessages'
 
 const getAdminPricingConfig = httpsCallable<
   void,
-  { defaultSmsRateGhs: number; smsMarginMultiplier: number }
+  { defaultSmsRateGhs: number; smsMarginMultiplier: number; platformServiceFeePercent: number }
 >(functions, 'getAdminPricingConfig')
 
 const setAdminPricingConfig = httpsCallable<
-  { defaultSmsRateGhs: number; smsMarginMultiplier: number },
+  { defaultSmsRateGhs: number; smsMarginMultiplier: number; platformServiceFeePercent: number },
   { success: boolean }
 >(functions, 'setAdminPricingConfig')
 
@@ -61,7 +61,7 @@ export function SuperadminPricingPage() {
   const [savingPackage, setSavingPackage] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [pricingForm, setPricingForm] = useState({ defaultSmsRateGhs: '0.05', smsMarginMultiplier: '1.5' })
+  const [pricingForm, setPricingForm] = useState({ defaultSmsRateGhs: '0.05', smsMarginMultiplier: '1.5', platformServiceFeePercent: '0.05' })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [packageForm, setPackageForm] = useState({
     name: '',
@@ -85,6 +85,7 @@ export function SuperadminPricingPage() {
           setPricingForm({
             defaultSmsRateGhs: String(config.defaultSmsRateGhs),
             smsMarginMultiplier: String(config.smsMarginMultiplier),
+            platformServiceFeePercent: String(config.platformServiceFeePercent ?? 0.05),
           })
           setPackages(list)
         }
@@ -104,6 +105,7 @@ export function SuperadminPricingPage() {
     setNotice(null)
     const defaultSmsRateGhs = Number(pricingForm.defaultSmsRateGhs)
     const smsMarginMultiplier = Number(pricingForm.smsMarginMultiplier)
+    const platformServiceFeePercent = Number(pricingForm.platformServiceFeePercent)
     if (!Number.isFinite(defaultSmsRateGhs) || defaultSmsRateGhs < 0) {
       setError(copy.defaultSmsRateInvalid)
       return
@@ -112,9 +114,13 @@ export function SuperadminPricingPage() {
       setError(copy.smsMarginInvalid)
       return
     }
+    if (!Number.isFinite(platformServiceFeePercent) || platformServiceFeePercent < 0 || platformServiceFeePercent > 1) {
+      setError('Platform service fee must be between 0 and 1 (e.g. 0.05 for 5%).')
+      return
+    }
     setSavingPricing(true)
     try {
-      await setAdminPricingConfig({ defaultSmsRateGhs, smsMarginMultiplier })
+      await setAdminPricingConfig({ defaultSmsRateGhs, smsMarginMultiplier, platformServiceFeePercent })
       setNotice(copy.saved)
     } catch (e) {
       setError(getErrorMessage(e, copy.pricingSaveFailed))
@@ -226,6 +232,37 @@ export function SuperadminPricingPage() {
         {notice && <p className="form-success">{notice}</p>}
 
         <article className="superadmin-admin-card" style={{ marginTop: '1rem' }}>
+          <strong>Platform service fee</strong>
+          <p style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+            Fee charged to organizers on ticket sales revenue.
+          </p>
+          <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.75rem' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', paddingBottom: '0.25rem', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>Period</th>
+                <th style={{ textAlign: 'left', paddingBottom: '0.25rem', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>Rate</th>
+                <th style={{ textAlign: 'left', paddingBottom: '0.25rem', borderBottom: '1px solid var(--color-border, #e5e7eb)' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: '0.4rem 0' }}>Launch (first 6 months)</td>
+                <td style={{ padding: '0.4rem 0' }}><strong>5%</strong></td>
+                <td style={{ padding: '0.4rem 0' }}><span style={{ color: 'var(--color-success, #16a34a)' }}>Active</span></td>
+              </tr>
+              <tr>
+                <td style={{ padding: '0.4rem 0' }}>Standard (after launch period)</td>
+                <td style={{ padding: '0.4rem 0' }}><strong>8%</strong></td>
+                <td style={{ padding: '0.4rem 0' }}><span className="text-subtle">Upcoming</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="text-subtle" style={{ fontSize: '0.85em' }}>
+            Current active fee is set in app_config/pricing as <code>platformServiceFeePercent</code>. Update the value below when transitioning to the standard rate.
+          </p>
+        </article>
+
+        <article className="superadmin-admin-card" style={{ marginTop: '1rem' }}>
           <strong>Default pricing (app_config/pricing)</strong>
           <form onSubmit={handleSavePricing} className="superadmin-admin-form">
             <label className="input-group">
@@ -246,6 +283,17 @@ export function SuperadminPricingPage() {
                 min="1"
                 value={pricingForm.smsMarginMultiplier}
                 onChange={(e) => setPricingForm((f) => ({ ...f, smsMarginMultiplier: e.target.value }))}
+              />
+            </label>
+            <label className="input-group">
+              <span className="input-group__label">Platform service fee (e.g. 0.05 = 5% launch rate; update to 0.08 after launch period)</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={pricingForm.platformServiceFeePercent}
+                onChange={(e) => setPricingForm((f) => ({ ...f, platformServiceFeePercent: e.target.value }))}
               />
             </label>
             <button type="submit" className="button button--primary" disabled={savingPricing}>

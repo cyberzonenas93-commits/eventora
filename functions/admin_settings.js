@@ -40,6 +40,8 @@ exports.getAdminPricingConfig = onCall(
     return {
       defaultSmsRateGhs: Number(data.defaultSmsRateGhs) || 0.05,
       smsMarginMultiplier: Number(data.smsMarginMultiplier) || 1.5,
+      // Launch pricing: 5% for first 6 months; transitions to 8% standard rate.
+      platformServiceFeePercent: Number(data.platformServiceFeePercent) || 0.05,
     };
   },
 );
@@ -51,16 +53,22 @@ exports.setAdminPricingConfig = onCall(
     await assertSuperAdmin(request.auth.uid);
     const defaultSmsRateGhs = Number(request.data && request.data.defaultSmsRateGhs);
     const smsMarginMultiplier = Number(request.data && request.data.smsMarginMultiplier);
+    const platformServiceFeePercent = Number(request.data && request.data.platformServiceFeePercent);
     if (!Number.isFinite(defaultSmsRateGhs) || defaultSmsRateGhs < 0) {
       throw new HttpsError("invalid-argument", "defaultSmsRateGhs must be a non-negative number.");
     }
     if (!Number.isFinite(smsMarginMultiplier) || smsMarginMultiplier < 1) {
       throw new HttpsError("invalid-argument", "smsMarginMultiplier must be >= 1.");
     }
+    if (Number.isFinite(platformServiceFeePercent) && (platformServiceFeePercent < 0 || platformServiceFeePercent > 1)) {
+      throw new HttpsError("invalid-argument", "platformServiceFeePercent must be between 0 and 1.");
+    }
     await db.collection("app_config").doc("pricing").set(
       {
         defaultSmsRateGhs,
         smsMarginMultiplier,
+        // Launch pricing: 5% for first 6 months; transitions to 8% standard rate.
+        platformServiceFeePercent: Number.isFinite(platformServiceFeePercent) ? platformServiceFeePercent : 0.05,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: request.auth.uid,
       },

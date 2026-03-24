@@ -8,6 +8,7 @@ import '../account/account_screen.dart';
 import '../discover/discover_screen.dart';
 import '../manage/manage_screen.dart';
 import '../promotions/promotions_screen.dart';
+import '../social/social_feed_screen.dart';
 import '../tickets/tickets_screen.dart';
 
 class VennuzoShellScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _VennuzoShellScreenState extends State<VennuzoShellScreen> {
 
   late final List<Widget> _screens = const [
     DiscoverScreen(),
+    SocialFeedScreen(),
     ManageScreen(),
     TicketsScreen(),
     PromotionsScreen(),
@@ -83,6 +85,11 @@ class _VennuzoShellScreenState extends State<VennuzoShellScreen> {
                   icon: Icon(Icons.explore_outlined),
                   activeIcon: Icon(Icons.explore),
                   label: 'Explore',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.people_outline),
+                  activeIcon: Icon(Icons.people),
+                  label: 'Social',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.edit_calendar_outlined),

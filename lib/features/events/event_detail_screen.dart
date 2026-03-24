@@ -20,12 +20,15 @@ import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
 import 'event_share_sheet.dart';
 import '../tickets/vennuzo_ticket_payment_status_screen.dart';
+import '../social/event_posts_grid.dart';
+import '../social/social_service.dart';
 
 class EventDetailScreen extends StatelessWidget {
   const EventDetailScreen({super.key, required this.eventId});
 
   final String eventId;
   static const _eventSafetyService = EventSafetyService();
+  static final _socialService = SocialService();
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +65,35 @@ class EventDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(event.title),
         actions: [
+          if (!session.isGuest)
+            StreamBuilder<bool>(
+              stream: _socialService.isEventSaved(
+                session.viewer.uid ?? '',
+                eventId,
+              ),
+              builder: (context, snapshot) {
+                final saved = snapshot.data ?? false;
+                return IconButton(
+                  onPressed: () {
+                    final uid = session.viewer.uid ?? '';
+                    if (saved) {
+                      _socialService.unsaveEvent(uid, event.id);
+                    } else {
+                      _socialService.saveEvent(uid, event.id);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Event saved.')),
+                      );
+                    }
+                  },
+                  icon: Icon(
+                    saved
+                        ? Icons.bookmark
+                        : Icons.bookmark_border_outlined,
+                  ),
+                  tooltip: saved ? 'Unsave event' : 'Save event',
+                );
+              },
+            ),
           IconButton(
             onPressed: () => _showShareSheet(context, event),
             icon: const Icon(Icons.ios_share_outlined),
@@ -144,6 +176,11 @@ class EventDetailScreen extends StatelessWidget {
                 highlight: context.palette.gold,
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          _RatingRow(
+            eventId: eventId,
+            socialService: _socialService,
           ),
           if (premiumCampaign != null) ...[
             const SizedBox(height: 20),
@@ -333,6 +370,13 @@ class EventDetailScreen extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 24),
+          SectionHeading(title: 'Photos from this event', subtitle: null),
+          const SizedBox(height: 14),
+          EventPostsGrid(
+            eventId: eventId,
+            socialService: _socialService,
+          ),
         ],
       ),
     );
@@ -1630,6 +1674,72 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Rating Row ───────────────────────────────────────────────────────────────
+
+class _RatingRow extends StatelessWidget {
+  const _RatingRow({
+    required this.eventId,
+    required this.socialService,
+  });
+
+  final String eventId;
+  final SocialService socialService;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<double>(
+      stream: socialService.getAverageRating(eventId),
+      builder: (context, snapshot) {
+        final avg = snapshot.data ?? 0.0;
+        final hasRatings = avg > 0;
+        return StreamBuilder<int>(
+          stream: socialService
+              .getEventReviews(eventId)
+              .map((list) => list.length),
+          builder: (context, reviewSnap) {
+            final count = reviewSnap.data ?? 0;
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.star,
+                      color: Color(0xFFFFD700),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      hasRatings
+                          ? avg.toStringAsFixed(1)
+                          : 'No reviews yet',
+                      style: context.text.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (hasRatings) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '($count review${count != 1 ? 's' : ''})',
+                        style: context.text.bodyMedium?.copyWith(
+                          color: context.palette.slate,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

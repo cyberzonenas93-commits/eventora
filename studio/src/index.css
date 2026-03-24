@@ -3917,3 +3917,186 @@ textarea {
     min-height: 48px;
   }
 }
+
+/* ========== Public side: mobile responsiveness ========== */
+
+@media (max-width: 768px) {
+  /* Header */
+  .public-header__inner {
+    padding: 0.6rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .public-header__link {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .public-header__cta {
+    padding: 0.55rem 0.85rem;
+    font-size: 0.82rem;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  /* Compact public main padding */
+  .public-main {
+    padding: 1rem;
+    --public-padding-x: 1rem;
+  }
+
+  /* Vibrant hero: hide deco cards that would overlap content */
+  .hero-deco {
+    display: none;
+  }
+
+  /* Shrink orbs so they don't dominate the small viewport */
+  .hero-orb--1 {
+    width: 240px;
+    height: 240px;
+    top: -70px;
+    right: -50px;
+  }
+
+  .hero-orb--2 {
+    width: 200px;
+    height: 200px;
+    bottom: -60px;
+  }
+
+  .hero-orb--3 {
+    width: 160px;
+    height: 160px;
+  }
+
+  .hero-orb--4 {
+    width: 130px;
+    height: 130px;
+  }
+
+  /* Reduce vibrant hero height and padding */
+  .home-hero--vibrant .home-hero__inner {
+    min-height: 400px;
+    border-radius: 20px;
+  }
+
+  .home-hero__slide--vibrant {
+    min-height: 400px;
+    padding: 2rem 1.25rem;
+    align-items: flex-start;
+  }
+
+  .home-hero__slide--vibrant h1 {
+    font-size: clamp(1.9rem, 7.5vw, 3rem);
+  }
+
+  .home-hero__empty-sub {
+    font-size: 0.95rem;
+    max-width: none;
+  }
+
+  /* Compact empty state glass */
+  .home-empty-state__glass {
+    padding: 1.75rem 1.5rem;
+  }
+
+  /* Tighten up section headers */
+  .home-featured__header h2,
+  .public-events-section__header h2 {
+    font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Even smaller padding for phones < 480px */
+  .public-main {
+    padding: 0.75rem;
+    --public-padding-x: 0.75rem;
+  }
+
+  .public-header__inner {
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* On very small phones hide "Events" nav link to save space */
+  .public-header__link {
+    display: none;
+  }
+
+  .public-header__cta {
+    font-size: 0.78rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Vibrant hero */
+  .home-hero--vibrant .home-hero__inner {
+    min-height: 340px;
+    border-radius: 16px;
+  }
+
+  .home-hero__slide--vibrant {
+    min-height: 340px;
+    padding: 1.5rem 1rem;
+  }
+
+  .home-hero__slide--vibrant h1 {
+    font-size: clamp(1.65rem, 9vw, 2.5rem);
+  }
+
+  .hero-badge {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.85rem;
+  }
+
+  .hero-features span {
+    font-size: 0.78rem;
+    padding: 0.28rem 0.65rem;
+  }
+
+  /* Stack CTA buttons vertically on small phones */
+  .home-hero__slide--vibrant .hero-chip-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .home-hero__slide--vibrant .hero-chip-row .button,
+  .home-hero__slide--vibrant .hero-chip-row a {
+    text-align: center;
+    justify-content: center;
+  }
+
+  /* Empty state */
+  .home-empty-state {
+    min-height: 280px;
+  }
+
+  .home-empty-state__glass {
+    padding: 1.25rem 1rem;
+  }
+
+  .home-empty-state__glass h3 {
+    font-size: 1.35rem;
+  }
+
+  .home-empty-state__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .home-empty-state__actions .button,
+  .home-empty-state__actions a {
+    text-align: center;
+    justify-content: center;
+  }
+
+  /* Section headers */
+  .home-featured__header h2,
+  .public-events-section__header h2 {
+    font-size: 1.15rem;
+  }
+
+  /* Event cards: single column */
+  .event-grid--public {
+    grid-template-columns: 1fr;
+  }
+}

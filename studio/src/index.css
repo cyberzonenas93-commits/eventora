@@ -1446,6 +1446,7 @@ textarea { resize: vertical; }
 .studio-content {
   flex: 1;
   padding: 1.75rem;
+  max-width: 1600px;
 }
 
 /* Bottom nav (mobile) */
@@ -2465,6 +2466,9 @@ textarea { resize: vertical; }
   display: flex;
   align-items: center;
 }
+@media (min-width: 900px) {
+  .home-hero__inner { min-height: 440px; }
+}
 .home-hero__slide {
   position: absolute;
   inset: 0;
@@ -2740,6 +2744,118 @@ textarea { resize: vertical; }
 .approval-card__actions { display:flex;gap:0.5rem; }
 
 /* =========================================================
+   STATUS PAGE & CARDS (superadmin + reference pages)
+   ========================================================= */
+.status-page {
+  padding: 2rem 1.5rem;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+.status-page--reference {
+  max-width: 1100px;
+}
+
+.status-card {
+  background: var(--bg-strong, #1a1a22);
+  border: 1px solid var(--line);
+  border-radius: var(--card-radius, 16px);
+  padding: 2rem;
+  display: grid;
+  gap: 1.5rem;
+}
+.status-card__header {
+  display: grid;
+  gap: 0.4rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.status-card__header .eyebrow { margin: 0; }
+.status-card__header h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.superadmin-admin-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  display: grid;
+  gap: 0.75rem;
+}
+.superadmin-admin-card > strong {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.superadmin-admin-card__intro {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.superadmin-admin-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.input-group input,
+.input-group select,
+.input-group textarea {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-group input:focus,
+.input-group select:focus,
+.input-group textarea:focus {
+  border-color: var(--purple, #8b5cf6);
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.18);
+}
+
+.superadmin-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.superadmin-admin-list {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+.superadmin-admin-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+.superadmin-admin-list__item:last-child { border-bottom: none; }
+.superadmin-admin-list__item:hover { background: rgba(255,255,255,0.02); }
+.superadmin-admin-list__item > div { display: grid; gap: 0.2rem; min-width: 0; }
+.superadmin-admin-list__item strong { font-size: 0.88rem; color: var(--text); }
+.superadmin-admin-list__meta {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+/* =========================================================
    RESPONSIVE — MOBILE
    ========================================================= */
 @media (max-width: 900px) {
@@ -2811,4 +2927,30 @@ textarea { resize: vertical; }
   .landing-hero { padding: 2rem 1.25rem; min-height: 260px; }
   .studio-content { padding: 0.75rem; }
   .dashboard-stack { gap: 1rem; }
+}
+
+/* =========================================================
+   RESPONSIVE — LARGE DESKTOP (min-width: 1280px)
+   ========================================================= */
+@media (min-width: 1280px) {
+  /* More generous content padding */
+  .studio-content { padding: 2rem 2.5rem; }
+  .dashboard-stack { gap: 2rem; }
+  .studio-topbar { padding: 0 2.5rem; }
+
+  /* Taller hero slideshow */
+  .home-hero__inner { min-height: 520px; }
+
+  /* Wider stat cards for better readability */
+  .stats-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+
+  /* Roomier editor sidebar */
+  .editor-layout { grid-template-columns: 1fr 360px; }
+
+  /* Wider superadmin content */
+  .status-page { padding: 2.5rem 2rem; }
+  .status-page--reference { max-width: 1300px; }
+
+  /* Larger setup sidebar */
+  .setup-page { grid-template-columns: 320px 1fr; }
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { copy } from '../lib/copy'
-import { formatDateTime, formatMoney } from '../lib/formatters'
+import { formatMoney } from '../lib/formatters'
 import { listOrganizerEvents } from '../lib/portalData'
 import { usePortalSession } from '../lib/portalSession'
 import type { PortalEvent } from '../lib/types'

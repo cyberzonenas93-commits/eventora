@@ -16,7 +16,6 @@ export function PortalLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
-  const firstName = profile?.displayName?.trim().split(' ')[0] || 'Organizer'
   const workspaceName = getWorkspaceName(application, profile)
   const workspaceTagline = getWorkspaceTagline(application)
   const accentColor = getWorkspaceAccent(application)

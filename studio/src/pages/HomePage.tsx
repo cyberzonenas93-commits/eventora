@@ -49,11 +49,14 @@ export function HomePage() {
 
   return (
     <div className="public-home">
-      {/* Hero: slideshow of featured events or default CTA */}
-      <section className="home-hero" aria-label="Featured">
+      {/* Hero: slideshow of featured events or vibrant default CTA */}
+      <section
+        className={`home-hero${!hasAnyEvents && !loading ? ' home-hero--vibrant' : ''}`}
+        aria-label="Featured"
+      >
         <div className="home-hero__inner">
           {loading && (
-            <div className="home-hero__slide home-hero__slide--default">
+            <div className="home-hero__slide home-hero__slide--default home-hero__slide--active">
               <p className="eyebrow">Event hub</p>
               <h1>Discover events that move you</h1>
               <p>Loading events…</p>
@@ -64,13 +67,49 @@ export function HomePage() {
             </div>
           )}
           {!loading && !hasAnyEvents && (
-            <div className="home-hero__slide home-hero__slide--default">
-              <p className="eyebrow">Event hub</p>
-              <h1>Discover events that move you</h1>
-              <p>Browse upcoming events, get tickets, and stay in the loop. Organizers run it all from the dashboard.</p>
-              <div className="hero-chip-row">
-                <Link to="/events" className="button button--primary">Browse events</Link>
-                <Link to="/studio" className="button button--secondary">For organizers</Link>
+            <div className="home-hero__slide home-hero__slide--vibrant home-hero__slide--active">
+              {/* Animated gradient orbs */}
+              <div className="hero-orb hero-orb--1" aria-hidden="true" />
+              <div className="hero-orb hero-orb--2" aria-hidden="true" />
+              <div className="hero-orb hero-orb--3" aria-hidden="true" />
+              <div className="hero-orb hero-orb--4" aria-hidden="true" />
+
+              <div className="home-hero__empty-content">
+                <div className="hero-badge">✦ Event Discovery Platform</div>
+                <h1>
+                  Where Unforgettable<br />
+                  <span className="hero-gradient-text">Nights Begin</span>
+                </h1>
+                <p className="home-hero__empty-sub">
+                  Discover extraordinary events, secure your spot, and create memories that last a lifetime.
+                </p>
+                <div className="hero-features">
+                  <span>🎵 Live Music</span>
+                  <span>🎭 Experiences</span>
+                  <span>🥂 VIP Events</span>
+                  <span>🎪 Festivals</span>
+                </div>
+                <div className="hero-chip-row">
+                  <Link to="/events" className="button button--primary button--glow">Explore Events</Link>
+                  <Link to="/studio" className="button button--glass">Host an Event</Link>
+                </div>
+              </div>
+
+              {/* Decorative floating glassmorphism cards */}
+              <div className="hero-deco" aria-hidden="true">
+                <div className="hero-deco__card hero-deco__card--1">
+                  <div className="hero-deco__card-live">
+                    <span className="hero-deco__card-live-dot" />
+                    Live now
+                  </div>
+                  <div className="hero-deco__card-value">Lagos Jazz Night</div>
+                  <div className="hero-deco__card-sub">🔥 Sold out · 340 attending</div>
+                </div>
+                <div className="hero-deco__card hero-deco__card--2">
+                  <div className="hero-deco__card-label">Next up</div>
+                  <div className="hero-deco__card-value">Accra Rooftop Sessions</div>
+                  <div className="hero-deco__card-sub">Sat, 29 Mar · 7PM</div>
+                </div>
               </div>
             </div>
           )}
@@ -158,9 +197,32 @@ export function HomePage() {
         </div>
         {loading && <p className="public-events-section__loading">{copy.loading}</p>}
         {!loading && events.length === 0 && (
-          <div className="empty-card">
-            <p>No upcoming events yet. Check back soon or create your own as an organizer.</p>
-            <Link to="/studio" className="button button--secondary">Organizer dashboard</Link>
+          <div className="home-empty-state">
+            <div
+              className="home-empty-state__bg"
+              style={{
+                backgroundImage:
+                  'url(https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1400&q=80)',
+              }}
+            />
+            <div className="home-empty-state__overlay">
+              <div className="home-empty-state__glass">
+                <div className="home-empty-state__icon">✦</div>
+                <h3>Be the First to Experience It</h3>
+                <p>
+                  Nothing's on the calendar yet — but something extraordinary is coming.
+                  Create your own event or check back soon.
+                </p>
+                <div className="hero-chip-row home-empty-state__actions">
+                  <Link to="/studio" className="button button--primary button--glow">
+                    Create an Event
+                  </Link>
+                  <Link to="/events" className="button button--glass-dark">
+                    Browse Events
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
         )}
         {!loading && events.length > 0 && (

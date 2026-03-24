@@ -2,6 +2,7 @@ import { Suspense, lazy, type ReactElement } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ThemeProvider } from './lib/ThemeContext'
 import { PortalSessionProvider, usePortalSession } from './lib/portalSession'
 
 const LandingPage = lazy(() =>
@@ -200,11 +201,13 @@ function RequireAdmin({ children }: { children: ReactElement }) {
 
 function App() {
   return (
-    <PortalSessionProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </PortalSessionProvider>
+    <ThemeProvider>
+      <PortalSessionProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </PortalSessionProvider>
+    </ThemeProvider>
   )
 }
 

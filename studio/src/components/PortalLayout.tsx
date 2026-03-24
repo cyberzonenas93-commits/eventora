@@ -9,10 +9,12 @@ import {
   getWorkspaceName,
   getWorkspaceTagline,
 } from '../lib/merchantWorkspace'
+import { useThemeContext } from '../lib/ThemeContext'
 import { usePortalSession } from '../lib/portalSession'
 
 export function PortalLayout() {
   const { application, profile, status, signOut } = usePortalSession()
+  const { theme, isAuto, toggleOverride } = useThemeContext()
   const navigate = useNavigate()
   const location = useLocation()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
@@ -48,9 +50,18 @@ export function PortalLayout() {
     setMobileDrawerOpen(false)
   }
 
+  const themeIcon = isAuto ? '✨' : theme === 'dark' ? '☀️' : '🌙'
+  const themeLabel = isAuto ? 'Auto' : theme === 'dark' ? 'Light mode' : 'Dark mode'
+  const themeTitle = isAuto
+    ? 'Auto theme (time-based) — click to force dark'
+    : theme === 'dark'
+      ? 'Forced dark — click to force light'
+      : 'Forced light — click to reset to auto'
+
   return (
     <div
       className={`studio-shell page-motion${mobileDrawerOpen ? ' studio-drawer-open' : ''}`}
+      data-theme={theme}
       role="application"
       aria-label="Vennuzo Studio"
     >
@@ -169,6 +180,16 @@ export function PortalLayout() {
           </div>
 
           <div className="studio-sidebar__footer">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleOverride}
+              title={themeTitle}
+              aria-label={themeTitle}
+            >
+              <span aria-hidden>{themeIcon}</span>
+              <span>{themeLabel}</span>
+            </button>
             <Link className="button button--primary button--full" to="/studio/events/new">
               Create a new event
             </Link>

@@ -52,6 +52,9 @@
   --bg: #0f0f13;
   --bg-strong: #1a1a22;
   --bg-elevated: #21212e;
+  --bg-sidebar: #0d0d15;
+  --topbar-bg: rgba(13,13,21,0.85);
+  --bottomnav-bg: rgba(13,13,21,0.95);
   --panel: rgba(26,26,34,0.85);
   --panel-strong: #1a1a22;
   --panel-tint: rgba(139,92,246,0.08);
@@ -80,6 +83,54 @@
 
   background: var(--bg);
   color: var(--text);
+}
+
+/* =========================================================
+   STUDIO LIGHT THEME
+   Applies to: .studio-shell[data-theme="light"]
+   Sidebar stays dark (common SaaS pattern: Linear, Vercel)
+   ========================================================= */
+.studio-shell[data-theme="light"] {
+  --bg: #f8f9fc;
+  --bg-strong: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-sidebar: #1a1a2e;
+  --topbar-bg: rgba(248,249,252,0.88);
+  --bottomnav-bg: rgba(248,249,252,0.97);
+  --panel: rgba(255,255,255,0.84);
+  --panel-strong: #ffffff;
+  --panel-tint: rgba(139,92,246,0.07);
+  --line: rgba(229,231,235,0.95);
+  --line-strong: rgba(209,213,219,0.95);
+  --text: #0f0f13;
+  --muted: #6b7280;
+  --muted-strong: #374151;
+  --purple: #8b5cf6;
+  --purple-deep: #7c3aed;
+  --purple-bright: #7c3aed;
+  --gold: #f59e0b;
+  --gold-bright: #f59e0b;
+  --orange: #8b5cf6;
+  --orange-deep: #7c3aed;
+  --ink: #0f0f13;
+  --success: #10b981;
+  --error: #ef4444;
+  --primary-gradient: linear-gradient(135deg,#7c3aed,#a855f7);
+  --shadow: 0 24px 60px rgba(139,92,246,0.12);
+  --shadow-soft: 0 8px 24px rgba(0,0,0,0.08);
+
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Sidebar keeps dark text-on-dark colors even when shell is light */
+.studio-shell[data-theme="light"] .studio-sidebar {
+  --text: #f1f1f5;
+  --muted: #71717a;
+  --muted-strong: #a1a1aa;
+  --line: rgba(255,255,255,0.07);
+  --line-strong: rgba(255,255,255,0.12);
+  --purple-bright: #a78bfa;
 }
 
 /* =========================================================
@@ -1106,7 +1157,7 @@ textarea { resize: vertical; }
 .studio-sidebar {
   width: var(--sidebar-width, 260px);
   flex-shrink: 0;
-  background: #0d0d15;
+  background: var(--bg-sidebar, #0d0d15);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -1236,6 +1287,31 @@ textarea { resize: vertical; }
   border-top: 1px solid var(--line);
 }
 
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--line-strong);
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+  text-align: left;
+}
+.theme-toggle:hover {
+  background: rgba(255,255,255,0.09);
+  color: var(--text);
+}
+.theme-toggle span:first-child {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
 /* Mobile header */
 .studio-mobile-header {
   display: none;
@@ -1243,7 +1319,7 @@ textarea { resize: vertical; }
   justify-content: space-between;
   padding: 0 1rem;
   height: 56px;
-  background: #0d0d15;
+  background: var(--bg-sidebar, #0d0d15);
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
@@ -1334,7 +1410,7 @@ textarea { resize: vertical; }
   gap: 1rem;
   padding: 0 1.75rem;
   height: var(--topbar-height, 64px);
-  background: rgba(13,13,21,0.85);
+  background: var(--topbar-bg, rgba(13,13,21,0.85));
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
 }
@@ -1370,7 +1446,7 @@ textarea { resize: vertical; }
   left: 0;
   right: 0;
   z-index: 60;
-  background: rgba(13,13,21,0.95);
+  background: var(--bottomnav-bg, rgba(13,13,21,0.95));
   backdrop-filter: blur(20px);
   border-top: 1px solid var(--line-strong);
   padding: 0.5rem 0 max(0.5rem, env(safe-area-inset-bottom));

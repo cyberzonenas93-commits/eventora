@@ -127,11 +127,11 @@ export function LandingPage() {
   }
 
   return (
-    <main className="landing-page landing-page--reference">
-      <section className="landing-hero landing-hero--reference">
-        <div className="landing-hero__copy landing-hero__copy--reference">
+    <main className="landing-page">
+      <section className="landing-hero">
+        <div className="landing-hero__copy">
           <div className="landing-brand-lockup">
-            <div className="studio-brand studio-brand--hero">
+            <div className="studio-brand">
               <div className="studio-brand__mark">V</div>
               <div>
                 <strong>Vennuzo Studio</strong>
@@ -140,21 +140,42 @@ export function LandingPage() {
             </div>
             <span className="eyebrow">{isAdminHost ? 'Platform operations' : 'Premium event platform'}</span>
           </div>
-          <h1>{isAdminHost ? 'Run approvals from one control room.' : 'Built to sell out.'}</h1>
+          <h1>{isAdminHost ? 'Run approvals from one control room.' : 'The fastest way to sell out your event.'}</h1>
+          {!isAdminHost && (
+            <div className="landing-hero__features">
+              <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon">🎟️</span>
+                <span>Instant ticket sales, zero setup friction</span>
+              </div>
+              <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon">📊</span>
+                <span>Real-time revenue and attendance analytics</span>
+              </div>
+              <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon">💸</span>
+                <span>Fast payouts via mobile money or bank transfer</span>
+              </div>
+              <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon">📣</span>
+                <span>Built-in SMS campaigns to reach your audience</span>
+              </div>
+            </div>
+          )}
           <div className="hero-chip-row">
-            <span>{isAdminHost ? 'Organizer approvals' : 'Instant workspace'}</span>
+            <span>{isAdminHost ? 'Organizer approvals' : 'Free to start'}</span>
+            {!isAdminHost && <span>Ghana's #1 events platform</span>}
           </div>
         </div>
       </section>
 
-      <section className="auth-panel auth-panel--reference">
+      <section className="auth-panel">
         <div className="auth-panel__header">
           <p className="eyebrow">{isAdminHost ? 'Superadmin access' : 'Get Started'}</p>
           <h2>
             {isAdminHost
               ? 'Sign in to the approvals dashboard'
               : mode === 'signup'
-                ? 'Create your Vennuzo Studio account'
+                ? 'Create your organizer account'
                 : 'Welcome back'}
           </h2>
         </div>

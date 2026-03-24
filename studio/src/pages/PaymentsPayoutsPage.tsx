@@ -194,120 +194,93 @@ function PaymentsPayoutsContent({
   return (
     <div className="dashboard-stack">
       {topupStatus === 'success' && (
-        <div className="panel panel--success" style={{ marginBottom: '1rem' }}>
-          <p className="text-subtle">Wallet top-up completed. Your balance will update shortly.</p>
+        <div className="panel panel--success">
+          <div style={{ padding: '0.9rem 1.5rem' }}>
+            <p className="text-subtle" style={{ margin: 0 }}>✓ Wallet top-up completed. Your balance will update shortly.</p>
+          </div>
         </div>
       )}
       {topupStatus === 'cancelled' && (
-        <div className="panel" style={{ marginBottom: '1rem' }}>
-          <p className="text-subtle">Top-up was cancelled. You can load your wallet anytime.</p>
+        <div className="panel">
+          <div style={{ padding: '0.9rem 1.5rem' }}>
+            <p className="text-subtle" style={{ margin: 0 }}>Top-up was cancelled. You can load your wallet anytime.</p>
+          </div>
         </div>
       )}
 
-      <section className="page-hero page-hero--events">
-        <div className="page-hero__content">
-          <p className="eyebrow">Payments &amp; Payouts</p>
-          <h2>Revenue and payouts</h2>
-          <div className="hero-chip-row">
-            <span>{formatMoney(totalEarned)} total earned</span>
-            <span>{payoutReadiness.ready ? 'Payout ready' : 'Setup payout'}</span>
+      {/* Prominent balance hero */}
+      <div className="balance-hero-card">
+        <div className="balance-hero-card__header">
+          <div>
+            <p className="eyebrow">Payments &amp; Payouts</p>
+            <p className="balance-hero-card__label">Total revenue earned</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            <Link className="button button--secondary" to="/studio/setup/payout" style={{ fontSize: '0.8rem', padding: '0.5rem 0.9rem' }}>
+              Edit payout
+            </Link>
           </div>
         </div>
-        <div className="page-hero__panel">
-          <Link className="button button--secondary" to="/studio/overview">
-            Back to overview
-          </Link>
-          <Link className="button button--secondary" to="/studio/setup/account">
-            Edit payout details
-          </Link>
+        <div>
+          <div className="balance-hero-card__amount">{formatMoney(totalEarned)}</div>
+          <p className="balance-hero-card__meta">Lifetime gross revenue from all events</p>
         </div>
-      </section>
+        <div className="balance-hero-card__stats">
+          <div className="balance-hero-stat">
+            <span>Campaign wallet</span>
+            <strong>{formatMoney(wallet?.availableBalance ?? 0)}</strong>
+          </div>
+          {(wallet?.heldBalance ?? 0) > 0 && (
+            <div className="balance-hero-stat">
+              <span>Held balance</span>
+              <strong>{formatMoney(wallet?.heldBalance ?? 0)}</strong>
+            </div>
+          )}
+          <div className="balance-hero-stat">
+            <span>Payout status</span>
+            <strong style={{ color: payoutReadiness.ready ? '#34d399' : '#fbbf24' }}>
+              {payoutReadiness.ready ? 'Ready ✓' : 'Incomplete'}
+            </strong>
+          </div>
+        </div>
+      </div>
 
-      <section className="stats-grid stats-grid--compact">
-        <article className="metric-card metric-card--plain">
-          <span>Total earned</span>
-          <strong>{formatMoney(totalEarned)}</strong>
-        </article>
-        <article className="metric-card metric-card--plain">
-          <span>Campaign wallet</span>
-          <strong>{formatMoney(wallet?.availableBalance ?? 0)}</strong>
-        </article>
-        <article className="metric-card metric-card--plain">
-          <span>Payout status</span>
-          <strong>{payoutReadiness.ready ? 'Ready' : 'Incomplete'}</strong>
-        </article>
-      </section>
-
-      <section className="content-grid">
+      <div className="content-grid">
+        {/* Load wallet */}
         <article className="panel">
           <div className="panel__header">
             <div>
               <p className="eyebrow">Campaign wallet</p>
-              <h3>Fund promotions (SMS, etc.)</h3>
+              <h3>Fund SMS promotions</h3>
             </div>
           </div>
-          <div style={{ padding: '1rem 0' }}>
-            <p className="text-subtle" style={{ marginBottom: '0.75rem' }}>
-              Balance: <strong>{formatMoney(wallet?.availableBalance ?? 0)}</strong>
-              {(wallet?.heldBalance ?? 0) > 0 && (
-                <span> (held: {formatMoney(wallet?.heldBalance ?? 0)})</span>
-              )}
-            </p>
-            <div className="form-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end' }}>
+          <div className="topup-form">
+            <div className="topup-form-row">
               <label className="input-group">
                 <span className="input-group__label">Amount (GHS)</span>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  className="input"
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value)}
-                  placeholder="e.g. 50"
-                />
+                <input type="number" min={1} step={1} className="input" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} placeholder="e.g. 50" />
               </label>
               <label className="input-group">
                 <span className="input-group__label">Your name</span>
-                <input
-                  type="text"
-                  className="input"
-                  value={topUpName}
-                  onChange={(e) => setTopUpName(e.target.value)}
-                  placeholder="Payee name"
-                />
+                <input type="text" className="input" value={topUpName} onChange={(e) => setTopUpName(e.target.value)} placeholder="Payee name" />
               </label>
               <label className="input-group">
                 <span className="input-group__label">Mobile number</span>
-                <input
-                  type="tel"
-                  className="input"
-                  value={topUpPhone}
-                  onChange={(e) => setTopUpPhone(e.target.value)}
-                  placeholder="0XX XXX XXXX"
-                />
+                <input type="tel" className="input" value={topUpPhone} onChange={(e) => setTopUpPhone(e.target.value)} placeholder="0XX XXX XXXX" />
               </label>
               <label className="input-group">
                 <span className="input-group__label">Email (optional)</span>
-                <input
-                  type="email"
-                  className="input"
-                  value={topUpEmail}
-                  onChange={(e) => setTopUpEmail(e.target.value)}
-                  placeholder="you@example.com"
-                />
+                <input type="email" className="input" value={topUpEmail} onChange={(e) => setTopUpEmail(e.target.value)} placeholder="you@example.com" />
               </label>
-              <button
-                type="button"
-                className="button button--primary"
-                disabled={topUpSubmitting}
-                onClick={handleLoadWallet}
-              >
-                {topUpSubmitting ? 'Redirecting…' : 'Load wallet'}
-              </button>
             </div>
-            {topUpError && <p className="text-subtle" style={{ color: 'var(--color-error)', marginTop: '0.5rem' }}>{topUpError}</p>}
+            {topUpError && <p className="form-error">{topUpError}</p>}
+            <button type="button" className="button button--primary" disabled={topUpSubmitting} onClick={handleLoadWallet} style={{ justifySelf: 'start' }}>
+              {topUpSubmitting ? 'Redirecting…' : 'Load wallet →'}
+            </button>
           </div>
         </article>
+
+        {/* Transaction history */}
         <article className="panel">
           <div className="panel__header">
             <div>
@@ -315,39 +288,29 @@ function PaymentsPayoutsContent({
               <h3>Recent transactions</h3>
             </div>
           </div>
-          <div style={{ padding: '1rem 0' }}>
-            {transactions.length === 0 ? (
-              <p className="text-subtle">No wallet transactions yet. Top up to fund SMS campaigns.</p>
-            ) : (
-              <ul className="list-unstyled" style={{ margin: 0, padding: 0 }}>
-                {transactions.map((tx) => (
-                  <li
-                    key={tx.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '0.5rem 0',
-                      borderBottom: '1px solid var(--color-border, #eee)',
-                      gap: '0.75rem',
-                    }}
-                  >
-                    <span>
-                      <strong>{transactionTypeLabel(tx.type)}</strong>
-                      {tx.campaignId && <span className="text-subtle"> · Campaign</span>}
-                      <br />
-                      <span className="text-subtle">{formatDateTime(tx.createdAt)}</span>
-                    </span>
-                    <span>
-                      {tx.type === 'top_up' || tx.type === 'campaign_release' ? '+' : ''}
-                      {formatMoney(tx.amount)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {transactions.length === 0 ? (
+            <div className="empty-card">
+              <h4>No transactions yet</h4>
+              <p>Top up to fund SMS campaigns.</p>
+            </div>
+          ) : (
+            <div className="tx-list">
+              {transactions.map((tx) => (
+                <div className="tx-row" key={tx.id}>
+                  <div className="tx-row__info">
+                    <strong>{transactionTypeLabel(tx.type)}{tx.campaignId ? ' · Campaign' : ''}</strong>
+                    <small>{formatDateTime(tx.createdAt)}</small>
+                  </div>
+                  <span className={`tx-row__amount${tx.type === 'top_up' || tx.type === 'campaign_release' ? ' tx-row__amount--credit' : ''}`}>
+                    {tx.type === 'top_up' || tx.type === 'campaign_release' ? '+' : '−'}{formatMoney(tx.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </article>
+
+        {/* Payout destination */}
         <article className="panel">
           <div className="panel__header">
             <div>
@@ -355,15 +318,17 @@ function PaymentsPayoutsContent({
               <h3>Where you receive funds</h3>
             </div>
           </div>
-          <div style={{ padding: '1rem 0' }}>
-            <p>{payoutReadiness.detail}</p>
+          <div style={{ padding: '1.25rem 1.5rem', display: 'grid', gap: '0.85rem' }}>
+            <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--muted-strong)' }}>{payoutReadiness.detail}</p>
             {!payoutReadiness.ready && (
-              <Link className="button button--primary" to="/studio/setup/payout">
+              <Link className="button button--primary" to="/studio/setup/payout" style={{ justifySelf: 'start' }}>
                 Set up payout
               </Link>
             )}
           </div>
         </article>
+
+        {/* Payout history */}
         <article className="panel">
           <div className="panel__header">
             <div>
@@ -373,10 +338,10 @@ function PaymentsPayoutsContent({
           </div>
           <div className="empty-card">
             <h4>No payouts yet</h4>
-            <p>Completed payouts will appear here once processed according to your preferred schedule.</p>
+            <p>Completed payouts will appear here once processed.</p>
           </div>
         </article>
-      </section>
+      </div>
     </div>
   )
 }

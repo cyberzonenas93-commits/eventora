@@ -19,12 +19,15 @@ function orderPaymentStatusDisplay(status: string): string {
   return normalized || 'pending'
 }
 
+type StatusChip = 'all' | 'paid' | 'pending' | 'other'
+
 export function OrdersPage() {
   const { organizationId } = usePortalSession()
   const [orders, setOrders] = useState<PortalOrder[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [statusChip, setStatusChip] = useState<StatusChip>('all')
 
   useEffect(() => {
     let cancelled = false
@@ -63,17 +66,19 @@ export function OrdersPage() {
   const totalTickets = orders.reduce((sum, o) => sum + o.ticketCount, 0)
 
   const filteredOrders = useMemo(() => {
+    let list = orders
+    if (statusChip === 'paid') list = list.filter((o) => orderPaymentStatusDisplay(o.paymentStatus) === 'paid')
+    if (statusChip === 'pending') list = list.filter((o) => orderPaymentStatusDisplay(o.paymentStatus) === 'pending')
+    if (statusChip === 'other') list = list.filter((o) => !['paid','pending'].includes(orderPaymentStatusDisplay(o.paymentStatus)))
     const trimmed = query.trim().toLowerCase()
-    if (!trimmed) {
-      return orders
-    }
-    return orders.filter(
+    if (!trimmed) return list
+    return list.filter(
       (order) =>
         order.eventTitle.toLowerCase().includes(trimmed) ||
         order.buyerEmail.toLowerCase().includes(trimmed) ||
         order.id.toLowerCase().includes(trimmed),
     )
-  }, [orders, query])
+  }, [orders, query, statusChip])
 
   if (loading) {
     return <div className="page-loader">{copy.loading}</div>
@@ -128,62 +133,80 @@ export function OrdersPage() {
         <MetricCard label="Tickets issued" value={String(totalTickets)} />
       </section>
 
-      <section className="content-grid">
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Order list</p>
-              <h3>Recent ticket orders</h3>
+      <article className="panel">
+        <div className="panel__header">
+          <div>
+            <p className="eyebrow">Order list</p>
+            <h3>Ticket orders</h3>
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="orders-filter-chips">
+              {(['all', 'paid', 'pending', 'other'] as const).map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  className={`orders-filter-chip${statusChip === chip ? ' orders-filter-chip--active' : ''}`}
+                  onClick={() => setStatusChip(chip)}
+                >
+                  {chip === 'all' ? 'All' : chip === 'paid' ? '✓ Paid' : chip === 'pending' ? '⏳ Pending' : 'Other'}
+                </button>
+              ))}
             </div>
             <Link className="text-link" to="/studio/events">
               View events
             </Link>
           </div>
+        </div>
 
-          <div className="event-list">
-            {orders.length === 0 ? (
-              <div className="empty-card">
-                <h4>No orders yet</h4>
-                <p>Ticket orders will appear here once customers purchase.</p>
-              </div>
-            ) : filteredOrders.length === 0 ? (
-              <div className="empty-card">
-                <h4>No matches for &quot;{query}&quot;</h4>
-              </div>
-            ) : (
-              filteredOrders.map((order) => (
-                <div className="event-row" key={order.id}>
-                  <div>
-                    <strong>{order.eventTitle}</strong>
-                    <span>
-                      {formatDateTime(order.createdAt)} • {order.buyerEmail || '—'}
-                    </span>
-                  </div>
-                  <div className="event-row__metrics">
-                    <span
-                      className={`status-pill status-pill--${
-                        orderPaymentStatusDisplay(order.paymentStatus) === 'paid'
-                          ? 'published'
-                          : 'draft'
-                      }`}
-                    >
-                      {orderPaymentStatusDisplay(order.paymentStatus)}
-                    </span>
-                    <strong>{formatMoney(order.totalAmount)}</strong>
-                    <span>{order.ticketCount} ticket(s)</span>
-                  </div>
-                  <Link
-                    className="button button--ghost"
-                    to={`/events/${order.eventId}/edit`}
-                  >
-                    Event
-                  </Link>
-                </div>
-              ))
-            )}
+        {orders.length === 0 ? (
+          <div className="empty-card">
+            <h4>No orders yet</h4>
+            <p>Ticket orders will appear here once customers purchase.</p>
           </div>
-        </article>
-      </section>
+        ) : filteredOrders.length === 0 ? (
+          <div className="empty-card">
+            <h4>No matches</h4>
+            <p>{query.trim() ? `No orders match "${query}".` : `No ${statusChip} orders.`}</p>
+          </div>
+        ) : (
+          <div className="orders-table-wrap">
+            <table className="orders-table">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Buyer</th>
+                  <th>Date</th>
+                  <th>Tickets</th>
+                  <th>Status</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td><strong>{order.eventTitle}</strong></td>
+                    <td className="cell-muted">{order.buyerEmail || '—'}</td>
+                    <td className="cell-muted">{formatDateTime(order.createdAt)}</td>
+                    <td>{order.ticketCount}</td>
+                    <td>
+                      <span className={`status-pill status-pill--${orderPaymentStatusDisplay(order.paymentStatus) === 'paid' ? 'paid' : 'pending'}`}>
+                        {orderPaymentStatusDisplay(order.paymentStatus)}
+                      </span>
+                    </td>
+                    <td className="cell-amount">{formatMoney(order.totalAmount)}</td>
+                    <td>
+                      <Link className="button button--ghost" style={{ padding: '0.35rem 0.7rem', fontSize: '0.76rem' }} to={`/studio/events/${order.eventId}/edit`}>
+                        Event
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </article>
     </div>
   )
 }

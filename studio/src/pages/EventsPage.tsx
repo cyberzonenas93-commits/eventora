@@ -135,27 +135,51 @@ export function EventsPage() {
           </div>
         ) : (
           <ul className="events-dashboard__cards">
-            {filteredEvents.map((event) => (
-              <li key={event.id}>
-                <Link to={`/studio/events/${event.id}/edit`} className="events-dashboard__card">
-                  <div className="events-dashboard__card-main">
-                    <span className={`events-dashboard__card-status status-pill status-pill--${event.status}`}>
-                      {event.status}
-                    </span>
-                    <h3 className="events-dashboard__card-title">{event.title}</h3>
-                    <p className="events-dashboard__card-meta">
-                      {formatDateTime(event.startAt)} · {event.venue}, {event.city}
-                    </p>
-                  </div>
-                  <div className="events-dashboard__card-metrics">
-                    <span title="Revenue">{formatMoney(event.grossRevenue)}</span>
-                    <span title="Tickets">{event.ticketCount} tickets</span>
-                    <span title="RSVPs">{event.rsvpCount} RSVPs</span>
-                  </div>
-                  <span className="events-dashboard__card-cta">Edit</span>
-                </Link>
-              </li>
-            ))}
+            {filteredEvents.map((event) => {
+              const eventDate = event.startAt ? new Date(event.startAt) : null
+              const dayLabel = eventDate && !Number.isNaN(eventDate.getTime()) ? eventDate.getDate() : '—'
+              const monthLabel = eventDate && !Number.isNaN(eventDate.getTime())
+                ? eventDate.toLocaleString('default', { month: 'short' }).toUpperCase()
+                : ''
+              const capacity = event.tiers.reduce((sum, t) => sum + t.maxQuantity, 0)
+              const salesPercent = capacity > 0 ? Math.min(100, Math.round((event.ticketCount / capacity) * 100)) : 0
+              return (
+                <li key={event.id}>
+                  <Link to={`/studio/events/${event.id}/edit`} className="events-dashboard__card">
+                    <div className="events-dashboard__card-date" aria-hidden>
+                      <span className="events-dashboard__card-date-day">{dayLabel}</span>
+                      <span className="events-dashboard__card-date-month">{monthLabel}</span>
+                    </div>
+                    <div className="events-dashboard__card-main">
+                      <span className={`events-dashboard__card-status status-pill status-pill--${event.status}`}>
+                        {event.status}
+                      </span>
+                      <h3 className="events-dashboard__card-title">{event.title}</h3>
+                      <p className="events-dashboard__card-meta">
+                        {event.venue}, {event.city}
+                      </p>
+                      {event.ticketingEnabled && capacity > 0 && (
+                        <div className="events-dashboard__card-progress">
+                          <div className="events-dashboard__card-progress-label">
+                            <span>{event.ticketCount} sold</span>
+                            <span>{salesPercent}%</span>
+                          </div>
+                          <div className="events-dashboard__card-progress-bar">
+                            <div className="events-dashboard__card-progress-fill" style={{ width: `${salesPercent}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="events-dashboard__card-metrics">
+                      <span>{formatMoney(event.grossRevenue)}</span>
+                      <span>{event.ticketCount} tickets</span>
+                      <span>{event.rsvpCount} RSVPs</span>
+                    </div>
+                    <span className="events-dashboard__card-cta">Edit →</span>
+                  </Link>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>

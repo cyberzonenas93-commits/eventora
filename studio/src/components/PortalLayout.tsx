@@ -113,45 +113,50 @@ export function PortalLayout() {
             </div>
           </div>
 
-          <div className="studio-sidebar__intro">
-            <p className="eyebrow">Organizer command center</p>
-            <h2>{firstName}, keep every launch moving.</h2>
-          </div>
-
           <div className="workspace-badge-card" style={{ '--workspace-accent': accentColor } as CSSProperties}>
-            <span className="eyebrow">Workspace identity</span>
+            <span className="eyebrow">Workspace</span>
             <strong>{workspaceName}</strong>
             <small>
-              {application?.audienceCity?.trim() || 'Accra'} • {application?.businessType?.trim() || 'Organizer workspace'}
+              {application?.audienceCity?.trim() || 'Accra'} · {application?.businessType?.trim() || 'Organizer'}
             </small>
           </div>
 
           <nav className="studio-nav">
             <NavLink to="/studio/overview">
+              <span className="studio-nav-icon" aria-hidden>⬡</span>
               <strong>Overview</strong>
             </NavLink>
-            <NavLink to="/studio/events">
+            <NavLink to="/studio/events" end>
+              <span className="studio-nav-icon" aria-hidden>◈</span>
               <strong>Events</strong>
             </NavLink>
             <NavLink to="/studio/orders">
+              <span className="studio-nav-icon" aria-hidden>◻</span>
               <strong>Orders</strong>
             </NavLink>
             <NavLink to="/studio/contacts">
+              <span className="studio-nav-icon" aria-hidden>◉</span>
               <strong>Contacts</strong>
             </NavLink>
             <NavLink to="/studio/payments">
+              <span className="studio-nav-icon" aria-hidden>◈</span>
               <strong>Payments &amp; Payouts</strong>
             </NavLink>
             <NavLink to="/studio/promoters">
+              <span className="studio-nav-icon" aria-hidden>◎</span>
               <strong>Partners</strong>
             </NavLink>
+            <div className="studio-nav__divider" />
             <NavLink to="/studio/events/new">
+              <span className="studio-nav-icon" aria-hidden>✦</span>
               <strong>Create event</strong>
             </NavLink>
             <NavLink to="/studio/promote">
+              <span className="studio-nav-icon" aria-hidden>↗</span>
               <strong>Promote event</strong>
             </NavLink>
             <NavLink to="/studio/settings">
+              <span className="studio-nav-icon" aria-hidden>⚙</span>
               <strong>Settings</strong>
             </NavLink>
           </nav>

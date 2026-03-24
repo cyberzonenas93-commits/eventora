@@ -214,32 +214,71 @@ export function OverviewPage() {
           label="Gross revenue"
           tone="warm"
           value={formatMoney(metrics?.grossRevenue ?? 0)}
+          icon="💰"
         />
         <MetricCard
           label="Paid orders"
           tone="cool"
           value={String(metrics?.paidOrders ?? 0)}
+          icon="🎟️"
         />
         <MetricCard
           label="RSVPs"
           tone="mint"
           value={String(metrics?.totalRsvps ?? 0)}
+          icon="✅"
         />
         <MetricCard
           label="Tickets issued"
           tone="sun"
           value={String(metrics?.ticketsIssued ?? 0)}
+          icon="📋"
         />
         <MetricCard
-          label="Average revenue per event"
+          label="Avg revenue / event"
           tone="ink"
           value={formatMoney(revenuePerEvent)}
+          icon="📈"
         />
         <MetricCard
           label="Planned capacity"
           tone="rose"
           value={String(totalCapacity)}
+          icon="🏟️"
         />
+      </section>
+
+      <section className="panel">
+        <div className="panel__header">
+          <div>
+            <p className="eyebrow">Quick Actions</p>
+            <h3>Jump to what matters</h3>
+          </div>
+        </div>
+        <div style={{ padding: '1rem 1.5rem' }}>
+          <div className="quick-actions">
+            <Link className="quick-action-btn" to="/studio/events/new">
+              <span className="quick-action-btn__icon">✦</span>
+              Create event
+            </Link>
+            <Link className="quick-action-btn" to="/studio/events">
+              <span className="quick-action-btn__icon">◈</span>
+              Manage events
+            </Link>
+            <Link className="quick-action-btn" to="/studio/orders">
+              <span className="quick-action-btn__icon">◻</span>
+              View orders
+            </Link>
+            <Link className="quick-action-btn" to="/studio/payments">
+              <span className="quick-action-btn__icon">◈</span>
+              Payments
+            </Link>
+            <Link className="quick-action-btn" to="/studio/promote">
+              <span className="quick-action-btn__icon">↗</span>
+              Promote
+            </Link>
+          </div>
+        </div>
       </section>
 
       <section className="overview-chart-section">
@@ -393,13 +432,16 @@ function MetricCard({
   label,
   tone,
   value,
+  icon,
 }: {
   label: string
   tone: string
   value: string
+  icon?: string
 }) {
   return (
     <article className={`metric-card metric-card--${tone}`}>
+      {icon ? <span style={{ fontSize: '1.25rem', opacity: 0.7 }}>{icon}</span> : null}
       <span>{label}</span>
       <strong>{value}</strong>
     </article>

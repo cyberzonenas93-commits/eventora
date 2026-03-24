@@ -152,7 +152,7 @@ export function SetupPage() {
   return (
     <main className="setup-page setup-page--reference">
       <aside className="setup-sidebar">
-        <div className="studio-brand studio-brand--stacked">
+        <div className="studio-brand">
           <div className="studio-brand__mark">V</div>
           <div>
             <strong>Vennuzo Studio</strong>

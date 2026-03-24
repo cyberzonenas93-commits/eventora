@@ -58,7 +58,7 @@ export function PortalLayout() {
       {/* Mobile: top bar */}
       <header className="studio-mobile-header" aria-label="Mobile navigation">
         <div className="studio-mobile-header__brand">
-          <div className="studio-brand__mark" aria-hidden>E</div>
+          <div className="studio-brand__mark" aria-hidden>V</div>
           <span className="studio-mobile-header__title">{workspaceName}</span>
         </div>
         <button
@@ -106,7 +106,7 @@ export function PortalLayout() {
             <span aria-hidden>×</span>
           </button>
           <div className="studio-brand">
-            <div className="studio-brand__mark">E</div>
+            <div className="studio-brand__mark">V</div>
             <div>
               <strong>Vennuzo Studio</strong>
               <span>Organizer portal</span>

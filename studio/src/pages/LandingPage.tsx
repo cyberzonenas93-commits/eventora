@@ -132,7 +132,7 @@ export function LandingPage() {
         <div className="landing-hero__copy landing-hero__copy--reference">
           <div className="landing-brand-lockup">
             <div className="studio-brand studio-brand--hero">
-              <div className="studio-brand__mark">E</div>
+              <div className="studio-brand__mark">V</div>
               <div>
                 <strong>Vennuzo Studio</strong>
                 <span>{isAdminHost ? 'Operations Console' : 'Creator Workspace'}</span>

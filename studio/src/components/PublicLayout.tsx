@@ -6,7 +6,7 @@ export function PublicLayout() {
       <header className="public-header">
         <div className="public-header__inner">
           <Link to="/" className="public-header__brand">
-            <span className="studio-brand__mark" aria-hidden>E</span>
+            <span className="studio-brand__mark" aria-hidden>V</span>
             <span className="public-header__logo-text">Vennuzo</span>
           </Link>
           <nav className="public-header__nav">

@@ -148,7 +148,7 @@ export function OrdersPage() {
                   className={`orders-filter-chip${statusChip === chip ? ' orders-filter-chip--active' : ''}`}
                   onClick={() => setStatusChip(chip)}
                 >
-                  {chip === 'all' ? 'All' : chip === 'paid' ? '✓ Paid' : chip === 'pending' ? '⏳ Pending' : 'Other'}
+                  {chip === 'all' ? 'All' : chip === 'paid' ? 'Paid' : chip === 'pending' ? 'Pending' : 'Other'}
                 </button>
               ))}
             </div>

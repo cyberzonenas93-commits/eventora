@@ -84,10 +84,10 @@ export function HomePage() {
                   Discover extraordinary events, secure your spot, and create memories that last a lifetime.
                 </p>
                 <div className="hero-features">
-                  <span className="hero-feature-pill">🎵 Live Music</span>
-                  <span className="hero-feature-pill">🎭 Experiences</span>
-                  <span className="hero-feature-pill">🥂 VIP Events</span>
-                  <span className="hero-feature-pill">🎪 Festivals</span>
+                  <span className="hero-feature-pill">Live Music</span>
+                  <span className="hero-feature-pill">Experiences</span>
+                  <span className="hero-feature-pill">VIP Events</span>
+                  <span className="hero-feature-pill">Festivals</span>
                 </div>
                 <div className="hero-chip-row">
                   <Link to="/events" className="button button--primary button--glow">Explore Events</Link>

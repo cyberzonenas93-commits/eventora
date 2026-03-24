@@ -50,7 +50,7 @@ export function PortalLayout() {
     setMobileDrawerOpen(false)
   }
 
-  const themeIcon = isAuto ? '✨' : theme === 'dark' ? '☀️' : '🌙'
+  const themeIcon = isAuto ? 'A' : theme === 'dark' ? 'L' : 'D'
   const themeLabel = isAuto ? 'Auto' : theme === 'dark' ? 'Light mode' : 'Dark mode'
   const themeTitle = isAuto
     ? 'Auto theme (time-based) — click to force dark'

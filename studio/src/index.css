@@ -95,7 +95,7 @@
   --bg-strong: #ffffff;
   --bg-elevated: #ffffff;
   --bg-sidebar: #1a1a2e;
-  --topbar-bg: rgba(248,249,252,0.88);
+  --topbar-bg: #f8f9fc;
   --bottomnav-bg: rgba(248,249,252,0.97);
   --panel: rgba(255,255,255,0.84);
   --panel-strong: #ffffff;
@@ -121,6 +121,16 @@
 
   background: var(--bg);
   color: var(--text);
+}
+
+/* Mobile header uses light background in light mode (sidebar stays dark) */
+.studio-shell[data-theme="light"] .studio-mobile-header {
+  background: #f8f9fc;
+  color: var(--text);
+}
+.studio-shell[data-theme="light"] .studio-mobile-header__menu {
+  background: rgba(0,0,0,0.06);
+  border-color: rgba(0,0,0,0.12);
 }
 
 /* Sidebar keeps dark text-on-dark colors even when shell is light */

@@ -214,37 +214,31 @@ export function OverviewPage() {
           label="Gross revenue"
           tone="warm"
           value={formatMoney(metrics?.grossRevenue ?? 0)}
-          icon="💰"
         />
         <MetricCard
           label="Paid orders"
           tone="cool"
           value={String(metrics?.paidOrders ?? 0)}
-          icon="🎟️"
         />
         <MetricCard
           label="RSVPs"
           tone="mint"
           value={String(metrics?.totalRsvps ?? 0)}
-          icon="✅"
         />
         <MetricCard
           label="Tickets issued"
           tone="sun"
           value={String(metrics?.ticketsIssued ?? 0)}
-          icon="📋"
         />
         <MetricCard
           label="Avg revenue / event"
           tone="ink"
           value={formatMoney(revenuePerEvent)}
-          icon="📈"
         />
         <MetricCard
           label="Planned capacity"
           tone="rose"
           value={String(totalCapacity)}
-          icon="🏟️"
         />
       </section>
 
@@ -432,16 +426,13 @@ function MetricCard({
   label,
   tone,
   value,
-  icon,
 }: {
   label: string
   tone: string
   value: string
-  icon?: string
 }) {
   return (
     <article className={`metric-card metric-card--${tone}`}>
-      {icon ? <span style={{ fontSize: '1.25rem', opacity: 0.7 }}>{icon}</span> : null}
       <span>{label}</span>
       <strong>{value}</strong>
     </article>

@@ -144,19 +144,15 @@ export function LandingPage() {
           {!isAdminHost && (
             <div className="landing-hero__features">
               <div className="landing-hero__feature">
-                <span className="landing-hero__feature-icon">🎟️</span>
                 <span>Instant ticket sales, zero setup friction</span>
               </div>
               <div className="landing-hero__feature">
-                <span className="landing-hero__feature-icon">📊</span>
                 <span>Real-time revenue and attendance analytics</span>
               </div>
               <div className="landing-hero__feature">
-                <span className="landing-hero__feature-icon">💸</span>
                 <span>Fast payouts via mobile money or bank transfer</span>
               </div>
               <div className="landing-hero__feature">
-                <span className="landing-hero__feature-icon">📣</span>
                 <span>Built-in SMS campaigns to reach your audience</span>
               </div>
             </div>

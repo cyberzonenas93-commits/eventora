@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 
+import { collection, doc } from 'firebase/firestore'
+import { db } from '../firebaseDb'
 import { copy } from '../lib/copy'
 import { formatMoney } from '../lib/formatters'
 import { getErrorMessage } from '../lib/errorMessages'
@@ -8,6 +10,7 @@ import {
   createEmptyEvent,
   getOrganizerEvent,
   saveOrganizerEvent,
+  uploadEventCoverImage,
 } from '../lib/portalData'
 import { usePortalSession } from '../lib/portalSession'
 import type { PortalEvent, PortalTicketTier } from '../lib/types'
@@ -21,6 +24,8 @@ export function EventEditorPage() {
   const [loading, setLoading] = useState(Boolean(eventId))
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const [coverUploadError, setCoverUploadError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -180,6 +185,57 @@ export function EventEditorPage() {
 
       <div className="editor-layout">
         <div className="editor-column">
+          <section className="editor-card editor-card--section">
+            <div className="editor-section__header">
+              <div>
+                <p className="eyebrow">Cover image</p>
+                <h3>The banner guests see first</h3>
+              </div>
+            </div>
+            <div className="cover-upload-area">
+              {eventDraft.coverImageUrl ? (
+                <div className="cover-upload-preview">
+                  <img src={eventDraft.coverImageUrl} alt="Event cover" />
+                  <div className="cover-upload-preview__actions">
+                    <label className="button button--secondary cover-upload-btn">
+                      {isUploadingCover ? 'Uploading...' : 'Replace image'}
+                      <input
+                        accept="image/*"
+                        disabled={isUploadingCover}
+                        hidden
+                        onChange={handleCoverImageChange}
+                        type="file"
+                      />
+                    </label>
+                    <button
+                      className="button button--ghost"
+                      onClick={() => setEventDraft((d) => d ? { ...d, coverImageUrl: '' } : d)}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <label className={`cover-upload-drop${isUploadingCover ? ' cover-upload-drop--uploading' : ''}`}>
+                  <div className="cover-upload-drop__inner">
+                    <span className="cover-upload-drop__icon">+</span>
+                    <strong>{isUploadingCover ? 'Uploading…' : 'Upload cover image'}</strong>
+                    <span>JPG, PNG or WebP · recommended 1400×700px</span>
+                  </div>
+                  <input
+                    accept="image/*"
+                    disabled={isUploadingCover}
+                    hidden
+                    onChange={handleCoverImageChange}
+                    type="file"
+                  />
+                </label>
+              )}
+              {coverUploadError && <p className="form-error">{coverUploadError}</p>}
+            </div>
+          </section>
+
           <section className="editor-card editor-card--section">
             <div className="editor-section__header">
               <div>
@@ -611,6 +667,25 @@ export function EventEditorPage() {
       </div>
     </div>
   )
+
+  async function handleCoverImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file || !eventDraft) return
+    setCoverUploadError('')
+    setIsUploadingCover(true)
+    try {
+      const id = eventDraft.id || doc(collection(db, 'events')).id
+      if (!eventDraft.id) {
+        setEventDraft((d) => d ? { ...d, id } : d)
+      }
+      const url = await uploadEventCoverImage(id, file)
+      setEventDraft((d) => d ? { ...d, id, coverImageUrl: url } : d)
+    } catch {
+      setCoverUploadError('Image upload failed. Please try again.')
+    } finally {
+      setIsUploadingCover(false)
+    }
+  }
 
   function updateTier(index: number, nextTier: PortalTicketTier) {
     setEventDraft((current) =>

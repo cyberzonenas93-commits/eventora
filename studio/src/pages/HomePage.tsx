@@ -17,6 +17,24 @@ function getEventGradientIndex(id: string): number {
   return n % 6
 }
 
+/** Extract day and short month from ISO date string */
+function getDateParts(isoDate: string): { day: string; month: string } {
+  if (!isoDate) return { day: '—', month: '—' }
+  const d = new Date(isoDate)
+  if (isNaN(d.getTime())) return { day: '—', month: '—' }
+  return {
+    day: String(d.getDate()),
+    month: d.toLocaleDateString('en', { month: 'short' }),
+  }
+}
+
+/** Lowest tier price, or "Free" */
+function getPriceLabel(event: PortalEvent): string {
+  if (!event.ticketingEnabled || event.tiers.length === 0) return ''
+  const min = Math.min(...event.tiers.map((t) => t.price))
+  return min === 0 ? 'Free' : `From ${event.currency} ${min}`
+}
+
 export function HomePage() {
   const [events, setEvents] = useState<PortalEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,7 +112,6 @@ export function HomePage() {
                   <Link to="/studio" className="button button--glass">Host an Event</Link>
                 </div>
               </div>
-
             </div>
           )}
           {!loading && hasAnyEvents && (
@@ -102,8 +119,17 @@ export function HomePage() {
               {heroSlides.map((event, i) => (
                 <div
                   key={event.id}
-                  className={`home-hero__slide home-hero__slide--event ${i === heroIndex ? 'home-hero__slide--active' : ''}`}
-                  style={{ '--hero-gradient': `var(--hero-gradient-${getEventGradientIndex(event.id) + 1})` } as React.CSSProperties}
+                  className={[
+                    'home-hero__slide',
+                    'home-hero__slide--event',
+                    event.coverImageUrl ? 'home-hero__slide--has-image' : '',
+                    i === heroIndex ? 'home-hero__slide--active' : '',
+                  ].filter(Boolean).join(' ')}
+                  style={
+                    event.coverImageUrl
+                      ? { backgroundImage: `url(${event.coverImageUrl})` }
+                      : ({ '--hero-gradient': `var(--hero-gradient-${getEventGradientIndex(event.id) + 1})` } as React.CSSProperties)
+                  }
                   aria-hidden={i !== heroIndex}
                 >
                   <div className="home-hero__slide-content">
@@ -152,22 +178,34 @@ export function HomePage() {
           </div>
           <div className="home-featured__track">
             <div className="home-featured__list">
-              {featuredEvents.map((event) => (
-                <Link
-                  key={event.id}
-                  to={`/events/${event.id}`}
-                  className={`home-featured__card home-featured__card--${getEventGradientIndex(event.id) + 1}`}
-                >
-                  <span className="home-featured__card-date">{formatDateTime(event.startAt)}</span>
-                  <h3>{event.title}</h3>
-                  <p>{event.venue}, {event.city}</p>
-                  {event.ticketingEnabled && event.tiers.length > 0 && (
-                    <span className="home-featured__card-price">
-                      {event.tiers[0].price === 0 ? 'Free' : 'GHS ' + event.tiers[0].price}
-                    </span>
-                  )}
-                </Link>
-              ))}
+              {featuredEvents.map((event) => {
+                const { day, month } = getDateParts(event.startAt)
+                return (
+                  <Link
+                    key={event.id}
+                    to={`/events/${event.id}`}
+                    className={`home-featured__card home-featured__card--${getEventGradientIndex(event.id) + 1}`}
+                  >
+                    {event.coverImageUrl && (
+                      <div className="home-featured__card-image">
+                        <img src={event.coverImageUrl} alt={event.title} />
+                      </div>
+                    )}
+                    <div className="home-featured__card-date-badge">
+                      <span className="home-featured__card-date-badge-day">{day}</span>
+                      <span className="home-featured__card-date-badge-month">{month}</span>
+                    </div>
+                    <div className="home-featured__card-body">
+                      <span className="home-featured__card-date">{formatDateTime(event.startAt)}</span>
+                      <h3>{event.title}</h3>
+                      <p>{event.venue}, {event.city}</p>
+                      {getPriceLabel(event) && (
+                        <span className="home-featured__card-price">{getPriceLabel(event)}</span>
+                      )}
+                    </div>
+                  </Link>
+                )
+              })}
             </div>
           </div>
         </section>
@@ -211,25 +249,38 @@ export function HomePage() {
         )}
         {!loading && events.length > 0 && (
           <div className="event-grid event-grid--public">
-            {(upcomingEvents.length > 0 ? upcomingEvents : events).slice(0, UPCOMING_GRID_COUNT).map((event) => (
-              <Link
-                key={event.id}
-                to={`/events/${event.id}`}
-                className="event-card event-card--public"
-              >
-                <div className="event-card__top">
-                  <span className="event-card__date">{formatDateTime(event.startAt)}</span>
-                  <span className="event-card__city">{event.city}</span>
-                </div>
-                <h3>{event.title}</h3>
-                <p>{event.venue}</p>
-                {event.ticketingEnabled && event.tiers.length > 0 && (
-                  <span className="event-card__price">
-                    From {event.tiers[0].price === 0 ? 'Free' : 'GHS ' + event.tiers[0].price}
-                  </span>
-                )}
-              </Link>
-            ))}
+            {(upcomingEvents.length > 0 ? upcomingEvents : events).slice(0, UPCOMING_GRID_COUNT).map((event) => {
+              const { day, month } = getDateParts(event.startAt)
+              const price = getPriceLabel(event)
+              return (
+                <Link
+                  key={event.id}
+                  to={`/events/${event.id}`}
+                  className="event-card event-card--public event-card--rich"
+                >
+                  <div className="event-card__cover">
+                    {event.coverImageUrl
+                      ? <img src={event.coverImageUrl} alt={event.title} />
+                      : <div className={`event-card__mood event-card__mood--${event.mood}`} />
+                    }
+                    <div className="event-card__scrim" />
+                    <div className="event-card__date-badge">
+                      <span className="event-card__date-badge-day">{day}</span>
+                      <span className="event-card__date-badge-month">{month}</span>
+                    </div>
+                    <div className="event-card__info">
+                      <p className="event-card__city">{event.city}</p>
+                      <h3 className="event-card__title">{event.title}</h3>
+                      <p className="event-card__venue">{event.venue}</p>
+                      <div className="event-card__footer">
+                        {price && <span className="event-card__price">{price}</span>}
+                        <span className="event-card__cta">Get Tickets</span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         )}
       </section>

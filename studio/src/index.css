@@ -2856,6 +2856,223 @@ textarea { resize: vertical; }
 }
 
 /* =========================================================
+   HOME HERO — cover image variant
+   ========================================================= */
+.home-hero__slide--has-image {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.home-hero__slide--has-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.38) 55%, rgba(0,0,0,0.12) 100%);
+  pointer-events: none;
+}
+.home-hero__slide--has-image .home-hero__slide-content { position: relative; z-index: 1; }
+.home-hero__slide--has-image h1 { color: #fff !important; }
+.home-hero__slide--has-image .eyebrow { color: rgba(255,255,255,0.72) !important; }
+.home-hero__slide--has-image .home-hero__meta { color: rgba(255,255,255,0.88) !important; }
+.home-hero__slide--has-image .button--secondary {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.35);
+  color: #fff;
+}
+.home-hero__slide--has-image .button--secondary:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+/* =========================================================
+   HOME FEATURED CAROUSEL
+   ========================================================= */
+.home-featured { display: grid; gap: 1rem; }
+.home-featured__header {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.home-featured__header h2 { margin: 0; font-size: 1.4rem; color: var(--text); }
+.home-featured__track {
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 0.5rem;
+}
+.home-featured__track::-webkit-scrollbar { display: none; }
+.home-featured__list { display: flex; gap: 1rem; width: max-content; }
+.home-featured__card {
+  width: 260px; min-height: 210px; border-radius: 20px; overflow: hidden;
+  text-decoration: none; color: #fff; display: grid; position: relative;
+  flex-shrink: 0; transition: transform 0.2s, box-shadow 0.2s;
+  grid-template-rows: 1fr auto;
+}
+.home-featured__card:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(15,23,42,0.22); }
+.home-featured__card--1 { background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+.home-featured__card--2 { background: linear-gradient(135deg,#f43f5e,#ec4899); }
+.home-featured__card--3 { background: linear-gradient(135deg,#22c55e,#14b8a6); }
+.home-featured__card--4 { background: linear-gradient(135deg,#f97316,#ea580c); }
+.home-featured__card--5 { background: linear-gradient(135deg,#3b82f6,#6366f1); }
+.home-featured__card--6 { background: linear-gradient(135deg,#a855f7,#f43f5e); }
+.home-featured__card-image { position: absolute; inset: 0; overflow: hidden; }
+.home-featured__card-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.home-featured__card-image::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.18) 55%, transparent 100%);
+}
+.home-featured__card-date-badge {
+  position: absolute; top: 0.75rem; left: 0.75rem;
+  background: rgba(255,255,255,0.97); border-radius: 10px;
+  padding: 0.3rem 0.55rem; display: grid; text-align: center; z-index: 2;
+  min-width: 40px; line-height: 1; backdrop-filter: blur(4px);
+}
+.home-featured__card-date-badge-day { font-size: 1.1rem; font-weight: 800; color: #111827; line-height: 1.1; }
+.home-featured__card-date-badge-month { font-size: 0.55rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; }
+.home-featured__card-body {
+  position: relative; z-index: 1; padding: 1.1rem;
+  display: grid; gap: 0.28rem; align-self: end;
+}
+.home-featured__card-date { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.65); }
+.home-featured__card h3 { margin: 0; font-size: 0.98rem; font-weight: 700; color: #fff; line-height: 1.3; }
+.home-featured__card p { margin: 0; font-size: 0.76rem; color: rgba(255,255,255,0.7); }
+.home-featured__card-price {
+  font-size: 0.78rem; font-weight: 800; color: rgba(255,255,255,0.95);
+  background: rgba(255,255,255,0.18); border-radius: 100px;
+  padding: 0.18rem 0.55rem; width: fit-content; margin-top: 0.2rem;
+}
+
+/* =========================================================
+   PUBLIC EVENTS SECTION
+   ========================================================= */
+.public-events-section { display: grid; gap: 1.25rem; }
+.public-events-section__header {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+}
+.public-events-section__header h2 { margin: 0; font-size: 1.4rem; color: var(--text); }
+.public-events-section__loading { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+/* =========================================================
+   EVENT GRID (public)
+   ========================================================= */
+.event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+.event-grid--public {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+/* =========================================================
+   RICH EVENT CARD (homepage grid)
+   ========================================================= */
+.event-card--rich {
+  padding: 0;
+  min-height: 300px;
+  display: block;
+}
+.event-card--rich .event-card__cover {
+  position: relative;
+  width: 100%; height: 300px; overflow: hidden;
+  background: linear-gradient(135deg, rgba(99,102,241,0.5), rgba(139,92,246,0.35));
+}
+.event-card--rich .event-card__cover img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.event-card--rich .event-card__mood {
+  position: absolute; inset: 0;
+}
+.event-card__scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.05) 100%);
+  pointer-events: none;
+}
+.event-card__date-badge {
+  position: absolute; top: 0.85rem; left: 0.85rem;
+  background: rgba(255,255,255,0.97); border-radius: 10px;
+  padding: 0.35rem 0.6rem; display: grid; text-align: center; z-index: 2;
+  min-width: 44px; line-height: 1; backdrop-filter: blur(4px);
+}
+.event-card__date-badge-day { font-size: 1.15rem; font-weight: 800; color: #111827; line-height: 1.1; }
+.event-card__date-badge-month { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; }
+.event-card--rich .event-card__info {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 1.1rem; z-index: 2; display: grid; gap: 0.22rem;
+}
+.event-card--rich .event-card__city {
+  font-size: 0.66rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.12em; color: rgba(255,255,255,0.62); margin: 0;
+}
+.event-card--rich .event-card__title {
+  margin: 0; font-size: 1.05rem; font-weight: 700; color: #fff; line-height: 1.25;
+}
+.event-card--rich .event-card__venue {
+  font-size: 0.76rem; color: rgba(255,255,255,0.7); margin: 0;
+}
+.event-card--rich .event-card__footer {
+  padding: 0; border-top: none;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 0.45rem;
+}
+.event-card--rich .event-card__price {
+  font-size: 0.82rem; font-weight: 800; color: rgba(255,255,255,0.95);
+}
+.event-card__cta {
+  font-size: 0.74rem; font-weight: 700; color: #fff;
+  background: rgba(255,255,255,0.18); border-radius: 100px;
+  padding: 0.24rem 0.7rem; backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.28); white-space: nowrap;
+}
+.event-card--rich:hover .event-card__cta { background: rgba(255,255,255,0.28); }
+
+/* =========================================================
+   HOME EMPTY STATE
+   ========================================================= */
+.home-empty-state {
+  position: relative; border-radius: 24px; overflow: hidden; min-height: 340px;
+}
+.home-empty-state__bg {
+  position: absolute; inset: 0; background-size: cover; background-position: center;
+}
+.home-empty-state__overlay {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+  display: grid; place-items: center; padding: 2rem;
+}
+.home-empty-state__glass {
+  text-align: center; display: grid; gap: 1rem;
+  max-width: 480px; position: relative; z-index: 1;
+}
+.home-empty-state__glass h3 { color: #fff; margin: 0; font-size: 1.5rem; }
+.home-empty-state__glass p { color: rgba(255,255,255,0.85); margin: 0; line-height: 1.6; }
+.home-empty-state__icon { font-size: 1.8rem; color: #a78bfa; }
+.home-empty-state__actions { justify-content: center; }
+
+/* =========================================================
+   COVER IMAGE UPLOAD (event editor)
+   ========================================================= */
+.cover-upload-area { display: grid; gap: 0.75rem; }
+.cover-upload-drop {
+  display: flex; align-items: center; justify-content: center;
+  border: 2px dashed var(--line-strong, rgba(209,213,219,0.95));
+  border-radius: 16px; padding: 2.5rem 1.5rem;
+  cursor: pointer; transition: border-color 0.2s, background 0.2s;
+  background: var(--panel-tint, rgba(99,102,241,0.04));
+}
+.cover-upload-drop:hover { border-color: var(--purple, #8b5cf6); background: rgba(139,92,246,0.06); }
+.cover-upload-drop--uploading { opacity: 0.6; pointer-events: none; }
+.cover-upload-drop__inner {
+  display: grid; gap: 0.35rem; text-align: center; pointer-events: none;
+}
+.cover-upload-drop__icon {
+  font-size: 2rem; font-weight: 300; color: var(--muted);
+  line-height: 1; margin-bottom: 0.25rem;
+}
+.cover-upload-drop__inner strong { font-size: 0.9rem; color: var(--text); }
+.cover-upload-drop__inner span { font-size: 0.78rem; color: var(--muted); }
+.cover-upload-preview { display: grid; gap: 0.75rem; }
+.cover-upload-preview img {
+  width: 100%; aspect-ratio: 2/1; object-fit: cover;
+  border-radius: 12px; display: block;
+}
+.cover-upload-preview__actions { display: flex; gap: 0.5rem; }
+.cover-upload-btn { cursor: pointer; }
+
+/* =========================================================
    RESPONSIVE — MOBILE
    ========================================================= */
 @media (max-width: 900px) {

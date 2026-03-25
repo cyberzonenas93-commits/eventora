@@ -45,6 +45,13 @@ export async function uploadApplicationFile(
   }
 }
 
+export async function uploadEventCoverImage(eventId: string, file: File): Promise<string> {
+  const extension = file.name.split('.').pop() || 'jpg'
+  const storageRef = ref(storage, `event-covers/${eventId}/cover-${Date.now()}.${extension}`)
+  await uploadBytes(storageRef, file)
+  return getDownloadURL(storageRef)
+}
+
 export async function saveOrganizerApplicationDraft(
   userId: string,
   payload: OrganizerApplication,
@@ -123,6 +130,7 @@ export function createEmptyEvent(seed?: Partial<PortalEvent>): PortalEvent {
     timezone: seed?.timezone ?? 'Africa/Accra',
     startAt: seed?.startAt ?? new Date(Date.now() + 86400000).toISOString().slice(0, 16),
     endAt: seed?.endAt ?? '',
+    coverImageUrl: seed?.coverImageUrl ?? '',
     performers: seed?.performers ?? '',
     djs: seed?.djs ?? '',
     mcs: seed?.mcs ?? '',
@@ -187,6 +195,7 @@ function normalizeEvent(docId: string, data: Record<string, unknown>): PortalEve
       data.endAt instanceof Timestamp
         ? data.endAt.toDate().toISOString().slice(0, 16)
         : '',
+    coverImageUrl: String(data.coverImageUrl ?? ''),
     performers: String(lineup.performers ?? ''),
     djs: String(lineup.djs ?? ''),
     mcs: String(lineup.mcs ?? ''),
@@ -378,6 +387,7 @@ export async function saveOrganizerEvent(input: PortalEvent) {
     },
     mood: input.mood,
     tags: input.tags,
+    coverImageUrl: input.coverImageUrl || '',
     updatedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
   }

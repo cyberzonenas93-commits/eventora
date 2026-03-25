@@ -74,6 +74,7 @@ export interface PortalEvent {
   timezone: string
   startAt: string
   endAt: string
+  coverImageUrl: string
   performers: string
   djs: string
   mcs: string

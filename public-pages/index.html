@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vennuzo - Experience events differently</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #5B4CFF;
+            --primary-mid: #8B5CF6;
+            --primary-end: #FF3366;
+            --accent-warm: #FF8C42;
+            --accent-mint: #06D6A0;
+            --bg: #F5F5F7;
+            --surface: #FFFFFF;
+            --dark: #0F0F14;
+            --dark-mid: #1A1A24;
+            --dark-elevated: #22222E;
+            --text: #0F0F14;
+            --text-secondary: #64648C;
+            --text-muted: #9494B8;
+            --border: #E8E8F0;
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 22px;
+            --radius-xl: 28px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* ── Navigation ──────────────────────────────── */
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            padding: 16px 24px;
+            transition: background 0.3s ease, backdrop-filter 0.3s ease;
+        }
+        nav.scrolled {
+            background: rgba(15,15,20,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .nav-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-logo {
+            font-family: 'Sora', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #fff;
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+        .nav-links { display: flex; gap: 32px; align-items: center; }
+        .nav-links a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: #fff; }
+        .nav-cta {
+            background: var(--primary) !important;
+            color: #fff !important;
+            padding: 10px 22px;
+            border-radius: var(--radius-sm);
+            font-weight: 600 !important;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .nav-cta:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(91,76,255,0.4);
+        }
+
+        /* ── Hero ─────────────────────────────────────── */
+        .hero {
+            min-height: 100vh;
+            background: linear-gradient(160deg, var(--dark) 0%, var(--dark-mid) 35%, #1a0f3a 65%, #0d0520 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            padding: 120px 24px 80px;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -200px; right: -150px;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(91,76,255,0.18) 0%, transparent 65%);
+            border-radius: 50%;
+            animation: float 8s ease-in-out infinite;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -150px; left: -100px;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(255,51,102,0.12) 0%, transparent 65%);
+            border-radius: 50%;
+            animation: float 10s ease-in-out infinite reverse;
+        }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(30px, -20px); }
+        }
+        .hero-orb-1 {
+            position: absolute;
+            top: 30%; left: 10%;
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 12s ease-in-out infinite;
+        }
+        .hero-orb-2 {
+            position: absolute;
+            bottom: 20%; right: 15%;
+            width: 250px; height: 250px;
+            background: radial-gradient(circle, rgba(255,140,66,0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 9s ease-in-out infinite reverse;
+        }
+        .hero-content { position: relative; z-index: 2; max-width: 720px; }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 999px;
+            margin-bottom: 32px;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.8);
+            font-weight: 500;
+        }
+        .hero-badge-dot {
+            width: 8px; height: 8px;
+            background: var(--accent-mint);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .hero h1 {
+            font-family: 'Sora', sans-serif;
+            font-size: clamp(2.8rem, 6vw, 4.5rem);
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+            margin-bottom: 24px;
+        }
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, var(--primary), var(--primary-mid), var(--primary-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            font-size: 1.15rem;
+            color: rgba(255,255,255,0.6);
+            max-width: 520px;
+            margin: 0 auto 40px;
+            line-height: 1.7;
+        }
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-mid));
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(91,76,255,0.4);
+        }
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.25);
+        }
+
+        /* ── Stats bar ────────────────────────────────── */
+        .stats-bar {
+            display: flex;
+            gap: 1px;
+            max-width: 640px;
+            margin: 56px auto 0;
+            background: rgba(255,255,255,0.06);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .stat-item {
+            flex: 1;
+            padding: 20px 16px;
+            text-align: center;
+        }
+        .stat-item + .stat-item { border-left: 1px solid rgba(255,255,255,0.06); }
+        .stat-value {
+            font-family: 'Sora', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.5);
+            margin-top: 4px;
+            font-weight: 500;
+            letter-spacing: 0.03em;
+        }
+
+        /* ── Features ─────────────────────────────────── */
+        .features {
+            padding: 100px 24px;
+            max-width: 1120px;
+            margin: 0 auto;
+        }
+        .section-label {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-family: 'Sora', sans-serif;
+            font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            margin-bottom: 16px;
+        }
+        .section-subtitle {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin-bottom: 56px;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .feature-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px 28px;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 48px rgba(15,15,20,0.08);
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-mid), var(--primary-end));
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        .feature-card:hover::before { opacity: 1; }
+        .feature-icon {
+            width: 48px; height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+        }
+        .feature-icon.purple { background: linear-gradient(135deg, rgba(91,76,255,0.12), rgba(139,92,246,0.08)); }
+        .feature-icon.rose { background: linear-gradient(135deg, rgba(255,51,102,0.12), rgba(255,51,102,0.06)); }
+        .feature-icon.mint { background: linear-gradient(135deg, rgba(6,214,160,0.12), rgba(6,214,160,0.06)); }
+        .feature-icon.warm { background: linear-gradient(135deg, rgba(255,140,66,0.12), rgba(255,140,66,0.06)); }
+        .feature-icon.blue { background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(59,130,246,0.06)); }
+        .feature-icon.violet { background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(139,92,246,0.06)); }
+        .feature-card h3 {
+            font-family: 'Sora', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -0.01em;
+        }
+        .feature-card p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ── How it works ─────────────────────────────── */
+        .how-it-works {
+            padding: 100px 24px;
+            background: linear-gradient(160deg, var(--dark) 0%, var(--dark-mid) 40%, #1a0f3a 100%);
+            color: #fff;
+            position: relative;
+            overflow: hidden;
+        }
+        .how-it-works::before {
+            content: '';
+            position: absolute;
+            top: -100px; right: -80px;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(91,76,255,0.12) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        .how-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+        .how-it-works .section-label { color: var(--primary-mid); }
+        .how-it-works .section-title { color: #fff; }
+        .how-it-works .section-subtitle { color: rgba(255,255,255,0.6); }
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+        }
+        .step-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-lg);
+            padding: 32px 24px;
+            text-align: center;
+            transition: background 0.2s ease;
+        }
+        .step-card:hover { background: rgba(255,255,255,0.06); }
+        .step-number {
+            font-family: 'Sora', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary), var(--primary-mid));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+        }
+        .step-card h3 {
+            font-family: 'Sora', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .step-card p {
+            font-size: 0.88rem;
+            color: rgba(255,255,255,0.55);
+            line-height: 1.6;
+        }
+
+        /* ── CTA section ──────────────────────────────── */
+        .cta-section {
+            padding: 100px 24px;
+            text-align: center;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+        .cta-section .section-title { margin-bottom: 16px; }
+        .cta-section p {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            margin-bottom: 36px;
+        }
+
+        /* ── Footer ───────────────────────────────────── */
+        footer {
+            background: var(--dark);
+            color: rgba(255,255,255,0.5);
+            padding: 56px 24px 40px;
+        }
+        .footer-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 40px;
+        }
+        .footer-brand {
+            max-width: 280px;
+        }
+        .footer-brand .nav-logo {
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+        .footer-brand p {
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.4);
+        }
+        .footer-links { display: flex; gap: 48px; flex-wrap: wrap; }
+        .footer-col h4 {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 14px;
+        }
+        .footer-col a {
+            display: block;
+            color: rgba(255,255,255,0.4);
+            text-decoration: none;
+            font-size: 0.88rem;
+            padding: 4px 0;
+            transition: color 0.15s;
+        }
+        .footer-col a:hover { color: rgba(255,255,255,0.8); }
+        .footer-bottom {
+            max-width: 1120px;
+            margin: 40px auto 0;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            text-align: center;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.3);
+        }
+
+        /* ── Mobile ───────────────────────────────────── */
+        @media (max-width: 768px) {
+            .nav-links a:not(.nav-cta) { display: none; }
+            .stats-bar { flex-direction: column; gap: 0; }
+            .stat-item + .stat-item { border-left: none; border-top: 1px solid rgba(255,255,255,0.06); }
+            .features-grid { grid-template-columns: 1fr; }
+            .steps-grid { grid-template-columns: 1fr; }
+            .footer-inner { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────────── -->
+<nav id="nav">
+    <div class="nav-inner">
+        <a href="/" class="nav-logo">Vennuzo</a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How it works</a>
+            <a href="support.html">Support</a>
+            <a href="#download" class="nav-cta">Get the app</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────── -->
+<section class="hero">
+    <div class="hero-orb-1"></div>
+    <div class="hero-orb-2"></div>
+    <div class="hero-content">
+        <div class="hero-badge">
+            <span class="hero-badge-dot"></span>
+            Now available on iOS
+        </div>
+        <h1>Experience events<br><span class="gradient-text">differently</span></h1>
+        <p>Discover, book, and share the events that matter to you. From intimate gatherings to sold-out nights, Vennuzo puts the scene at your fingertips.</p>
+        <div class="hero-actions">
+            <a href="#download" class="btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                Download free
+            </a>
+            <a href="#features" class="btn-secondary">
+                See features
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-value">Live</div>
+                <div class="stat-label">Event listings</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">Instant</div>
+                <div class="stat-label">Ticket checkout</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">Free</div>
+                <div class="stat-label">For attendees</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Features ─────────────────────────────────────────── -->
+<section class="features" id="features">
+    <div class="section-label">Platform</div>
+    <h2 class="section-title">Everything you need<br>for unforgettable nights</h2>
+    <p class="section-subtitle">Built for the culture. Whether you're discovering events or hosting them, Vennuzo handles the details so you can focus on the experience.</p>
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon purple">&#9906;</div>
+            <h3>Smart discovery</h3>
+            <p>Find events near you with location-aware search. Filter by vibe, venue, date, or tag to match your mood.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon rose">&#127915;</div>
+            <h3>Instant ticketing</h3>
+            <p>Purchase tickets in one seamless flow. Secure mobile checkout with QR codes for contactless entry.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon mint">&#128205;</div>
+            <h3>Live maps</h3>
+            <p>See event locations on an interactive map. Get directions and explore what's happening around you.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon warm">&#128276;</div>
+            <h3>Smart reminders</h3>
+            <p>Never miss an event. Set custom reminders and get push notifications for events you care about.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon blue">&#128101;</div>
+            <h3>Social features</h3>
+            <p>Save events, share with friends, write reviews, and see what your community is attending.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon violet">&#128640;</div>
+            <h3>Host tools</h3>
+            <p>Create events, manage tickets, run promotions, and track analytics. Everything an organizer needs in one place.</p>
+        </div>
+    </div>
+</section>
+
+<!-- ── How it works ─────────────────────────────────────── -->
+<section class="how-it-works" id="how-it-works">
+    <div class="how-inner">
+        <div class="section-label">Getting started</div>
+        <h2 class="section-title">Three steps to your<br>next great night</h2>
+        <p class="section-subtitle">From download to doorstep in minutes.</p>
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-number">01</div>
+                <h3>Browse and discover</h3>
+                <p>Open Vennuzo and explore trending, nearby, and featured events curated just for you.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">02</div>
+                <h3>Book your spot</h3>
+                <p>Grab tickets or RSVP in seconds. Secure checkout with instant confirmation to your phone.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">03</div>
+                <h3>Show up and enjoy</h3>
+                <p>Flash your QR code at the door. Share the moment, rate the experience, and find your next one.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── CTA ──────────────────────────────────────────────── -->
+<section class="cta-section" id="download">
+    <div class="section-label">Download</div>
+    <h2 class="section-title">Ready to find<br>what's next?</h2>
+    <p>Join the community. Vennuzo is free for attendees and available now on the App Store.</p>
+    <a href="https://apps.apple.com/app/vennuzo/id6744145957" class="btn-primary" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        Download on the App Store
+    </a>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────── -->
+<footer>
+    <div class="footer-inner">
+        <div class="footer-brand">
+            <a href="/" class="nav-logo">Vennuzo</a>
+            <p>Experience events differently. Discover, book, and share the moments that matter.</p>
+        </div>
+        <div class="footer-links">
+            <div class="footer-col">
+                <h4>Product</h4>
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How it works</a>
+                <a href="#download">Download</a>
+            </div>
+            <div class="footer-col">
+                <h4>Company</h4>
+                <a href="support.html">Support</a>
+                <a href="privacy-policy.html">Privacy Policy</a>
+            </div>
+            <div class="footer-col">
+                <h4>Contact</h4>
+                <a href="mailto:support@vennuzo.com">support@vennuzo.com</a>
+            </div>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        &copy; 2026 Vennuzo. All rights reserved.
+    </div>
+</footer>
+
+<script>
+    // Sticky nav background on scroll
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+        nav.classList.toggle('scrolled', window.scrollY > 40);
+    });
+</script>
+</body>
+</html>

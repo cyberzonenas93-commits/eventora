@@ -3,7 +3,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/art/event_art_widget.dart';
+import '../../core/art/mood_art_palette.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import '../../data/services/vennuzo_launch_preferences.dart';
@@ -206,7 +209,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           )
         else
           SizedBox(
-            height: 360,
+            height: 380,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: featuredCampaigns.length,
@@ -506,6 +509,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _SearchPanel - Cleaner, card-free search with subtle hint
+// ---------------------------------------------------------------------------
 class _SearchPanel extends StatelessWidget {
   const _SearchPanel({
     required this.controller,
@@ -523,46 +529,67 @@ class _SearchPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: controller,
-              onChanged: onChanged,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Event, venue, city, or tag',
-                prefixIcon: const Icon(Icons.search_outlined),
-                suffixIcon: query.isEmpty
-                    ? null
-                    : IconButton(
-                        onPressed: onClear,
-                        icon: const Icon(Icons.close),
-                        tooltip: 'Clear search',
-                      ),
+    final palette = context.palette;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: palette.card,
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+            border: Border.all(color: palette.borderSubtle),
+            boxShadow: VennuzoTheme.shadowResting,
+          ),
+          child: TextField(
+            controller: controller,
+            onChanged: onChanged,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Event, venue, city, or tag',
+              prefixIcon: Padding(
+                padding: const EdgeInsets.only(left: 14, right: 8),
+                child: Icon(
+                  Icons.search_outlined,
+                  color: palette.muted,
+                  size: 22,
+                ),
+              ),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 44,
+                minHeight: 44,
+              ),
+              suffixIcon: query.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: onClear,
+                      icon: Icon(Icons.close, color: palette.slate, size: 20),
+                      tooltip: 'Clear search',
+                    ),
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 16,
               ),
             ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _SearchHintChip(
-                  icon: Icons.sell_outlined,
-                  label: query.isEmpty ? 'Try Music' : '$resultCount matches',
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: 10),
+        _SearchHintChip(
+          icon: Icons.sell_outlined,
+          label: query.isEmpty ? 'Try Music' : '$resultCount matches',
+        ),
+      ],
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+// _DashboardHero - Immersive dark gradient, larger type, glass tags
+// ---------------------------------------------------------------------------
 class _DashboardHero extends StatelessWidget {
   const _DashboardHero({
     required this.eventCount,
@@ -579,40 +606,61 @@ class _DashboardHero extends StatelessWidget {
     final palette = context.palette;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+        gradient: const LinearGradient(
           colors: [
-            palette.primaryStart,
-            Color.alphaBlend(
-              Colors.white.withValues(alpha: 0.06),
-              palette.primaryStart,
-            ),
-            palette.primaryEnd,
+            Color(0xFF0A0A12),
+            Color(0xFF1A0F3A),
+            Color(0xFF12101E),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: palette.primaryStart.withValues(alpha: 0.22),
-            blurRadius: 34,
-            offset: const Offset(0, 18),
+            color: const Color(0xFF1A0F3A).withValues(alpha: 0.32),
+            blurRadius: 48,
+            offset: const Offset(0, 20),
           ),
         ],
       ),
       child: Stack(
         children: [
+          // Decorative glow orb
           Positioned(
-            top: -24,
-            right: -14,
+            top: -40,
+            right: -30,
             child: Container(
-              width: 108,
-              height: 108,
+              width: 140,
+              height: 140,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.1),
+                gradient: RadialGradient(
+                  colors: [
+                    VennuzoTheme.primaryStart.withValues(alpha: 0.18),
+                    VennuzoTheme.primaryStart.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Secondary glow
+          Positioned(
+            bottom: -20,
+            left: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    VennuzoTheme.primaryEnd.withValues(alpha: 0.12),
+                    VennuzoTheme.primaryEnd.withValues(alpha: 0.0),
+                  ],
+                ),
               ),
             ),
           ),
@@ -633,22 +681,24 @@ class _DashboardHero extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 24),
               Text(
-                'Find what matters.',
-                style: context.text.headlineMedium?.copyWith(
+                'Find what\nmatters.',
+                style: context.text.displayMedium?.copyWith(
                   color: Colors.white,
-                  height: 1.02,
+                  height: 0.98,
+                  letterSpacing: -1.2,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               Text(
                 'Trending, nearby, and ready to book.',
                 style: context.text.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.86),
+                  color: Colors.white.withValues(alpha: 0.7),
+                  letterSpacing: 0.1,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 28),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -658,20 +708,27 @@ class _DashboardHero extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: palette.ink,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          VennuzoTheme.radiusMd,
+                        ),
+                      ),
                     ),
                     icon: const Icon(Icons.local_fire_department_outlined),
                     label: const Text('Spotlight'),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
+                      horizontal: 16,
+                      vertical: 13,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(
+                        VennuzoTheme.radiusMd,
+                      ),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.16),
+                        color: Colors.white.withValues(alpha: 0.12),
                       ),
                     ),
                     child: Wrap(
@@ -681,14 +738,14 @@ class _DashboardHero extends StatelessWidget {
                       children: [
                         const Icon(
                           Icons.swipe_outlined,
-                          color: Colors.white,
+                          color: Colors.white70,
                           size: 18,
                         ),
                         Text(
                           'Curated',
                           style: context.text.bodyMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -704,6 +761,9 @@ class _DashboardHero extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _HeroTag - Glass-morphism pill on dark hero
+// ---------------------------------------------------------------------------
 class _HeroTag extends StatelessWidget {
   const _HeroTag({required this.icon, required this.label});
 
@@ -713,22 +773,26 @@ class _HeroTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
       ),
       child: Wrap(
         spacing: 8,
         runSpacing: 4,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Icon(icon, size: 16, color: Colors.white),
+          Icon(icon, size: 14, color: Colors.white.withValues(alpha: 0.7)),
           Text(
             label,
-            style: context.text.bodyMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
+            style: context.text.labelSmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
             ),
           ),
         ],
@@ -737,6 +801,9 @@ class _HeroTag extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _SearchHintChip - Subtle, labelSmall style
+// ---------------------------------------------------------------------------
 class _SearchHintChip extends StatelessWidget {
   const _SearchHintChip({required this.icon, required this.label});
 
@@ -747,27 +814,18 @@ class _SearchHintChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: palette.canvas,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.border),
-      ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: palette.slate),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 200),
-            child: Text(
-              label,
-              style: context.text.bodyMedium?.copyWith(
-                color: palette.ink,
-                fontWeight: FontWeight.w700,
-              ),
+          Icon(icon, size: 13, color: palette.muted),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: context.text.labelSmall?.copyWith(
+              color: palette.slate,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -776,6 +834,9 @@ class _SearchHintChip extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _FeaturedBannerCard - Taller, deeper scrim, glass badges, letter-spacing
+// ---------------------------------------------------------------------------
 class _FeaturedBannerCard extends StatelessWidget {
   const _FeaturedBannerCard({
     required this.event,
@@ -793,82 +854,130 @@ class _FeaturedBannerCard extends StatelessWidget {
     final priceLabel = minPrice == null
         ? 'Free entry'
         : 'From ${formatMoney(minPrice)}';
+    final moodPal = MoodArtPalette.fromMood(event.mood);
 
     return SizedBox(
-      width: 308,
-      child: DecoratedBox(
+      width: 320,
+      child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [
-              context.palette.primaryStart,
-              event.mood.colors.first.withValues(alpha: 0.92),
-              context.palette.primaryEnd,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
           boxShadow: [
             BoxShadow(
-              color: context.palette.primaryStart.withValues(alpha: 0.14),
-              blurRadius: 24,
-              offset: const Offset(0, 18),
+              color: moodPal.base.withValues(alpha: 0.26),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
             ),
           ],
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(24),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const _PlacementBadge(
-                        label: 'Featured',
-                        icon: Icons.workspace_premium_outlined,
-                      ),
-                      const Spacer(),
-                      Text(
-                        formatShortDate(event.startDate),
-                        style: context.text.bodyMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Text(
-                    event.title,
-                    style: context.text.headlineSmall?.copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    campaign.message,
-                    style: context.text.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.92),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _PlacementStat(label: event.city),
-                      _PlacementStat(label: priceLabel),
-                      _PlacementStat(label: '${event.rsvpCount} RSVPs'),
-                    ],
-                  ),
-                ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: EventArtwork(
+                  event: event,
+                  height: 380,
+                ),
               ),
-            ),
+              // Deeper scrim gradient
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.35, 1.0],
+                      colors: [
+                        Colors.black.withValues(alpha: 0.1),
+                        Colors.black.withValues(alpha: 0.2),
+                        Colors.black.withValues(alpha: 0.72),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const _PlacementBadge(
+                              label: 'Featured',
+                              icon: Icons.workspace_premium_outlined,
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(
+                                  VennuzoTheme.radiusFull,
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                ),
+                              ),
+                              child: Text(
+                                formatShortDate(event.startDate),
+                                style: context.text.labelSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Text(
+                          event.title,
+                          style: context.text.headlineMedium?.copyWith(
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                            height: 1.0,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          campaign.message,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.bodyMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _PlacementStat(label: event.city),
+                            _PlacementStat(label: priceLabel),
+                            _PlacementStat(label: '${event.rsvpCount} RSVPs'),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -876,6 +985,9 @@ class _FeaturedBannerCard extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _LeadEventCard - Footer buttons with radiusMd
+// ---------------------------------------------------------------------------
 class _LeadEventCard extends StatelessWidget {
   const _LeadEventCard({required this.event, required this.onTap});
 
@@ -892,6 +1004,11 @@ class _LeadEventCard extends StatelessWidget {
           Expanded(
             child: OutlinedButton(
               onPressed: onTap,
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+                ),
+              ),
               child: const Text('See details'),
             ),
           ),
@@ -899,6 +1016,11 @@ class _LeadEventCard extends StatelessWidget {
           Expanded(
             child: ElevatedButton(
               onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+                ),
+              ),
               child: Text(
                 event.ticketing.enabled ? 'Get tickets' : 'Reserve spot',
               ),
@@ -910,6 +1032,9 @@ class _LeadEventCard extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _AroundYouCard - Cleaner layout, VennuzoTheme.radiusLg map corners
+// ---------------------------------------------------------------------------
 class _AroundYouCard extends StatelessWidget {
   const _AroundYouCard({
     required this.currentPosition,
@@ -931,54 +1056,72 @@ class _AroundYouCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+
     if (isLoading) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+          border: Border.all(color: palette.borderSubtle),
+          boxShadow: VennuzoTheme.shadowResting,
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.4),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                'Finding nearby events...',
+                style: context.text.bodyLarge,
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  'Finding nearby events...',
-                  style: context.text.bodyLarge,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
 
     if (currentPosition == null) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Around you',
-                style: context.text.titleLarge?.copyWith(fontSize: 22),
+      return Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: palette.card,
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+          border: Border.all(color: palette.borderSubtle),
+          boxShadow: VennuzoTheme.shadowResting,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Around you',
+              style: context.text.titleLarge?.copyWith(
+                fontSize: 22,
+                letterSpacing: -0.3,
               ),
-              const SizedBox(height: 8),
-              Text(
-                error ?? 'Turn on location to see nearby events.',
-                style: context.text.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error ?? 'Turn on location to see nearby events.',
+              style: context.text.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onRefresh,
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+                ),
               ),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: onRefresh,
-                icon: const Icon(Icons.my_location_outlined),
-                label: const Text('Enable nearby events'),
-              ),
-            ],
-          ),
+              icon: const Icon(Icons.my_location_outlined),
+              label: const Text('Enable nearby events'),
+            ),
+          ],
         ),
       );
     }
@@ -1009,108 +1152,152 @@ class _AroundYouCard extends StatelessWidget {
           ),
     };
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Around you',
-                        style: context.text.titleLarge?.copyWith(fontSize: 22),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: palette.card,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(color: palette.borderSubtle),
+        boxShadow: VennuzoTheme.shadowResting,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Around you',
+                      style: context.text.titleLarge?.copyWith(
+                        fontSize: 22,
+                        letterSpacing: -0.3,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        events.isEmpty
-                            ? 'No nearby events yet.'
-                            : 'Closest public events.',
-                        style: context.text.bodyMedium,
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      events.isEmpty
+                          ? 'No nearby events yet.'
+                          : 'Closest public events.',
+                      style: context.text.bodyMedium,
+                    ),
+                  ],
                 ),
-                IconButton(
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: palette.canvas,
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
+                  border: Border.all(color: palette.borderSubtle),
+                ),
+                child: IconButton(
                   onPressed: onRefresh,
                   tooltip: 'Refresh nearby events',
-                  icon: const Icon(Icons.refresh),
+                  icon: Icon(Icons.refresh, color: palette.slate, size: 20),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: SizedBox(
-                height: 220,
-                width: double.infinity,
-                child: IgnorePointer(
-                  child: gmaps.GoogleMap(
-                    initialCameraPosition: gmaps.CameraPosition(
-                      target: gmaps.LatLng(
-                        currentPosition!.latitude,
-                        currentPosition!.longitude,
-                      ),
-                      zoom: events.isEmpty ? 12 : 13,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+            child: SizedBox(
+              height: 220,
+              width: double.infinity,
+              child: IgnorePointer(
+                child: gmaps.GoogleMap(
+                  initialCameraPosition: gmaps.CameraPosition(
+                    target: gmaps.LatLng(
+                      currentPosition!.latitude,
+                      currentPosition!.longitude,
                     ),
-                    markers: markers,
-                    liteModeEnabled: true,
-                    zoomControlsEnabled: false,
-                    mapToolbarEnabled: false,
-                    compassEnabled: false,
-                    myLocationButtonEnabled: false,
-                    scrollGesturesEnabled: false,
-                    rotateGesturesEnabled: false,
-                    tiltGesturesEnabled: false,
-                    zoomGesturesEnabled: false,
+                    zoom: events.isEmpty ? 12 : 13,
                   ),
+                  markers: markers,
+                  liteModeEnabled: true,
+                  zoomControlsEnabled: false,
+                  mapToolbarEnabled: false,
+                  compassEnabled: false,
+                  myLocationButtonEnabled: false,
+                  scrollGesturesEnabled: false,
+                  rotateGesturesEnabled: false,
+                  tiltGesturesEnabled: false,
+                  zoomGesturesEnabled: false,
                 ),
               ),
             ),
-            if (events.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              ...events.map(
-                (event) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
+          ),
+          if (events.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            ...events.map(
+              (event) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
                   child: InkWell(
                     onTap: () => onOpenEvent(event),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
                     child: Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: context.palette.canvas,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: context.palette.border),
+                        color: palette.canvas,
+                        borderRadius: BorderRadius.circular(
+                          VennuzoTheme.radiusMd,
+                        ),
+                        border: Border.all(color: palette.borderSubtle),
                       ),
                       child: Row(
                         children: [
+                          EventArtwork(
+                            event: event,
+                            height: 48,
+                            width: 48,
+                            borderRadius: BorderRadius.circular(
+                              VennuzoTheme.radiusSm,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   event.title,
-                                  style: context.text.titleLarge?.copyWith(
-                                    fontSize: 18,
+                                  style: context.text.titleSmall?.copyWith(
+                                    fontSize: 15,
+                                    letterSpacing: -0.1,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 3),
                                 Text(
                                   '${event.venue}, ${event.city}',
-                                  style: context.text.bodyMedium,
+                                  style: context.text.bodySmall,
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Text(
-                            '${(distanceForEvent(event) ?? 0).toStringAsFixed(1)} km',
-                            style: context.text.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: palette.canvas,
+                              borderRadius: BorderRadius.circular(
+                                VennuzoTheme.radiusFull,
+                              ),
+                              border: Border.all(color: palette.border),
+                            ),
+                            child: Text(
+                              '${(distanceForEvent(event) ?? 0).toStringAsFixed(1)} km',
+                              style: context.text.labelSmall?.copyWith(
+                                color: palette.ink,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
@@ -1119,14 +1306,17 @@ class _AroundYouCard extends StatelessWidget {
                   ),
                 ),
               ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+// _VibeFilterChip - Pill-shaped with gradient fill when selected
+// ---------------------------------------------------------------------------
 class _VibeFilterChip extends StatelessWidget {
   const _VibeFilterChip({
     required this.label,
@@ -1142,23 +1332,45 @@ class _VibeFilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
 
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      showCheckmark: false,
-      backgroundColor: Colors.white,
-      selectedColor: palette.primaryStart,
-      side: BorderSide(color: palette.border),
-      labelStyle: context.text.bodyMedium?.copyWith(
-        color: selected ? Colors.white : palette.ink,
-        fontWeight: FontWeight.w700,
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [
+                    VennuzoTheme.primaryStart,
+                    VennuzoTheme.primaryMid,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: selected ? null : palette.card,
+          border: selected
+              ? null
+              : Border.all(color: palette.border),
+          boxShadow: selected ? VennuzoTheme.shadowElevated : null,
+        ),
+        child: Text(
+          label,
+          style: context.text.bodyMedium?.copyWith(
+            color: selected ? Colors.white : palette.ink,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+// _AnnouncementTakeover - Cinematic, deeper scrims, larger type
+// ---------------------------------------------------------------------------
 class _AnnouncementTakeover extends StatelessWidget {
   const _AnnouncementTakeover({required this.event, required this.campaign});
 
@@ -1174,40 +1386,48 @@ class _AnnouncementTakeover extends StatelessWidget {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Material(
           color: Colors.transparent,
           child: Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(36),
-              gradient: LinearGradient(
-                colors: event.mood.colors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl + 8),
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 return Stack(
                   children: [
-                    Positioned(
-                      top: -50,
-                      right: -20,
-                      child: Container(
-                        width: 160,
-                        height: 160,
+                    // Full-bleed generative art background
+                    Positioned.fill(
+                      child: EventArtwork(
+                        event: event,
+                        height: constraints.maxHeight,
+                      ),
+                    ),
+                    // Deep cinematic scrim
+                    Positioned.fill(
+                      child: DecoratedBox(
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withValues(alpha: 0.12),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: const [0.0, 0.3, 0.65, 1.0],
+                            colors: [
+                              Colors.black.withValues(alpha: 0.25),
+                              Colors.black.withValues(alpha: 0.15),
+                              Colors.black.withValues(alpha: 0.45),
+                              Colors.black.withValues(alpha: 0.78),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                     SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+                      padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight - 52,
+                          minHeight: constraints.maxHeight - 60,
                         ),
                         child: IntrinsicHeight(
                           child: Column(
@@ -1222,43 +1442,65 @@ class _AnnouncementTakeover extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 12),
-                                  IconButton.filled(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(false),
-                                    style: IconButton.styleFrom(
-                                      backgroundColor: Colors.white.withValues(
-                                        alpha: 0.18,
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
                                       ),
-                                      foregroundColor: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.15,
+                                        ),
+                                      ),
                                     ),
-                                    icon: const Icon(Icons.close),
+                                    child: IconButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      style: IconButton.styleFrom(
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      icon: const Icon(Icons.close, size: 22),
+                                    ),
                                   ),
                                 ],
                               ),
                               const Spacer(),
                               Text(
-                                'Now spotlighting',
-                                style: context.text.bodyLarge?.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.84),
+                                'NOW SPOTLIGHTING',
+                                style: context.text.labelSmall?.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.6),
                                   fontWeight: FontWeight.w700,
+                                  letterSpacing: 2.0,
+                                  fontSize: 11,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 14),
                               Text(
                                 event.title,
-                                style: context.text.headlineMedium?.copyWith(
+                                style: context.text.headlineLarge?.copyWith(
                                   color: Colors.white,
-                                  height: 0.98,
+                                  height: 0.96,
+                                  letterSpacing: -0.8,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      blurRadius: 16,
+                                    ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 14),
                               Text(
                                 campaign.message,
                                 style: context.text.bodyLarge?.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.92),
+                                  color: Colors.white.withValues(alpha: 0.88),
+                                  height: 1.5,
                                 ),
                               ),
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 20),
                               Wrap(
                                 spacing: 10,
                                 runSpacing: 10,
@@ -1272,7 +1514,7 @@ class _AnnouncementTakeover extends StatelessWidget {
                                   _PlacementStat(label: priceLabel),
                                 ],
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 28),
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
@@ -1281,6 +1523,11 @@ class _AnnouncementTakeover extends StatelessWidget {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.white,
                                     foregroundColor: context.palette.ink,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        VennuzoTheme.radiusMd,
+                                      ),
+                                    ),
                                   ),
                                   icon: const Icon(
                                     Icons.arrow_forward_outlined,
@@ -1298,18 +1545,23 @@ class _AnnouncementTakeover extends StatelessWidget {
                                     foregroundColor: Colors.white,
                                     side: BorderSide(
                                       color: Colors.white.withValues(
-                                        alpha: 0.2,
+                                        alpha: 0.18,
+                                      ),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        VennuzoTheme.radiusMd,
                                       ),
                                     ),
                                   ),
                                   child: const Text('Not now'),
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 14),
                               Text(
                                 'This placement is part of Vennuzo premium promotion inventory for organizers.',
-                                style: context.text.bodyMedium?.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.76),
+                                style: context.text.bodySmall?.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.5),
                                 ),
                               ),
                             ],
@@ -1328,6 +1580,9 @@ class _AnnouncementTakeover extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _PlacementBadge - Glass-morphism style
+// ---------------------------------------------------------------------------
 class _PlacementBadge extends StatelessWidget {
   const _PlacementBadge({required this.label, required this.icon});
 
@@ -1337,24 +1592,28 @@ class _PlacementBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.15),
+        ),
       ),
       child: Wrap(
         spacing: 8,
         runSpacing: 4,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Icon(icon, size: 16, color: Colors.white),
+          Icon(icon, size: 14, color: Colors.white.withValues(alpha: 0.8)),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 200),
             child: Text(
               label,
-              style: context.text.bodyMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
+              style: context.text.labelSmall?.copyWith(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
               ),
             ),
           ),
@@ -1364,6 +1623,9 @@ class _PlacementBadge extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// _PlacementStat - Glass-morphism chip
+// ---------------------------------------------------------------------------
 class _PlacementStat extends StatelessWidget {
   const _PlacementStat({required this.label});
 
@@ -1372,16 +1634,19 @@ class _PlacementStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.12),
+        ),
       ),
       child: Text(
         label,
-        style: context.text.bodyMedium?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
+        style: context.text.labelSmall?.copyWith(
+          color: Colors.white.withValues(alpha: 0.9),
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

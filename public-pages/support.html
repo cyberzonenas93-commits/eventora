@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support - Vennuzo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #5B4CFF;
+            --primary-mid: #8B5CF6;
+            --primary-end: #FF3366;
+            --bg: #F5F5F7;
+            --surface: #FFFFFF;
+            --dark: #0F0F14;
+            --dark-mid: #1A1A24;
+            --text: #0F0F14;
+            --text-secondary: #64648C;
+            --text-muted: #9494B8;
+            --border: #E8E8F0;
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 22px;
+            --radius-xl: 28px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Hero header ─────────────────────────────── */
+        header {
+            background: linear-gradient(145deg, var(--dark) 0%, var(--dark-mid) 40%, #1a0f3a 100%);
+            color: #fff;
+            padding: 80px 24px 72px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        header::before {
+            content: '';
+            position: absolute;
+            top: -120px; right: -80px;
+            width: 320px; height: 320px;
+            background: radial-gradient(circle, rgba(91,76,255,0.25) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: -80px; left: -60px;
+            width: 240px; height: 240px;
+            background: radial-gradient(circle, rgba(255,51,102,0.15) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        header h1 {
+            font-family: 'Sora', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        header p {
+            font-size: 1.05rem;
+            color: rgba(255,255,255,0.7);
+            max-width: 440px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+
+        /* ── Contact cards ────────────────────────────── */
+        .contact-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 48px;
+            margin-top: -40px;
+            position: relative;
+            z-index: 2;
+        }
+        .contact-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px 28px;
+            text-align: center;
+            flex: 1 1 220px;
+            max-width: 320px;
+            box-shadow: 0 4px 24px rgba(15,15,20,0.06);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .contact-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(15,15,20,0.1);
+        }
+        .contact-card .icon {
+            width: 48px; height: 48px;
+            margin: 0 auto 12px;
+            background: linear-gradient(135deg, rgba(91,76,255,0.1), rgba(139,92,246,0.08));
+            border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+        }
+        .contact-card h3 {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .contact-card p { font-size: 0.88rem; color: var(--text-secondary); margin: 0; }
+        .contact-card a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .contact-card a:hover { text-decoration: underline; }
+
+        /* ── FAQ section ──────────────────────────────── */
+        h2 {
+            font-family: 'Sora', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-top: 8px;
+            margin-bottom: 28px;
+            text-align: center;
+            letter-spacing: -0.02em;
+        }
+        .faq-section-title {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-top: 36px;
+            margin-bottom: 14px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .faq-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 10px;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease;
+        }
+        .faq-item:hover {
+            box-shadow: 0 2px 12px rgba(15,15,20,0.05);
+        }
+        .faq-question {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 16px 20px;
+            font-size: 0.93rem;
+            font-weight: 600;
+            color: var(--text);
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.5;
+            transition: background 0.15s ease;
+        }
+        .faq-question:hover { background: var(--bg); }
+        .faq-question .arrow {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+            flex-shrink: 0;
+            margin-left: 16px;
+        }
+        .faq-item.open .faq-question .arrow { transform: rotate(180deg); }
+        .faq-answer {
+            display: none;
+            padding: 0 20px 18px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+        .faq-item.open .faq-answer { display: block; }
+        .faq-answer p { margin-bottom: 8px; }
+        .faq-answer a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        .faq-answer a:hover { text-decoration: underline; }
+
+        /* ── CTA box ──────────────────────────────────── */
+        .cta-box {
+            background: linear-gradient(145deg, var(--dark) 0%, var(--dark-mid) 40%, #1a0f3a 100%);
+            color: #fff;
+            border-radius: var(--radius-xl);
+            padding: 40px 32px;
+            text-align: center;
+            margin-top: 56px;
+            position: relative;
+            overflow: hidden;
+        }
+        .cta-box::before {
+            content: '';
+            position: absolute;
+            top: -40px; right: -30px;
+            width: 160px; height: 160px;
+            background: radial-gradient(circle, rgba(91,76,255,0.2) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        .cta-box h3 {
+            font-family: 'Sora', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            position: relative;
+        }
+        .cta-box p {
+            font-size: 0.93rem;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .cta-box a {
+            display: inline-block;
+            background: #fff;
+            color: var(--primary);
+            font-weight: 700;
+            padding: 14px 32px;
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            font-size: 0.95rem;
+            position: relative;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .cta-box a:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(91,76,255,0.3);
+        }
+
+        /* ── Footer ───────────────────────────────────── */
+        footer {
+            text-align: center;
+            padding: 36px 24px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+        }
+        footer a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Vennuzo Support</h1>
+    <p>We're here to help you get the most out of Vennuzo</p>
+</header>
+<div class="container">
+
+    <div class="contact-bar">
+        <div class="contact-card">
+            <div class="icon">&#9993;</div>
+            <h3>Email Support</h3>
+            <p><a href="mailto:support@vennuzo.com">support@vennuzo.com</a></p>
+        </div>
+        <div class="contact-card">
+            <div class="icon">&#9201;</div>
+            <h3>Response Time</h3>
+            <p>We typically respond within 24 hours</p>
+        </div>
+    </div>
+
+    <h2>Frequently Asked Questions</h2>
+
+    <!-- Account -->
+    <div class="faq-section-title">Account &amp; Profile</div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How do I create a Vennuzo account?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Download Vennuzo from the App Store or Google Play and tap "Sign Up." You can register with your email address, phone number, Google account, or Apple ID. You can also browse events as a guest without creating an account.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            I forgot my password. How do I reset it?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>On the login screen, tap "Forgot Password" and enter the email address associated with your account. You will receive a password reset link via email. If you signed up with Google or Apple, use the respective sign-in option instead.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How do I update my profile information?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Go to your profile by tapping the profile icon, then tap "Edit Profile." You can update your name, profile photo, and other personal details from there.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How do I delete my account?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Navigate to Settings in the app, then tap "Delete Account." You will be asked to confirm. Once confirmed, your account and personal data will be permanently deleted within 30 days. Completed transaction records may be retained for legal compliance.</p>
+        </div>
+    </div>
+
+    <!-- Tickets & Payments -->
+    <div class="faq-section-title">Tickets &amp; Payments</div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How do I purchase tickets for an event?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Find an event you're interested in, tap on it to view details, then select the ticket type and quantity. Tap "Get Tickets" and complete the payment through our secure checkout powered by Hubtel.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            What payment methods are accepted?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Payments are processed securely through Hubtel. Accepted methods include mobile money and major payment options supported by Hubtel. Your payment details are handled directly by Hubtel and are never stored on our servers.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            Where can I find my tickets after purchase?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Your purchased tickets are available in the "My Tickets" section of the app. Each ticket includes a QR code or reference that can be scanned at the event venue for entry.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            Can I get a refund on my ticket?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Refund policies are set by individual event organizers. Check the event details page for the organizer's refund policy. If you believe you are entitled to a refund, contact us at <a href="mailto:support@vennuzo.com">support@vennuzo.com</a> with your order details and we will assist you.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            My payment failed. What should I do?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Ensure you have sufficient funds and that your payment method is active. Try again after a few minutes. If the issue persists, contact your payment provider or reach out to us at <a href="mailto:support@vennuzo.com">support@vennuzo.com</a> for assistance.</p>
+        </div>
+    </div>
+
+    <!-- Event Discovery -->
+    <div class="faq-section-title">Event Discovery</div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How does Vennuzo find events near me?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>When you grant location permission, Vennuzo uses your device's location to display events happening nearby. You can adjust your location settings or search for events in a specific area manually.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            Can I browse events without creating an account?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Yes. You can browse and discover events as a guest. However, purchasing tickets, RSVPing, and saving events require a Vennuzo account.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How do I save an event for later?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Tap the bookmark or save icon on any event card or event details page. Saved events are accessible from your profile under "Saved Events."</p>
+        </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="faq-section-title">Notifications &amp; Preferences</div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How do I manage push notifications?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Go to Settings in the app to customize which notifications you receive. You can also manage notification permissions through your device's system settings at any time.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            How do I opt out of marketing emails?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>You can update your marketing preferences in the app's Settings, or tap the "Unsubscribe" link at the bottom of any marketing email. Transactional emails (like ticket confirmations) will still be sent regardless of your marketing preferences.</p>
+        </div>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div class="faq-section-title">Troubleshooting</div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            The app is crashing or not loading properly. What can I do?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Try the following steps:</p>
+            <p>1. Make sure you have the latest version of Vennuzo from the App Store or Google Play.<br>
+            2. Restart the app by closing it completely and reopening it.<br>
+            3. Restart your device.<br>
+            4. Check your internet connection.</p>
+            <p>If the issue continues, email us at <a href="mailto:support@vennuzo.com">support@vennuzo.com</a> with a description of the problem and your device model.</p>
+        </div>
+    </div>
+
+    <div class="faq-item">
+        <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+            I'm not receiving event notifications. How can I fix this?
+            <span class="arrow">&#9660;</span>
+        </button>
+        <div class="faq-answer">
+            <p>Ensure that notifications are enabled for Vennuzo in your device settings. Also check the in-app notification preferences under Settings. If notifications are enabled but still not arriving, try signing out and back in, or reinstalling the app.</p>
+        </div>
+    </div>
+
+    <div class="cta-box">
+        <h3>Still need help?</h3>
+        <p>Our support team is ready to assist you with any questions or issues.</p>
+        <a href="mailto:support@vennuzo.com">Email Us</a>
+    </div>
+</div>
+<footer>
+    &copy; 2026 Vennuzo. All rights reserved. &nbsp;|&nbsp; <a href="privacy-policy.html">Privacy Policy</a>
+</footer>
+</body>
+</html>

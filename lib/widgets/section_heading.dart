@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/theme/theme_extensions.dart';
 import 'vennuzo_motion.dart';
 
+/// Section heading with editorial feel (Resident Advisor inspired).
 class SectionHeading extends StatelessWidget {
   const SectionHeading({
     super.key,
@@ -25,7 +26,7 @@ class SectionHeading extends StatelessWidget {
     return VennuzoReveal(
       delay: const Duration(milliseconds: 40),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: Column(
@@ -33,20 +34,31 @@ class SectionHeading extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: textTheme.titleLarge?.copyWith(fontSize: 22),
+                  style: textTheme.titleLarge?.copyWith(
+                    letterSpacing: -0.3,
+                  ),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     subtitle!,
-                    style: textTheme.bodyMedium?.copyWith(color: palette.slate),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: palette.slate,
+                    ),
                   ),
                 ],
               ],
             ),
           ),
           if (actionLabel != null && onAction != null)
-            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              child: Text(actionLabel!),
+            ),
         ],
       ),
     );

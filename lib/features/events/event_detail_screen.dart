@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -6,7 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/vennuzo_session_controller.dart';
+import '../../core/art/event_art_widget.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import '../../data/services/vennuzo_payment_service.dart';
@@ -62,6 +66,7 @@ class EventDetailScreen extends StatelessWidget {
     }
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(event.title),
         actions: [
@@ -105,54 +110,97 @@ class EventDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              if (!event.ticketing.requireTicket)
-                SizedBox(
-                  width: event.ticketing.enabled ? 150 : double.infinity,
-                  child: OutlinedButton(
-                    onPressed: hasRsvp
-                        ? null
-                        : () => _openRsvpFlow(context, event),
-                    child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
-                  ),
+      bottomNavigationBar: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: context.palette.card.withValues(alpha: 0.82),
+              border: Border(
+                top: BorderSide(
+                  color: context.palette.border.withValues(alpha: 0.4),
                 ),
-              if (event.ticketing.enabled)
-                SizedBox(
-                  width: event.ticketing.requireTicket ? double.infinity : 190,
-                  child: ElevatedButton(
-                    onPressed: () => _openCheckoutFlow(context, event),
-                    child: Text(
-                      event.ticketing.requireTicket
-                          ? 'Get tickets'
-                          : 'Buy support ticket',
-                    ),
-                  ),
-                )
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: hasRsvp
-                        ? null
-                        : () => _openRsvpFlow(context, event),
-                    child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
-                  ),
+              ),
+              boxShadow: VennuzoTheme.shadowFloating,
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    if (!event.ticketing.requireTicket)
+                      SizedBox(
+                        width: event.ticketing.enabled ? 150 : double.infinity,
+                        child: OutlinedButton(
+                          onPressed: hasRsvp
+                              ? null
+                              : () => _openRsvpFlow(context, event),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                VennuzoTheme.radiusMd,
+                              ),
+                            ),
+                          ),
+                          child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
+                        ),
+                      ),
+                    if (event.ticketing.enabled)
+                      SizedBox(
+                        width:
+                            event.ticketing.requireTicket ? double.infinity : 190,
+                        child: ElevatedButton(
+                          onPressed: () => _openCheckoutFlow(context, event),
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                VennuzoTheme.radiusMd,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            event.ticketing.requireTicket
+                                ? 'Get tickets'
+                                : 'Buy support ticket',
+                          ),
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: hasRsvp
+                              ? null
+                              : () => _openRsvpFlow(context, event),
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                VennuzoTheme.radiusMd,
+                              ),
+                            ),
+                          ),
+                          child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
+                        ),
+                      ),
+                  ],
                 ),
-            ],
+              ),
+            ),
           ),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          MediaQuery.of(context).padding.top + kToolbarHeight + 8,
+          20,
+          28,
+        ),
         children: [
           _HeroBanner(event: event, campaign: premiumCampaign),
-          const SizedBox(height: 20),
+          const SizedBox(height: 28),
           Wrap(
             spacing: 14,
             runSpacing: 14,
@@ -177,31 +225,31 @@ class EventDetailScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           _RatingRow(
             eventId: eventId,
             socialService: _socialService,
           ),
           if (premiumCampaign != null) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 28),
             _PremiumPlacementPanel(event: event, campaign: premiumCampaign),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 28),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              OutlinedButton.icon(
+              _ActionPillButton(
                 onPressed: () {
                   context.read<VennuzoRepository>().toggleLike(event.id);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Saved to your events.')),
                   );
                 },
-                icon: const Icon(Icons.favorite_border),
-                label: const Text('Save'),
+                icon: Icons.favorite_border,
+                label: 'Save',
               ),
-              OutlinedButton.icon(
+              _ActionPillButton(
                 onPressed: () async {
                   if (session.isGuest) {
                     final authenticated = await showAuthPromptSheet(
@@ -215,60 +263,72 @@ class EventDetailScreen extends StatelessWidget {
                   }
                   _showReminderSheet(context, event, reminder);
                 },
-                icon: const Icon(Icons.notifications_active_outlined),
-                label: Text(reminder == null ? 'Remind me' : reminder.label),
+                icon: Icons.notifications_active_outlined,
+                label: reminder == null ? 'Remind me' : reminder.label,
               ),
-              OutlinedButton.icon(
+              _ActionPillButton(
                 onPressed: event.allowSharing
                     ? () => _showShareSheet(context, event)
                     : null,
-                icon: const Icon(Icons.link_outlined),
-                label: Text(event.allowSharing ? 'Share' : 'Sharing off'),
+                icon: Icons.link_outlined,
+                label: event.allowSharing ? 'Share' : 'Sharing off',
               ),
             ],
           ),
           const SizedBox(height: 28),
           SectionHeading(title: 'Why people are showing up', subtitle: null),
           const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(event.description, style: context.text.bodyLarge),
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: context.palette.card,
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+              border: Border.all(
+                color: context.palette.border.withValues(alpha: 0.6),
+              ),
+              boxShadow: VennuzoTheme.shadowResting,
             ),
+            child: Text(event.description, style: context.text.bodyLarge),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           SectionHeading(title: 'Plan the night', subtitle: null),
           const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DetailRow(
-                    icon: Icons.place_outlined,
-                    title: 'Venue',
-                    body: '${event.venue}, ${event.city}',
-                  ),
-                  const SizedBox(height: 16),
-                  _DetailRow(
-                    icon: Icons.schedule_outlined,
-                    title: 'Date and time',
-                    body: formatEventWindow(event.startDate, event.endDate),
-                  ),
-                  if (event.recurrence.isRecurring) ...[
-                    const SizedBox(height: 16),
-                    _DetailRow(
-                      icon: Icons.repeat_outlined,
-                      title: 'Recurrence',
-                      body: event.recurrence.description,
-                    ),
-                  ],
-                ],
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: context.palette.card,
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+              border: Border.all(
+                color: context.palette.border.withValues(alpha: 0.6),
               ),
+              boxShadow: VennuzoTheme.shadowResting,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DetailRow(
+                  icon: Icons.place_outlined,
+                  title: 'Venue',
+                  body: '${event.venue}, ${event.city}',
+                ),
+                const SizedBox(height: 18),
+                _DetailRow(
+                  icon: Icons.schedule_outlined,
+                  title: 'Date and time',
+                  body: formatEventWindow(event.startDate, event.endDate),
+                ),
+                if (event.recurrence.isRecurring) ...[
+                  const SizedBox(height: 18),
+                  _DetailRow(
+                    icon: Icons.repeat_outlined,
+                    title: 'Recurrence',
+                    body: event.recurrence.description,
+                  ),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           if (event.location != null) ...[
             SectionHeading(title: 'Location and directions', subtitle: null),
             const SizedBox(height: 14),
@@ -276,38 +336,44 @@ class EventDetailScreen extends StatelessWidget {
               event: event,
               onOpenDirections: () => _openDirections(event),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
           ],
           SectionHeading(title: 'Lineup and hosting', subtitle: null),
           const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DetailRow(
-                    icon: Icons.music_note_outlined,
-                    title: 'Performers',
-                    body: event.performers,
-                  ),
-                  const SizedBox(height: 16),
-                  _DetailRow(
-                    icon: Icons.queue_music_outlined,
-                    title: 'DJs',
-                    body: event.djs,
-                  ),
-                  const SizedBox(height: 16),
-                  _DetailRow(
-                    icon: Icons.record_voice_over_outlined,
-                    title: 'Hosts and MCs',
-                    body: event.mcs,
-                  ),
-                ],
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: context.palette.card,
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+              border: Border.all(
+                color: context.palette.border.withValues(alpha: 0.6),
               ),
+              boxShadow: VennuzoTheme.shadowResting,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DetailRow(
+                  icon: Icons.music_note_outlined,
+                  title: 'Performers',
+                  body: event.performers,
+                ),
+                const SizedBox(height: 18),
+                _DetailRow(
+                  icon: Icons.queue_music_outlined,
+                  title: 'DJs',
+                  body: event.djs,
+                ),
+                const SizedBox(height: 18),
+                _DetailRow(
+                  icon: Icons.record_voice_over_outlined,
+                  title: 'Hosts and MCs',
+                  body: event.mcs,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           SectionHeading(title: 'Entry options', subtitle: null),
           const SizedBox(height: 14),
           if (!event.ticketing.enabled)
@@ -325,42 +391,48 @@ class EventDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           SectionHeading(title: 'Guest settings', subtitle: null),
           const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _SettingPill(
-                    label: event.sendPushNotification
-                        ? 'Push reminders available'
-                        : 'No push reminders',
-                  ),
-                  _SettingPill(
-                    label: event.sendSmsNotification
-                        ? 'SMS updates available'
-                        : 'No SMS updates',
-                  ),
-                  _SettingPill(
-                    label: event.allowSharing
-                        ? 'Sharing is on'
-                        : 'Sharing is off',
-                  ),
-                  _SettingPill(
-                    label: event.isPrivate
-                        ? 'Invite-only event'
-                        : 'Public listing',
-                  ),
-                ],
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: context.palette.card,
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+              border: Border.all(
+                color: context.palette.border.withValues(alpha: 0.6),
               ),
+              boxShadow: VennuzoTheme.shadowResting,
+            ),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _SettingPill(
+                  label: event.sendPushNotification
+                      ? 'Push reminders available'
+                      : 'No push reminders',
+                ),
+                _SettingPill(
+                  label: event.sendSmsNotification
+                      ? 'SMS updates available'
+                      : 'No SMS updates',
+                ),
+                _SettingPill(
+                  label: event.allowSharing
+                      ? 'Sharing is on'
+                      : 'Sharing is off',
+                ),
+                _SettingPill(
+                  label: event.isPrivate
+                      ? 'Invite-only event'
+                      : 'Public listing',
+                ),
+              ],
             ),
           ),
           if (campaigns.isNotEmpty) ...[
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             SectionHeading(title: 'Updates from the host', subtitle: null),
             const SizedBox(height: 14),
             ...campaigns.map(
@@ -370,7 +442,7 @@ class EventDetailScreen extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           SectionHeading(title: 'Photos from this event', subtitle: null),
           const SizedBox(height: 14),
           EventPostsGrid(
@@ -654,6 +726,68 @@ class EventDetailScreen extends StatelessWidget {
   }
 }
 
+// ─── Action Pill Button ──────────────────────────────────────────────────────
+
+class _ActionPillButton extends StatelessWidget {
+  const _ActionPillButton({
+    required this.icon,
+    required this.label,
+    this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+            border: Border.all(
+              color: onPressed != null
+                  ? context.palette.border
+                  : context.palette.border.withValues(alpha: 0.4),
+            ),
+            color: context.palette.card,
+            boxShadow: VennuzoTheme.shadowResting,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: onPressed != null
+                    ? context.palette.slate
+                    : context.palette.muted,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: context.text.labelMedium?.copyWith(
+                  color: onPressed != null
+                      ? context.palette.ink
+                      : context.palette.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Hero Banner ─────────────────────────────────────────────────────────────
+
 class _HeroBanner extends StatelessWidget {
   const _HeroBanner({required this.event, this.campaign});
 
@@ -668,99 +802,156 @@ class _HeroBanner extends StatelessWidget {
         : 'From ${formatMoney(minPrice)}';
 
     return Container(
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            context.palette.primaryStart,
-            event.mood.colors.first.withValues(alpha: 0.92),
-            context.palette.primaryEnd,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
         boxShadow: [
           BoxShadow(
-            color: context.palette.primaryStart.withValues(alpha: 0.18),
-            blurRadius: 30,
-            offset: const Offset(0, 18),
+            color: event.mood.colors.first.withValues(alpha: 0.28),
+            blurRadius: 40,
+            offset: const Offset(0, 20),
+          ),
+          BoxShadow(
+            color: event.mood.colors.first.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -32,
-            right: -10,
-            child: Container(
-              width: 128,
-              height: 128,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+        child: SizedBox(
+          height: 280,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _HeroPill(
-                    label: event.isPrivate ? 'Invite only' : 'Public event',
-                  ),
-                  if (event.ticketing.enabled)
-                    _HeroPill(
-                      label: event.ticketing.requireTicket
-                          ? 'Ticket required'
-                          : 'RSVP or optional ticket',
+              // Generative art background
+              EventArtwork(
+                event: event,
+                height: 280,
+              ),
+              // Deep cinematic scrim for text legibility
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.3, 0.65, 1.0],
+                      colors: [
+                        Colors.black.withValues(alpha: 0.15),
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.38),
+                        Colors.black.withValues(alpha: 0.72),
+                      ],
                     ),
-                  if (campaign?.channels.contains(
-                        PromotionChannel.announcement,
-                      ) ??
-                      false)
-                    const _HeroPill(label: 'Live spotlight'),
-                ],
-              ),
-              const SizedBox(height: 22),
-              Text(
-                event.title,
-                style: context.text.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  height: 1.02,
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                event.description,
-                style: context.text.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
+              // Campaign badge overlay with glass-morphism
+              if (campaign?.channels
+                      .contains(PromotionChannel.announcement) ??
+                  false)
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius:
+                              BorderRadius.circular(VennuzoTheme.radiusMd),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 14,
+                              color: Colors.white.withValues(alpha: 0.95),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Spotlight',
+                              style: context.text.labelSmall?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _HeroMeta(label: '${event.venue}, ${event.city}'),
-                  _HeroMeta(label: formatShortDate(event.startDate)),
-                  _HeroMeta(label: priceLabel),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Text(
-                formatEventWindow(event.startDate, event.endDate),
-                style: context.text.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.88),
-                  fontWeight: FontWeight.w700,
+              // Content
+              Positioned(
+                left: 22,
+                right: 22,
+                bottom: 22,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _HeroPill(
+                          label: event.isPrivate
+                              ? 'Invite only'
+                              : 'Public event',
+                        ),
+                        if (event.ticketing.enabled)
+                          _HeroPill(
+                            label: event.ticketing.requireTicket
+                                ? 'Ticket required'
+                                : 'RSVP or optional ticket',
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      event.title,
+                      style: context.text.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        height: 1.05,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            blurRadius: 16,
+                          ),
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _HeroMeta(label: '${event.venue}, ${event.city}'),
+                        _HeroMeta(label: formatShortDate(event.startDate)),
+                        _HeroMeta(label: priceLabel),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -773,17 +964,27 @@ class _HeroPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: context.text.bodyMedium?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Text(
+            label,
+            style: context.text.labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
         ),
       ),
     );
@@ -798,21 +999,23 @@ class _HeroMeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
       ),
       child: Text(
         label,
-        style: context.text.bodyMedium?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
+        style: context.text.labelSmall?.copyWith(
+          color: Colors.white.withValues(alpha: 0.92),
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
+
+// ─── Premium Placement Panel ─────────────────────────────────────────────────
 
 class _PremiumPlacementPanel extends StatelessWidget {
   const _PremiumPlacementPanel({required this.event, required this.campaign});
@@ -829,42 +1032,138 @@ class _PremiumPlacementPanel extends StatelessWidget {
         'Fullscreen announcement',
     ];
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: placementLabels
-                  .map((label) => _SettingPill(label: label))
-                  .toList(),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'This event is currently in Vennuzo spotlight.',
-              style: context.text.titleLarge?.copyWith(fontSize: 20),
-            ),
-            const SizedBox(height: 8),
-            Text(campaign.message, style: context.text.bodyLarge),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _SettingPill(label: 'Budget ${formatMoney(campaign.budget)}'),
-                _SettingPill(label: '${event.likesCount} likes'),
-                _SettingPill(label: '${event.rsvpCount} RSVPs'),
-              ],
-            ),
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            context.palette.darkSurface,
+            context.palette.darkSurfaceMid,
+            context.palette.darkSurface.withValues(alpha: 0.95),
           ],
+        ),
+        boxShadow: VennuzoTheme.shadowElevated,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: VennuzoTheme.accentSoft.withValues(alpha: 0.18),
+                  borderRadius:
+                      BorderRadius.circular(VennuzoTheme.radiusSm),
+                ),
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 18,
+                  color: VennuzoTheme.accentSoft,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Vennuzo Spotlight',
+                  style: context.text.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: placementLabels
+                .map(
+                  (label) => Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius:
+                          BorderRadius.circular(VennuzoTheme.radiusFull),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      style: context.text.labelSmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'This event is currently in Vennuzo spotlight.',
+            style: context.text.titleLarge?.copyWith(
+              fontSize: 18,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            campaign.message,
+            style: context.text.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _DarkPill(label: 'Budget ${formatMoney(campaign.budget)}'),
+              _DarkPill(label: '${event.likesCount} likes'),
+              _DarkPill(label: '${event.rsvpCount} RSVPs'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DarkPill extends StatelessWidget {
+  const _DarkPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.10),
+        ),
+      ),
+      child: Text(
+        label,
+        style: context.text.labelSmall?.copyWith(
+          color: Colors.white.withValues(alpha: 0.75),
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
+
+// ─── Detail Row ──────────────────────────────────────────────────────────────
 
 class _DetailRow extends StatelessWidget {
   const _DetailRow({
@@ -884,15 +1183,28 @@ class _DetailRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: context.palette.slate),
-        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: context.palette.teal.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: context.palette.teal,
+          ),
+        ),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: context.text.titleLarge?.copyWith(fontSize: 18),
+                style: context.text.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 4),
               Text(resolvedBody, style: context.text.bodyMedium),
@@ -904,6 +1216,8 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
+// ─── Tier Card ───────────────────────────────────────────────────────────────
+
 class _TierCard extends StatelessWidget {
   const _TierCard({required this.tier, required this.currency});
 
@@ -912,49 +1226,71 @@ class _TierCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    tier.name,
-                    style: context.text.titleLarge?.copyWith(fontSize: 21),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.6),
+        ),
+        boxShadow: VennuzoTheme.shadowResting,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  tier.name,
+                  style: context.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: context.palette.teal.withValues(alpha: 0.08),
+                  borderRadius:
+                      BorderRadius.circular(VennuzoTheme.radiusFull),
+                ),
+                child: Text(
                   tier.price == 0
                       ? 'Free'
                       : '$currency ${tier.price.toStringAsFixed(2)}',
-                  style: context.text.titleLarge?.copyWith(fontSize: 18),
+                  style: context.text.titleSmall?.copyWith(
+                    color: context.palette.teal,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ],
-            ),
-            if (tier.description != null &&
-                tier.description!.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(tier.description!, style: context.text.bodyMedium),
+              ),
             ],
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _SettingPill(label: '${tier.sold} sold'),
-                _SettingPill(label: '${tier.remaining} remaining'),
-                if (tier.soldOut) _SettingPill(label: 'Sold out'),
-              ],
-            ),
+          ),
+          if (tier.description != null &&
+              tier.description!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(tier.description!, style: context.text.bodyMedium),
           ],
-        ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _SettingPill(label: '${tier.sold} sold'),
+              _SettingPill(label: '${tier.remaining} remaining'),
+              if (tier.soldOut) _SettingPill(label: 'Sold out'),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
+
+// ─── Setting Pill ────────────────────────────────────────────────────────────
 
 class _SettingPill extends StatelessWidget {
   const _SettingPill({required this.label});
@@ -964,18 +1300,33 @@ class _SettingPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: context.palette.canvas,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            context.palette.canvas,
+            context.palette.canvas.withValues(alpha: 0.7),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.5),
+        ),
       ),
       child: Text(
         label,
-        style: context.text.bodyMedium?.copyWith(color: context.palette.ink),
+        style: context.text.labelSmall?.copyWith(
+          color: context.palette.ink,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
 }
+
+// ─── Promotion Card ──────────────────────────────────────────────────────────
 
 class _PromotionCard extends StatelessWidget {
   const _PromotionCard({required this.campaign});
@@ -984,34 +1335,70 @@ class _PromotionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              campaign.name,
-              style: context.text.titleLarge?.copyWith(fontSize: 20),
-            ),
-            const SizedBox(height: 6),
-            Text(campaign.message, style: context.text.bodyMedium),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _SettingPill(label: '${campaign.pushAudience} push'),
-                _SettingPill(label: '${campaign.smsAudience} SMS'),
-                _SettingPill(label: formatPromoTime(campaign.scheduledAt)),
-              ],
-            ),
-          ],
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.6),
         ),
+        boxShadow: VennuzoTheme.shadowResting,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Accent gradient strip
+          Container(
+            width: 4,
+            constraints: const BoxConstraints(minHeight: 100),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  context.palette.teal,
+                  context.palette.coral,
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    campaign.name,
+                    style: context.text.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(campaign.message, style: context.text.bodyMedium),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _SettingPill(label: '${campaign.pushAudience} push'),
+                      _SettingPill(label: '${campaign.smsAudience} SMS'),
+                      _SettingPill(
+                          label: formatPromoTime(campaign.scheduledAt)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+// ─── Event Map Card ──────────────────────────────────────────────────────────
 
 class _EventMapCard extends StatelessWidget {
   const _EventMapCard({required this.event, required this.onOpenDirections});
@@ -1026,69 +1413,95 @@ class _EventMapCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: SizedBox(
-                height: 220,
-                width: double.infinity,
-                child: gmaps.GoogleMap(
-                  initialCameraPosition: gmaps.CameraPosition(
-                    target: gmaps.LatLng(location.latitude, location.longitude),
-                    zoom: 15,
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.6),
+        ),
+        boxShadow: VennuzoTheme.shadowResting,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(VennuzoTheme.radiusLg - 1),
+            ),
+            child: SizedBox(
+              height: 200,
+              width: double.infinity,
+              child: gmaps.GoogleMap(
+                initialCameraPosition: gmaps.CameraPosition(
+                  target:
+                      gmaps.LatLng(location.latitude, location.longitude),
+                  zoom: 15,
+                ),
+                markers: {
+                  gmaps.Marker(
+                    markerId: const gmaps.MarkerId('event_location'),
+                    position: gmaps.LatLng(
+                      location.latitude,
+                      location.longitude,
+                    ),
+                    infoWindow: gmaps.InfoWindow(
+                      title: event.venue,
+                      snippet: event.city,
+                    ),
                   ),
-                  markers: {
-                    gmaps.Marker(
-                      markerId: const gmaps.MarkerId('event_location'),
-                      position: gmaps.LatLng(
-                        location.latitude,
-                        location.longitude,
-                      ),
-                      infoWindow: gmaps.InfoWindow(
-                        title: event.venue,
-                        snippet: event.city,
+                },
+                liteModeEnabled: true,
+                zoomControlsEnabled: false,
+                mapToolbarEnabled: false,
+                compassEnabled: false,
+                myLocationButtonEnabled: false,
+                scrollGesturesEnabled: false,
+                rotateGesturesEnabled: false,
+                tiltGesturesEnabled: false,
+                zoomGesturesEnabled: false,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.venue,
+                  style: context.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(location.address, style: context.text.bodyMedium),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onOpenDirections,
+                    icon: const Icon(Icons.directions_outlined),
+                    label: const Text('Open directions'),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(VennuzoTheme.radiusMd),
                       ),
                     ),
-                  },
-                  liteModeEnabled: true,
-                  zoomControlsEnabled: false,
-                  mapToolbarEnabled: false,
-                  compassEnabled: false,
-                  myLocationButtonEnabled: false,
-                  scrollGesturesEnabled: false,
-                  rotateGesturesEnabled: false,
-                  tiltGesturesEnabled: false,
-                  zoomGesturesEnabled: false,
+                  ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 14),
-            Text(
-              event.venue,
-              style: context.text.titleLarge?.copyWith(fontSize: 20),
-            ),
-            const SizedBox(height: 6),
-            Text(location.address, style: context.text.bodyMedium),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onOpenDirections,
-                icon: const Icon(Icons.directions_outlined),
-                label: const Text('Open directions'),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
+
+// ─── RSVP Sheet ──────────────────────────────────────────────────────────────
 
 class _RsvpSheet extends StatefulWidget {
   const _RsvpSheet({required this.event});
@@ -1123,9 +1536,11 @@ class _RsvpSheetState extends State<_RsvpSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFFDF8F2),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(VennuzoTheme.radiusXl),
+        ),
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -1162,7 +1577,9 @@ class _RsvpSheetState extends State<_RsvpSheet> {
                 const SizedBox(height: 18),
                 Text(
                   'Guest count',
-                  style: context.text.titleLarge?.copyWith(fontSize: 20),
+                  style: context.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -1228,6 +1645,8 @@ class _RsvpSheetState extends State<_RsvpSheet> {
   }
 }
 
+// ─── Checkout Sheet ──────────────────────────────────────────────────────────
+
 class _CheckoutSheet extends StatefulWidget {
   const _CheckoutSheet({required this.event});
 
@@ -1263,9 +1682,11 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFFDF8F2),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(VennuzoTheme.radiusXl),
+        ),
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -1293,11 +1714,15 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                   (tier) => Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: const Color(0x1410212A)),
+                        color: context.palette.card,
+                        borderRadius:
+                            BorderRadius.circular(VennuzoTheme.radiusLg),
+                        border: Border.all(
+                          color: context.palette.border.withValues(alpha: 0.6),
+                        ),
+                        boxShadow: VennuzoTheme.shadowResting,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1310,8 +1735,9 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                                   children: [
                                     Text(
                                       tier.name,
-                                      style: context.text.titleLarge?.copyWith(
-                                        fontSize: 20,
+                                      style:
+                                          context.text.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -1319,7 +1745,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                                       tier.price == 0
                                           ? 'Free or pay at door'
                                           : formatMoney(tier.price),
-                                      style: context.text.bodyLarge,
+                                      style: context.text.bodyMedium,
                                     ),
                                   ],
                                 ),
@@ -1373,7 +1799,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                           const SizedBox(height: 10),
                           Text(
                             '${tier.remaining} remaining',
-                            style: context.text.bodyMedium,
+                            style: context.text.bodySmall,
                           ),
                         ],
                       ),
@@ -1386,14 +1812,17 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
                     color: context.palette.canvas,
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius:
+                        BorderRadius.circular(VennuzoTheme.radiusLg),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Summary',
-                        style: context.text.titleLarge?.copyWith(fontSize: 20),
+                        style: context.text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -1506,6 +1935,8 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
   }
 }
 
+// ─── Checkout Result ─────────────────────────────────────────────────────────
+
 class _CheckoutResult {
   const _CheckoutResult({
     required this.order,
@@ -1541,6 +1972,8 @@ class _CheckoutResult {
   final String? checkoutUrl;
 }
 
+// ─── Report Payload ──────────────────────────────────────────────────────────
+
 class _EventReportPayload {
   const _EventReportPayload({
     required this.reason,
@@ -1552,6 +1985,8 @@ class _EventReportPayload {
   final String details;
   final String? email;
 }
+
+// ─── Report Event Sheet ──────────────────────────────────────────────────────
 
 class _ReportEventSheet extends StatefulWidget {
   const _ReportEventSheet({required this.eventTitle, required this.email});
@@ -1593,9 +2028,11 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFFDF8F2),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(VennuzoTheme.radiusXl),
+        ),
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -1678,7 +2115,7 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
   }
 }
 
-// ─── Rating Row ───────────────────────────────────────────────────────────────
+// ─── Rating Row ──────────────────────────────────────────────────────────────
 
 class _RatingRow extends StatelessWidget {
   const _RatingRow({
@@ -1702,39 +2139,51 @@ class _RatingRow extends StatelessWidget {
               .map((list) => list.length),
           builder: (context, reviewSnap) {
             final count = reviewSnap.data ?? 0;
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: context.palette.card,
+                borderRadius:
+                    BorderRadius.circular(VennuzoTheme.radiusLg),
+                border: Border.all(
+                  color: context.palette.border.withValues(alpha: 0.6),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
+                boxShadow: VennuzoTheme.shadowResting,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.12),
+                      borderRadius:
+                          BorderRadius.circular(VennuzoTheme.radiusSm),
+                    ),
+                    child: const Icon(
+                      Icons.star_rounded,
                       color: Color(0xFFFFD700),
-                      size: 20,
+                      size: 22,
                     ),
-                    const SizedBox(width: 8),
+                  ),
+                  const SizedBox(width: 14),
+                  Text(
+                    hasRatings
+                        ? avg.toStringAsFixed(1)
+                        : 'No reviews yet',
+                    style: context.text.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (hasRatings) ...[
+                    const SizedBox(width: 6),
                     Text(
-                      hasRatings
-                          ? avg.toStringAsFixed(1)
-                          : 'No reviews yet',
-                      style: context.text.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                      '($count review${count != 1 ? 's' : ''})',
+                      style: context.text.bodyMedium?.copyWith(
+                        color: context.palette.slate,
                       ),
                     ),
-                    if (hasRatings) ...[
-                      const SizedBox(width: 4),
-                      Text(
-                        '($count review${count != 1 ? 's' : ''})',
-                        style: context.text.bodyMedium?.copyWith(
-                          color: context.palette.slate,
-                        ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
             );
           },

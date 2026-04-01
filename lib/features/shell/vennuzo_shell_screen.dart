@@ -1,8 +1,11 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../widgets/vennuzo_motion.dart';
 import '../account/account_screen.dart';
 import '../discover/discover_screen.dart';
@@ -59,54 +62,77 @@ class _VennuzoShellScreenState extends State<VennuzoShellScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(26),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1A10212A),
-                blurRadius: 28,
-                offset: Offset(0, 14),
+      bottomNavigationBar: _FrostedBottomNav(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+      ),
+    );
+  }
+}
+
+/// Frosted glass bottom navigation — inspired by Apple + Ticketmaster.
+class _FrostedBottomNav extends StatelessWidget {
+  const _FrostedBottomNav({
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+                border: Border.all(
+                  color: palette.border.withValues(alpha: 0.3),
+                ),
+                boxShadow: VennuzoTheme.shadowFloating,
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(26),
-            child: BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: (index) => setState(() => _currentIndex = index),
-              showUnselectedLabels: true,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.explore_outlined),
-                  activeIcon: Icon(Icons.explore),
-                  label: 'Explore',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.people_outline),
-                  activeIcon: Icon(Icons.people),
-                  label: 'Social',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.edit_calendar_outlined),
-                  activeIcon: Icon(Icons.edit_calendar),
-                  label: 'Host',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.confirmation_num_outlined),
-                  activeIcon: Icon(Icons.confirmation_num),
-                  label: 'Passes',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.campaign_outlined),
-                  activeIcon: Icon(Icons.campaign),
-                  label: 'Reach',
-                ),
-              ],
+              child: BottomNavigationBar(
+                currentIndex: currentIndex,
+                onTap: onTap,
+                showUnselectedLabels: true,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.explore_outlined),
+                    activeIcon: Icon(Icons.explore),
+                    label: 'Explore',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.people_outline),
+                    activeIcon: Icon(Icons.people),
+                    label: 'Social',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.edit_calendar_outlined),
+                    activeIcon: Icon(Icons.edit_calendar),
+                    label: 'Host',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.confirmation_num_outlined),
+                    activeIcon: Icon(Icons.confirmation_num),
+                    label: 'Passes',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.campaign_outlined),
+                    activeIcon: Icon(Icons.campaign),
+                    label: 'Reach',
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -115,6 +141,7 @@ class _VennuzoShellScreenState extends State<VennuzoShellScreen> {
   }
 }
 
+/// Top bar with frosted glass, compact profile, and workspace badge.
 class _ShellTopBar extends StatelessWidget {
   const _ShellTopBar({
     required this.badgeLabel,
@@ -139,106 +166,128 @@ class _ShellTopBar extends StatelessWidget {
     final palette = context.palette;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: VennuzoReveal(
         delay: const Duration(milliseconds: 50),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.82),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0x14FFFFFF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x12121E31),
-                blurRadius: 20,
-                offset: Offset(0, 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+                border: Border.all(
+                  color: palette.border.withValues(alpha: 0.25),
+                ),
+                boxShadow: VennuzoTheme.shadowElevated,
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      palette.gold.withValues(alpha: 0.22),
-                      palette.coral.withValues(alpha: 0.14),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  badgeLabel,
-                  style: context.text.bodyMedium?.copyWith(
-                    color: palette.ink,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isGuest ? 'Explore' : viewerName,
-                      style: context.text.bodyLarge?.copyWith(
+              child: Row(
+                children: [
+                  // Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          palette.teal.withValues(alpha: 0.12),
+                          palette.coral.withValues(alpha: 0.08),
+                        ],
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(VennuzoTheme.radiusFull),
+                    ),
+                    child: Text(
+                      badgeLabel,
+                      style: context.text.labelSmall?.copyWith(
                         color: palette.ink,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              if (isBusy)
-                const Padding(
-                  padding: EdgeInsets.only(left: 10),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.2),
                   ),
-                ),
-              if (canSwitchWorkspace)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: IconButton.filledTonal(
-                    onPressed: onSwitchWorkspace,
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.swap_horiz_outlined),
-                    tooltip: 'Switch workspace',
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: IconButton.filledTonal(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const AccountScreen(),
+                  const SizedBox(width: 10),
+                  // Name
+                  Expanded(
+                    child: Text(
+                      isGuest ? 'Explore' : viewerName,
+                      style: context.text.titleSmall?.copyWith(
+                        color: palette.ink,
                       ),
-                    );
-                  },
-                  visualDensity: VisualDensity.compact,
-                  icon: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.transparent,
-                    foregroundImage: photoUrl != null
-                        ? NetworkImage(photoUrl!)
-                        : null,
-                    child: photoUrl == null
-                        ? const Icon(Icons.person_outline)
-                        : null,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  tooltip: 'Account',
-                ),
+                  if (isBusy)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  if (canSwitchWorkspace)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: IconButton(
+                        onPressed: onSwitchWorkspace,
+                        visualDensity: VisualDensity.compact,
+                        style: IconButton.styleFrom(
+                          backgroundColor: palette.canvas,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.swap_horiz_outlined,
+                          size: 20,
+                          color: palette.ink,
+                        ),
+                        tooltip: 'Switch workspace',
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const AccountScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: palette.border.withValues(alpha: 0.5),
+                          ),
+                          image: photoUrl != null
+                              ? DecorationImage(
+                                  image: NetworkImage(photoUrl!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                          color: palette.canvas,
+                        ),
+                        child: photoUrl == null
+                            ? Icon(
+                                Icons.person_outline,
+                                size: 18,
+                                color: palette.slate,
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -246,6 +295,7 @@ class _ShellTopBar extends StatelessWidget {
   }
 }
 
+/// Refined ambient backdrop with subtle gradients.
 class _Backdrop extends StatelessWidget {
   const _Backdrop();
 
@@ -255,37 +305,48 @@ class _Backdrop extends StatelessWidget {
 
     return Stack(
       children: [
+        // Base gradient
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  palette.teal.withValues(alpha: 0.03),
+                  palette.canvas,
+                  palette.coral.withValues(alpha: 0.02),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ),
+            ),
+          ),
+        ),
+        // Top-right ambient glow
         Positioned(
-          top: -120,
+          top: -80,
           right: -40,
-          child: _Blob(
-            size: 280,
-            colors: [
-              palette.coral.withValues(alpha: 0.18),
-              palette.gold.withValues(alpha: 0.08),
-            ],
+          child: _AmbientOrb(
+            size: 260,
+            color: palette.coral.withValues(alpha: 0.08),
           ),
         ),
+        // Top-left cool glow
         Positioned(
-          top: 160,
-          left: -70,
-          child: _Blob(
-            size: 190,
-            colors: [
-              palette.gold.withValues(alpha: 0.12),
-              Colors.white.withValues(alpha: 0.02),
-            ],
+          top: -40,
+          left: -60,
+          child: _AmbientOrb(
+            size: 200,
+            color: palette.teal.withValues(alpha: 0.06),
           ),
         ),
+        // Bottom ambient
         Positioned(
-          bottom: 100,
-          left: -90,
-          child: _Blob(
-            size: 240,
-            colors: [
-              palette.teal.withValues(alpha: 0.16),
-              palette.canvas.withValues(alpha: 0.04),
-            ],
+          bottom: 40,
+          left: -40,
+          child: _AmbientOrb(
+            size: 220,
+            color: palette.gold.withValues(alpha: 0.05),
           ),
         ),
       ],
@@ -293,11 +354,11 @@ class _Backdrop extends StatelessWidget {
   }
 }
 
-class _Blob extends StatelessWidget {
-  const _Blob({required this.size, required this.colors});
+class _AmbientOrb extends StatelessWidget {
+  const _AmbientOrb({required this.size, required this.color});
 
   final double size;
-  final List<Color> colors;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -307,7 +368,9 @@ class _Blob extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(colors: colors),
+          gradient: RadialGradient(
+            colors: [color, color.withValues(alpha: 0.0)],
+          ),
         ),
       ),
     );

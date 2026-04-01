@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../core/art/art_seed.dart';
+import '../../core/art/event_art_widget.dart';
+import '../../core/art/mood_art_palette.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../domain/models/event_models.dart';
 
 class VennuzoOnboardingScreen extends StatefulWidget {
   const VennuzoOnboardingScreen({super.key, required this.onFinished});
@@ -21,9 +25,9 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
   static const _slides = [
     _OnboardingSlideData(
       badge: 'Discover',
-      title: 'Find what’s next',
+      title: 'Find what\u2019s next',
       body:
-          'Browse events near you—concerts, parties, meetups. Curated so you don’t miss the good ones.',
+          'Browse events near you\u2014concerts, parties, meetups. Curated so you don\u2019t miss the good ones.',
       statLabel: 'Curated picks',
       statValue: 'One place for events',
       accent: _SlideAccent.primary,
@@ -33,7 +37,7 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
       badge: 'Attend',
       title: 'Get in fast',
       body:
-          'Book tickets in one flow. Instant confirmation and easy checkout so you’re in without the hassle.',
+          'Book tickets in one flow. Instant confirmation and easy checkout so you\u2019re in without the hassle.',
       statLabel: 'Ticketing',
       statValue: 'Simple & quick',
       accent: _SlideAccent.accent,
@@ -43,7 +47,7 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
       badge: 'Connect',
       title: 'Stay in the loop',
       body:
-          'Share with friends and get updates from organizers. Events are better when you’re connected.',
+          'Share with friends and get updates from organizers. Events are better when you\u2019re connected.',
       statLabel: 'Experience',
       statValue: 'Social by design',
       accent: _SlideAccent.secondary,
@@ -68,9 +72,9 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 720;
-          final heroHeight = compact ? 200.0 : 240.0;
-          final paddingH = compact ? 20.0 : 24.0;
-          final paddingV = compact ? 16.0 : 24.0;
+          final heroHeight = compact ? 220.0 : 260.0;
+          final paddingH = compact ? 22.0 : 28.0;
+          final paddingV = compact ? 18.0 : 28.0;
 
           return AnimatedContainer(
             duration: const Duration(milliseconds: 400),
@@ -80,7 +84,7 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
                 colors: [
                   palette.canvas,
                   Colors.white,
-                  accent.withValues(alpha: 0.06),
+                  accent.withValues(alpha: 0.05),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -92,20 +96,21 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
                   paddingH,
                   paddingV,
                   paddingH,
-                  compact ? 20 : 28,
+                  compact ? 22 : 32,
                 ),
                 child: Column(
                   children: [
                     _OnboardingHeader(
                       onSkip: _isFinishing ? null : _finish,
                     ),
-                    SizedBox(height: compact ? 20 : 28),
+                    SizedBox(height: compact ? 24 : 32),
                     _OnboardingHero(
                       slide: slide,
                       height: heroHeight,
                       compact: compact,
+                      slideIndex: _currentIndex,
                     ),
-                    SizedBox(height: compact ? 20 : 24),
+                    SizedBox(height: compact ? 24 : 28),
                     Expanded(
                       child: PageView.builder(
                         controller: _pageController,
@@ -121,40 +126,58 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
                         },
                       ),
                     ),
-                    SizedBox(height: compact ? 16 : 20),
+                    SizedBox(height: compact ? 18 : 24),
                     _PageIndicator(
                       count: _slides.length,
                       current: _currentIndex,
                       accent: accent,
                       palette: palette,
                     ),
-                    SizedBox(height: compact ? 20 : 24),
-                    FilledButton(
-                      onPressed: _isFinishing
-                          ? null
-                          : isLast
-                              ? _finish
-                              : _next,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                    SizedBox(height: compact ? 24 : 28),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.circular(VennuzoTheme.radiusMd),
+                        gradient: LinearGradient(
+                          colors: [
+                            palette.primaryStart,
+                            palette.primaryMid,
+                            palette.primaryEnd,
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
                         ),
                       ),
-                      child: Text(
-                        _isFinishing
-                            ? 'Opening Vennuzo...'
+                      child: FilledButton(
+                        onPressed: _isFinishing
+                            ? null
                             : isLast
-                                ? 'Start exploring'
-                                : 'Continue',
+                                ? _finish
+                                : _next,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 54),
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(VennuzoTheme.radiusMd),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        child: Text(
+                          _isFinishing
+                              ? 'Opening Vennuzo...'
+                              : isLast
+                                  ? 'Start exploring'
+                                  : 'Continue',
+                        ),
                       ),
                     ),
                     if (!isLast) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       TextButton(
                         onPressed: _isFinishing ? null : _finish,
                         child: Text(
@@ -203,17 +226,11 @@ class _OnboardingHeader extends StatelessWidget {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: palette.primaryStart.withValues(alpha: 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+            boxShadow: VennuzoTheme.shadowResting,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -256,78 +273,95 @@ class _OnboardingHero extends StatelessWidget {
     required this.slide,
     required this.height,
     required this.compact,
+    required this.slideIndex,
   });
 
   final _OnboardingSlideData slide;
   final double height;
   final bool compact;
+  final int slideIndex;
+
+  // Vibrant palettes per slide -- hand-tuned for visual punch
+  static const _slidePalettes = [
+    // Discover -- indigo / electric blue
+    MoodArtPalette(
+      base: Color(0xFF1A1A5E),
+      mid: Color(0xFF4F46E5),
+      highlight: Color(0xFF818CF8),
+      pop: Color(0xFF06B6D4),
+      overlay: Color(0xFF312E81),
+      accent: Color(0xFFC7D2FE),
+    ),
+    // Attend -- coral / warm rose
+    MoodArtPalette(
+      base: Color(0xFF7F1D1D),
+      mid: Color(0xFFF43F5E),
+      highlight: Color(0xFFFB7185),
+      pop: Color(0xFFFBBF24),
+      overlay: Color(0xFF9F1239),
+      accent: Color(0xFFFFE4E6),
+    ),
+    // Connect -- violet / purple
+    MoodArtPalette(
+      base: Color(0xFF3B0764),
+      mid: Color(0xFF8B5CF6),
+      highlight: Color(0xFFA78BFA),
+      pop: Color(0xFFF472B6),
+      overlay: Color(0xFF581C87),
+      accent: Color(0xFFEDE9FE),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-    final accent = slide.resolveAccent(palette);
+    final artPalette = _slidePalettes[slideIndex % _slidePalettes.length];
+    final moods = [EventMood.night, EventMood.sunrise, EventMood.electric];
+    final artMood = moods[slideIndex % moods.length];
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeOutCubic,
       height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: 0.2),
-            blurRadius: 32,
-            offset: const Offset(0, 12),
+            color: artPalette.mid.withValues(alpha: 0.35),
+            blurRadius: 36,
+            offset: const Offset(0, 14),
           ),
           BoxShadow(
-            color: VennuzoTheme.shadow.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: VennuzoTheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // Generative art with vibrant palette -- deeper intensity
+            GenerativeArt(
+              seed: ArtSeed.combine(slideIndex * 9973, 77731),
+              mood: artMood,
+              palette: artPalette,
+              height: height,
+              intensity: 1.4,
+            ),
+            // Richer scrim for depth
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                   colors: [
-                    accent,
-                    accent.withValues(alpha: 0.85),
-                    HSLColor.fromColor(accent)
-                        .withLightness(0.45)
-                        .withSaturation(0.5)
-                        .toColor(),
+                    Colors.black.withValues(alpha: 0.05),
+                    Colors.black.withValues(alpha: 0.15),
+                    Colors.black.withValues(alpha: 0.35),
                   ],
-                ),
-              ),
-            ),
-            Positioned(
-              top: -40,
-              right: -40,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.12),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -60,
-              left: -40,
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.08),
+                  stops: const [0.0, 0.5, 1.0],
                 ),
               ),
             ),
@@ -335,26 +369,36 @@ class _OnboardingHero extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Icon above text
                   Container(
-                    width: compact ? 80 : 96,
-                    height: compact ? 80 : 96,
+                    width: compact ? 64 : 76,
+                    height: compact ? 64 : 76,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(24),
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
                     ),
                     child: Icon(
                       slide.icon,
-                      size: compact ? 40 : 48,
+                      size: compact ? 32 : 38,
                       color: Colors.white,
                     ),
                   ),
                   SizedBox(height: compact ? 14 : 18),
                   Text(
                     slide.badge,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 14,
+                            ),
+                          ],
                         ),
                   ),
                 ],
@@ -386,19 +430,22 @@ class _PageIndicator extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
         count,
-        (index) => AnimatedContainer(
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-          margin: EdgeInsets.only(right: index == count - 1 ? 0 : 10),
-          width: index == current ? 28 : 10,
-          height: 10,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            color: index == current
-                ? accent
-                : palette.ink.withValues(alpha: 0.18),
-          ),
-        ),
+        (index) {
+          final isActive = index == current;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            margin: EdgeInsets.only(right: index == count - 1 ? 0 : 10),
+            width: isActive ? 32 : 8,
+            height: 8,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+              color: isActive
+                  ? accent
+                  : palette.ink.withValues(alpha: 0.14),
+            ),
+          );
+        },
       ),
     );
   }
@@ -417,7 +464,7 @@ class _OnboardingSlide extends StatelessWidget {
 
     return SingleChildScrollView(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 8),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -435,24 +482,32 @@ class _OnboardingSlide extends StatelessWidget {
                 letterSpacing: -0.3,
               ),
             ),
-            SizedBox(height: compact ? 10 : 14),
+            SizedBox(height: compact ? 12 : 16),
             Text(
               item.body,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: palette.slate,
-                    height: 1.5,
+                    height: 1.55,
                     fontSize: compact ? 15 : 16,
                   ),
             ),
-            SizedBox(height: compact ? 20 : 24),
+            SizedBox(height: compact ? 22 : 28),
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(compact ? 18 : 22),
+              padding: EdgeInsets.all(compact ? 20 : 24),
               decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: [
+                    accent.withValues(alpha: 0.07),
+                    accent.withValues(alpha: 0.03),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius:
+                    BorderRadius.circular(VennuzoTheme.radiusLg),
                 border: Border.all(
-                  color: accent.withValues(alpha: 0.2),
+                  color: accent.withValues(alpha: 0.16),
                   width: 1,
                 ),
               ),
@@ -464,15 +519,21 @@ class _OnboardingSlide extends StatelessWidget {
                       children: [
                         Text(
                           item.statLabel,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
                                 color: palette.slate,
                                 fontWeight: FontWeight.w600,
                               ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           item.statValue,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(
                                 fontSize: compact ? 18 : 20,
                                 fontWeight: FontWeight.w800,
                                 color: palette.ink,
@@ -482,11 +543,10 @@ class _OnboardingSlide extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(15),
                       boxShadow: [
                         BoxShadow(
                           color: VennuzoTheme.shadow.withValues(alpha: 0.08),
@@ -495,7 +555,14 @@ class _OnboardingSlide extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: Icon(item.icon, color: accent, size: 26),
+                    child: GenerativeArt(
+                      seed: ArtSeed.combine(item.badge.hashCode, 55337),
+                      mood: EventMood.night,
+                      palette: MoodArtPalette.fromAccent(accent),
+                      height: 50,
+                      width: 50,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
                   ),
                 ],
               ),

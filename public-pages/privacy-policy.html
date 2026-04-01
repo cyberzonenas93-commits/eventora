@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Vennuzo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #5B4CFF;
+            --primary-mid: #8B5CF6;
+            --primary-end: #FF3366;
+            --bg: #F5F5F7;
+            --surface: #FFFFFF;
+            --dark: #0F0F14;
+            --dark-mid: #1A1A24;
+            --text: #0F0F14;
+            --text-secondary: #64648C;
+            --text-muted: #9494B8;
+            --border: #E8E8F0;
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 22px;
+            --radius-xl: 28px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Hero header ─────────────────────────────── */
+        header {
+            background: linear-gradient(145deg, var(--dark) 0%, var(--dark-mid) 40%, #1a0f3a 100%);
+            color: #fff;
+            padding: 80px 24px 72px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        header::before {
+            content: '';
+            position: absolute;
+            top: -100px; right: -60px;
+            width: 280px; height: 280px;
+            background: radial-gradient(circle, rgba(91,76,255,0.2) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: -60px; left: -40px;
+            width: 200px; height: 200px;
+            background: radial-gradient(circle, rgba(255,51,102,0.12) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        header h1 {
+            font-family: 'Sora', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        header p {
+            font-size: 1.05rem;
+            color: rgba(255,255,255,0.7);
+            position: relative;
+        }
+
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+
+        /* ── Effective date badge ─────────────────────── */
+        .effective {
+            background: var(--surface);
+            border-left: 4px solid var(--primary);
+            padding: 16px 22px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 36px;
+            margin-top: -32px;
+            position: relative;
+            z-index: 2;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            box-shadow: 0 4px 20px rgba(15,15,20,0.06);
+        }
+        .effective strong { color: var(--text); }
+
+        /* ── Headings ─────────────────────────────────── */
+        h2 {
+            font-family: 'Sora', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-top: 44px;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            letter-spacing: -0.02em;
+        }
+        h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 1.1em;
+            background: linear-gradient(180deg, var(--primary), var(--primary-mid));
+            border-radius: 2px;
+            margin-right: 12px;
+            vertical-align: middle;
+        }
+        h3 {
+            font-family: 'Sora', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        /* ── Body text ────────────────────────────────── */
+        p, li {
+            font-size: 0.93rem;
+            color: var(--text-secondary);
+            line-height: 1.75;
+        }
+        p { margin-bottom: 14px; }
+        ul {
+            margin: 8px 0 18px 24px;
+        }
+        li { margin-bottom: 8px; }
+        li strong { color: var(--text); }
+        a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; }
+
+        /* ── Footer ───────────────────────────────────── */
+        footer {
+            text-align: center;
+            padding: 36px 24px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Vennuzo Privacy Policy</h1>
+    <p>Your privacy matters to us</p>
+</header>
+<div class="container">
+    <div class="effective">
+        <strong>Effective Date:</strong> March 25, 2026 &nbsp;|&nbsp; <strong>Bundle ID:</strong> com.vennuzo.app
+    </div>
+
+    <h2>1. Introduction</h2>
+    <p>Welcome to Vennuzo. This Privacy Policy explains how Vennuzo ("we," "us," or "our") collects, uses, stores, and shares your personal information when you use the Vennuzo mobile application and related services (collectively, the "Service"). By using the Service, you agree to the practices described in this policy.</p>
+    <p>Vennuzo is an event discovery, ticketing, and management platform. You may browse events as a guest, but certain features require an account.</p>
+
+    <h2>2. Information We Collect</h2>
+
+    <h3>2.1 Information You Provide</h3>
+    <ul>
+        <li><strong>Account information:</strong> Name, email address, phone number, and profile photo when you create an account.</li>
+        <li><strong>Authentication data:</strong> Credentials used through email/password, Google Sign-In, or Apple Sign-In.</li>
+        <li><strong>Event interaction data:</strong> RSVPs, ticket purchases, saved events, and event preferences.</li>
+        <li><strong>Payment information:</strong> Transaction details processed through our payment provider, Hubtel. We do not store your full payment card details on our servers.</li>
+        <li><strong>Communications:</strong> Messages you send to us through support channels.</li>
+        <li><strong>Marketing preferences:</strong> Your opt-in or opt-out choices for promotional communications.</li>
+    </ul>
+
+    <h3>2.2 Information Collected Automatically</h3>
+    <ul>
+        <li><strong>Location data:</strong> With your permission, we collect your device location to show nearby events and provide location-based recommendations.</li>
+        <li><strong>Device information:</strong> Device type, operating system version, unique device identifiers, and app version.</li>
+        <li><strong>Push notification tokens:</strong> Tokens used to deliver push notifications to your device when you grant permission.</li>
+        <li><strong>Usage data:</strong> How you interact with the app, including pages viewed, features used, and session duration.</li>
+        <li><strong>Log data:</strong> IP address, access times, and crash reports for debugging and improvement.</li>
+    </ul>
+
+    <h2>3. How We Use Your Information</h2>
+    <p>We use the information we collect to:</p>
+    <ul>
+        <li>Provide, maintain, and improve the Service.</li>
+        <li>Process ticket purchases and manage event RSVPs.</li>
+        <li>Show nearby and relevant events based on your location and preferences.</li>
+        <li>Send transactional notifications (e.g., ticket confirmations, event reminders).</li>
+        <li>Send promotional communications if you have opted in.</li>
+        <li>Authenticate your identity and secure your account.</li>
+        <li>Analyze usage patterns to improve user experience.</li>
+        <li>Detect, prevent, and address fraud or technical issues.</li>
+        <li>Comply with legal obligations.</li>
+    </ul>
+
+    <h2>4. Third-Party Services</h2>
+    <p>Vennuzo integrates with the following third-party services, each governed by their own privacy policies:</p>
+    <ul>
+        <li><strong>Firebase (Google):</strong> We use Firebase for authentication, cloud storage, real-time database, analytics, crash reporting, and push notifications. <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase Privacy Policy</a>.</li>
+        <li><strong>Google Maps Platform:</strong> Used to display event locations and provide location-based features. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>.</li>
+        <li><strong>Hubtel:</strong> Handles payment processing for ticket purchases. Your payment details are transmitted directly to Hubtel and are subject to <a href="https://hubtel.com/privacy" target="_blank" rel="noopener">Hubtel's Privacy Policy</a>.</li>
+        <li><strong>Google Sign-In:</strong> If you choose to sign in with Google, we receive your name, email address, and profile photo from your Google account.</li>
+        <li><strong>Apple Sign-In:</strong> If you choose to sign in with Apple, we receive your name and email address (or a relay email if you use Hide My Email).</li>
+    </ul>
+
+    <h2>5. Data Sharing and Disclosure</h2>
+    <p>We do not sell your personal information. We may share information in the following circumstances:</p>
+    <ul>
+        <li><strong>Event organizers:</strong> When you purchase a ticket or RSVP, the event organizer receives your name and contact information necessary to manage attendance.</li>
+        <li><strong>Service providers:</strong> We share data with trusted third-party providers who help us operate the Service (hosting, analytics, payment processing), under strict confidentiality obligations.</li>
+        <li><strong>Legal requirements:</strong> We may disclose information if required by law, regulation, legal process, or governmental request.</li>
+        <li><strong>Business transfers:</strong> In the event of a merger, acquisition, or sale of assets, your data may be transferred as part of the transaction.</li>
+        <li><strong>With your consent:</strong> We may share information for other purposes when you provide explicit consent.</li>
+    </ul>
+
+    <h2>6. Data Storage and Security</h2>
+    <p>Your data is stored on Firebase servers managed by Google, which employs industry-standard encryption and security practices. We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.</p>
+    <p>While we strive to protect your data, no method of transmission over the internet or electronic storage is completely secure. We cannot guarantee absolute security.</p>
+
+    <h2>7. Data Retention</h2>
+    <p>We retain your personal information for as long as your account is active or as needed to provide the Service. If you delete your account, we will delete or anonymize your personal data within 30 days, except where we are required to retain it for legal, accounting, or regulatory purposes.</p>
+
+    <h2>8. Your Rights</h2>
+    <p>Depending on your location, you may have the following rights regarding your personal data:</p>
+    <ul>
+        <li><strong>Access:</strong> Request a copy of the personal data we hold about you.</li>
+        <li><strong>Correction:</strong> Request correction of inaccurate or incomplete data.</li>
+        <li><strong>Deletion:</strong> Request deletion of your personal data. You can delete your account directly within the app under account settings.</li>
+        <li><strong>Portability:</strong> Request a copy of your data in a structured, machine-readable format.</li>
+        <li><strong>Withdraw consent:</strong> Withdraw consent for data processing at any time, where processing is based on consent.</li>
+        <li><strong>Opt-out:</strong> Opt out of marketing communications at any time through the app settings or by contacting us.</li>
+    </ul>
+    <p>To exercise any of these rights, contact us at <a href="mailto:support@vennuzo.com">support@vennuzo.com</a>.</p>
+
+    <h2>9. Account Deletion</h2>
+    <p>You can request deletion of your Vennuzo account at any time through the in-app account settings. Upon deletion:</p>
+    <ul>
+        <li>Your profile information, preferences, and saved events will be permanently removed.</li>
+        <li>Completed transaction records may be retained for legal and financial compliance purposes.</li>
+        <li>Data will be fully deleted or anonymized within 30 days of your request.</li>
+    </ul>
+
+    <h2>10. Location Data</h2>
+    <p>Vennuzo requests access to your device location to show nearby events. Location access is optional and can be revoked at any time through your device settings. When location access is disabled, you can still browse events manually but will not receive location-based recommendations.</p>
+
+    <h2>11. Push Notifications</h2>
+    <p>We use push notifications to send event reminders, ticket confirmations, and promotional updates (if opted in). You can manage notification preferences in the app settings or through your device settings at any time.</p>
+
+    <h2>12. Cookies and Tracking</h2>
+    <p>The Vennuzo mobile app does not use browser cookies. However, our third-party service providers (such as Firebase Analytics) may use device identifiers and similar technologies to collect usage data. You can limit ad tracking through your device settings.</p>
+
+    <h2>13. Children's Privacy</h2>
+    <p>Vennuzo is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13. If we learn that we have collected data from a child under 13, we will take steps to delete it promptly. If you believe a child has provided us with personal information, please contact us at <a href="mailto:support@vennuzo.com">support@vennuzo.com</a>.</p>
+
+    <h2>14. International Data Transfers</h2>
+    <p>Your data may be processed and stored in countries outside your country of residence, including the United States (where Firebase servers are located). By using the Service, you consent to such transfers. We ensure that appropriate safeguards are in place to protect your data in accordance with this policy.</p>
+
+    <h2>15. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. We will notify you of material changes by posting a notice in the app or sending you a notification. Your continued use of the Service after changes become effective constitutes acceptance of the updated policy.</p>
+
+    <h2>16. Contact Us</h2>
+    <p>If you have questions, concerns, or requests regarding this Privacy Policy or our data practices, contact us at:</p>
+    <p>
+        <strong>Vennuzo</strong><br>
+        Email: <a href="mailto:support@vennuzo.com">support@vennuzo.com</a>
+    </p>
+</div>
+<footer>
+    &copy; 2026 Vennuzo. All rights reserved. &nbsp;|&nbsp; <a href="support.html">Support</a>
+</footer>
+</body>
+</html>

@@ -33,14 +33,14 @@ function getPriceLabel(event: PortalEvent): string {
 }
 
 const CATEGORIES = [
-  { label: 'Music', icon: '🎵' },
-  { label: 'Nightlife', icon: '🌙' },
-  { label: 'Arts', icon: '🎭' },
-  { label: 'Food & Drink', icon: '🍽' },
-  { label: 'Business', icon: '💼' },
-  { label: 'Sports', icon: '⚽' },
-  { label: 'Community', icon: '🤝' },
-  { label: 'Workshops', icon: '🎓' },
+  'Music',
+  'Nightlife',
+  'Arts',
+  'Food & Drink',
+  'Business',
+  'Sports',
+  'Community',
+  'Workshops',
 ]
 
 export function HomePage() {
@@ -92,15 +92,20 @@ export function HomePage() {
           )}
           {!loading && !hasAnyEvents && (
             <div className="home-hero__slide home-hero__slide--empty home-hero__slide--active">
-              <div className="home-hero__slide-content">
-                <p className="eyebrow">Vennuzo</p>
-                <h1>Discover and book events you'll love</h1>
-                <p className="home-hero__sub">
-                  Find concerts, meetups, parties, and more happening near you. Get tickets instantly.
-                </p>
-                <div className="hero-chip-row">
-                  <Link to="/events" className="button button--primary">Browse events</Link>
-                  <Link to="/studio" className="button button--secondary">For organizers</Link>
+              <div className="home-hero__empty-layout">
+                <div className="home-hero__empty-text">
+                  <h1>Your next<br />unforgettable night<br />starts here</h1>
+                  <p className="home-hero__sub">
+                    Discover events happening around you. Browse, book tickets, and
+                    get in -- all from one place.
+                  </p>
+                  <div className="hero-chip-row">
+                    <Link to="/events" className="button button--primary">Browse events</Link>
+                    <Link to="/studio" className="button button--secondary">For organizers</Link>
+                  </div>
+                </div>
+                <div className="home-hero__empty-logo">
+                  <img src="/logo.jpg" alt="Vennuzo" />
                 </div>
               </div>
             </div>
@@ -160,9 +165,8 @@ export function HomePage() {
       <section className="home-categories">
         <div className="home-categories__grid">
           {CATEGORIES.map((cat) => (
-            <Link key={cat.label} to="/events" className="home-categories__item">
-              <span className="home-categories__icon">{cat.icon}</span>
-              <span className="home-categories__label">{cat.label}</span>
+            <Link key={cat} to="/events" className="home-categories__pill">
+              {cat}
             </Link>
           ))}
         </div>

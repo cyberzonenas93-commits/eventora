@@ -2529,29 +2529,21 @@ textarea { resize: vertical; }
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-.home-categories__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 1rem 1.25rem;
-  border-radius: 12px;
+.home-categories__pill {
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
   text-decoration: none;
   color: #8E8EA8;
-  transition: background 0.15s, color 0.15s;
-  min-width: 90px;
-}
-.home-categories__item:hover {
-  background: rgba(255,255,255,0.04);
-  color: #fff;
-}
-.home-categories__icon {
-  font-size: 1.5rem;
-  line-height: 1;
-}
-.home-categories__label {
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 600;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.home-categories__pill:hover {
+  background: rgba(123,140,255,0.1);
+  border-color: rgba(123,140,255,0.3);
+  color: #fff;
 }
 
 /* ── How it works ──────────────────────────────── */
@@ -2775,17 +2767,42 @@ textarea { resize: vertical; }
   padding: 3rem var(--public-padding-x,1.5rem);
   display: flex;
   align-items: center;
-  min-height: 400px;
+  min-height: 480px;
 }
-.home-hero__slide--empty .home-hero__slide-content { max-width: 520px; }
-.home-hero__slide--empty h1 {
-  margin: 0 0 0.75rem;
-  font-size: clamp(2rem,4vw,3rem);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+.home-hero__empty-layout {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  width: 100%;
+}
+.home-hero__empty-text {
+  flex: 1;
+  min-width: 0;
+}
+.home-hero__empty-text h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(2.2rem, 4.5vw, 3.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
   color: #fff;
+  font-weight: 800;
 }
-.home-hero__sub { margin: 0 0 1.25rem; color: #8E8EA8; font-size: 1rem; line-height: 1.6; }
+.home-hero__empty-logo {
+  flex-shrink: 0;
+  width: 280px;
+}
+.home-hero__empty-logo img {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  display: block;
+}
+@media (max-width: 768px) {
+  .home-hero__empty-layout { flex-direction: column-reverse; gap: 2rem; text-align: center; }
+  .home-hero__empty-logo { width: 180px; }
+  .home-hero__empty-layout .hero-chip-row { justify-content: center; }
+}
+.home-hero__sub { margin: 0 0 1.5rem; color: #8E8EA8; font-size: 1.05rem; line-height: 1.65; max-width: 440px; }
 
 /* Public event cards */
 .events-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem; }

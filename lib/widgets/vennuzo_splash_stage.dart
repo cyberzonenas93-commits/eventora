@@ -108,55 +108,26 @@ class _VennuzoSplashStageState extends State<VennuzoSplashStage>
                         animation: _glowController,
                         builder: (context, child) {
                           final glow = Tween<double>(
-                            begin: compact ? 16 : 24,
-                            end: compact ? 26 : 36,
+                            begin: compact ? 12 : 18,
+                            end: compact ? 22 : 30,
                           ).transform(_glowController.value);
-                          return SizedBox(
-                            width: badgeSize,
-                            height: badgeSize,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                // Glass-morphism circle with subtle border
-                                Container(
-                                  width: compact ? 60 : 76,
-                                  height: compact ? 60 : 76,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withValues(alpha: 0.08),
-                                    border: Border.all(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.18),
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.22,
-                                        ),
-                                        blurRadius: glow,
-                                        spreadRadius: 3,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.confirmation_num_rounded,
-                                  size: compact ? 52 : 68,
-                                  color: Colors.white,
-                                ),
-                                Positioned(
-                                  top: compact ? 18 : 26,
-                                  right: compact ? 16 : 24,
-                                  child: Icon(
-                                    Icons.auto_awesome_rounded,
-                                    size: compact ? 12 : 16,
-                                    color: Colors.white.withValues(
-                                      alpha: 0.92,
-                                    ),
-                                  ),
+                          final logoSize = compact ? 120.0 : 180.0;
+                          return Container(
+                            width: logoSize,
+                            height: logoSize,
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF7B8CFF)
+                                      .withValues(alpha: 0.18),
+                                  blurRadius: glow,
+                                  spreadRadius: 2,
                                 ),
                               ],
+                            ),
+                            child: Image.asset(
+                              'assets/logo.png',
+                              fit: BoxFit.contain,
                             ),
                           );
                         },

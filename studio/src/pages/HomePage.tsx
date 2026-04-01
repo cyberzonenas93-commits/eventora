@@ -105,7 +105,7 @@ export function HomePage() {
                   </div>
                 </div>
                 <div className="home-hero__empty-logo">
-                  <img src="/logo.jpg" alt="Vennuzo" />
+                  <img src="/logo-transparent.png" alt="Vennuzo" />
                 </div>
               </div>
             </div>
@@ -292,21 +292,26 @@ export function HomePage() {
 
       {/* ── Organizer CTA ────────────────────── */}
       <section className="home-organizer">
-        <div className="home-organizer__content">
-          <p className="eyebrow">For organizers</p>
-          <h2>Host your next event on Vennuzo</h2>
-          <p>
-            Create events, sell tickets, manage attendees, and promote to a growing audience.
-            Everything you need to run a successful event, all in one place.
-          </p>
-          <ul className="home-organizer__features">
-            <li>Event creation with custom ticket tiers</li>
-            <li>Real-time sales tracking and analytics</li>
-            <li>Built-in promotion tools</li>
-            <li>Secure payments via Hubtel</li>
-            <li>Attendee management and check-in</li>
-          </ul>
-          <Link to="/studio" className="button button--primary">Start for free</Link>
+        <div className="home-organizer__layout">
+          <div className="home-organizer__content">
+            <p className="eyebrow">For organizers</p>
+            <h2>Host your next event on Vennuzo</h2>
+            <p>
+              Create events, sell tickets, manage attendees, and promote to a growing audience.
+              Everything you need to run a successful event, all in one place.
+            </p>
+            <ul className="home-organizer__features">
+              <li>Event creation with custom ticket tiers</li>
+              <li>Real-time sales tracking and analytics</li>
+              <li>Built-in promotion tools</li>
+              <li>Secure payments via Hubtel</li>
+              <li>Attendee management and check-in</li>
+            </ul>
+            <Link to="/studio" className="button button--primary">Start for free</Link>
+          </div>
+          <div className="home-organizer__logo">
+            <img src="/logo-transparent.png" alt="Vennuzo" />
+          </div>
         </div>
       </section>
 

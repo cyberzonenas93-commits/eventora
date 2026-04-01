@@ -2603,8 +2603,28 @@ textarea { resize: vertical; }
   padding: 3rem 2rem;
   color: #fff;
 }
+.home-organizer__layout {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
 .home-organizer__content {
+  flex: 1;
+  min-width: 0;
   max-width: 560px;
+}
+.home-organizer__logo {
+  flex-shrink: 0;
+  width: 220px;
+}
+.home-organizer__logo img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+@media (max-width: 768px) {
+  .home-organizer__layout { flex-direction: column; }
+  .home-organizer__logo { width: 160px; }
 }
 .home-organizer .eyebrow {
   color: rgba(255,255,255,0.5);

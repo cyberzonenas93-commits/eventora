@@ -28,6 +28,12 @@ class _VennuzoRootScreenState extends State<VennuzoRootScreen> {
     _loadOnboardingState();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(const AssetImage('assets/logo.png'), context);
+  }
+
   Future<void> _loadOnboardingState() async {
     if (widget.skipLaunchOnboarding) {
       if (!mounted) {

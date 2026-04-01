@@ -128,6 +128,28 @@ class _VennuzoSplashStageState extends State<VennuzoSplashStage>
                             child: Image.asset(
                               'assets/logo.png',
                               fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                              frameBuilder: (context, child, frame, loaded) {
+                                if (frame == null) {
+                                  // Show text "V" while image loads
+                                  return Center(
+                                    child: Text(
+                                      'V',
+                                      style: TextStyle(
+                                        fontFamily: 'Sora',
+                                        fontSize: compact ? 48 : 64,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF7B8CFF),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return AnimatedOpacity(
+                                  opacity: loaded ? 1.0 : 0.0,
+                                  duration: const Duration(milliseconds: 300),
+                                  child: child,
+                                );
+                              },
                             ),
                           );
                         },

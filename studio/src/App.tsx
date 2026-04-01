@@ -151,15 +151,8 @@ function AppRoutes() {
 function StudioSplash() {
   return (
     <div className="splash-screen">
-      <div className="splash-screen__orb splash-screen__orb--top" />
-      <div className="splash-screen__orb splash-screen__orb--bottom" />
       <div className="splash-screen__content">
-        <div className="splash-screen__mark">
-          <span>V</span>
-          <i>*</i>
-        </div>
-        <p className="eyebrow">Vennuzo</p>
-        <h1>Discover events</h1>
+        <img src="/logo-transparent.png" alt="Vennuzo" className="splash-screen__logo" />
         <p>Loading…</p>
       </div>
     </div>

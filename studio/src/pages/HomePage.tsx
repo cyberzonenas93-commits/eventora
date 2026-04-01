@@ -94,7 +94,7 @@ export function HomePage() {
             <div className="home-hero__slide home-hero__slide--empty home-hero__slide--active">
               <div className="home-hero__empty-layout">
                 <div className="home-hero__empty-text">
-                  <h1>Your next<br />unforgettable night<br />starts here</h1>
+                  <h1>Your next great night starts here</h1>
                   <p className="home-hero__sub">
                     Discover events happening around you. Browse, book tickets, and
                     get in -- all from one place.

@@ -1,74 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Vennuzo Design System — inspired by Ticketmaster's premium depth,
-/// Resident Advisor's editorial restraint, DICE's immersive dark accents,
-/// and Eventbrite's image-first clarity.
+/// Vennuzo Design System — Dark iridescent theme matching the 3D
+/// holographic logo. Deep navy-black backgrounds with blue-purple-pink
+/// iridescent accents and clean white typography.
 class VennuzoTheme {
-  // ── Core palette ──────────────────────────────────────────────────
-  static const background = Color(0xFFF5F5F7);   // Apple-esque warm gray
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceElevated = Color(0xFFFCFCFE);
-  static const darkSurface = Color(0xFF0F0F14);   // Near-black with depth
-  static const darkSurfaceMid = Color(0xFF1A1A24); // Elevated dark
-  static const textPrimary = Color(0xFF0F0F14);
-  static const textSecondary = Color(0xFF64648C);  // Muted purple-gray
-  static const textTertiary = Color(0xFF9494B8);   // Even lighter
+  // ── Dark canvas ───────────────────────────────────────────────────
+  static const background = Color(0xFF060611);
+  static const surface = Color(0xFF0E0E1A);
+  static const surfaceElevated = Color(0xFF16162A);
+  static const surfaceBright = Color(0xFF1E1E38);
 
-  // Brand gradient
-  static const primaryStart = Color(0xFF5B4CFF);   // Rich violet-blue
-  static const primaryEnd = Color(0xFFFF3366);      // Vivid rose
-  static const primaryMid = Color(0xFF8B5CF6);      // Connecting purple
+  // ── Text on dark ──────────────────────────────────────────────────
+  static const textPrimary = Color(0xFFFFFFFF);
+  static const textSecondary = Color(0xFF8E8EA8);
+  static const textTertiary = Color(0xFF5A5A78);
 
-  // Accents
-  static const accent = Color(0xFFFF3366);         // Vivid rose
-  static const accentSoft = Color(0xFF8B5CF6);     // Soft violet
-  static const accentWarm = Color(0xFFFF8C42);     // Warm amber (AXS-inspired)
-  static const accentCyan = Color(0xFF06D6A0);     // Fresh teal-green
+  // ── Iridescent brand palette ──────────────────────────────────────
+  static const primaryStart = Color(0xFF7B8CFF);   // Iridescent blue
+  static const primaryMid = Color(0xFFB06CFF);     // Holographic purple
+  static const primaryEnd = Color(0xFFFF6B9D);     // Pink refraction
+  static const accentAmber = Color(0xFFFFB86C);    // Warm amber reflection
+  static const accentCyan = Color(0xFF6BDFFF);     // Cool cyan highlight
+  static const accentMint = Color(0xFF6BFFB8);     // Green refraction
 
-  // Semantic colors
-  static const success = Color(0xFF06D6A0);
-  static const error = Color(0xFFFF3B5C);
-  static const warning = Color(0xFFFF8C42);
+  // ── Semantic ──────────────────────────────────────────────────────
+  static const success = Color(0xFF6BFFB8);
+  static const error = Color(0xFFFF6B6B);
+  static const warning = Color(0xFFFFB86C);
 
-  // Borders & shadows
-  static const border = Color(0xFFE8E8F0);         // Subtle warm border
-  static const borderSubtle = Color(0xFFF0F0F6);
-  static const shadow = Color(0x0A0F0F14);
+  // ── Borders ───────────────────────────────────────────────────────
+  static const border = Color(0x14FFFFFF);          // 8% white
+  static const borderSubtle = Color(0x0AFFFFFF);    // 4% white
+  static const borderBright = Color(0x28FFFFFF);    // 16% white
 
-  // ── 3-Tier shadow system (Ticketmaster-inspired) ──────────────────
+  // ── Shadows ───────────────────────────────────────────────────────
+  static const shadow = Color(0x40000000);
+
   static const shadowResting = [
-    BoxShadow(
-      color: Color(0x080F0F14),
-      blurRadius: 4,
-      offset: Offset(0, 1),
-    ),
+    BoxShadow(color: Color(0x20000000), blurRadius: 8, offset: Offset(0, 2)),
   ];
-
   static const shadowElevated = [
-    BoxShadow(
-      color: Color(0x0F0F0F14),
-      blurRadius: 20,
-      offset: Offset(0, 8),
-    ),
-    BoxShadow(
-      color: Color(0x050F0F14),
-      blurRadius: 6,
-      offset: Offset(0, 2),
-    ),
+    BoxShadow(color: Color(0x30000000), blurRadius: 24, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x10000000), blurRadius: 8, offset: Offset(0, 2)),
+  ];
+  static const shadowFloating = [
+    BoxShadow(color: Color(0x50000000), blurRadius: 48, offset: Offset(0, 16)),
+    BoxShadow(color: Color(0x18000000), blurRadius: 12, offset: Offset(0, 4)),
   ];
 
-  static const shadowFloating = [
-    BoxShadow(
-      color: Color(0x1A0F0F14),
-      blurRadius: 40,
-      offset: Offset(0, 16),
-    ),
-    BoxShadow(
-      color: Color(0x080F0F14),
-      blurRadius: 12,
-      offset: Offset(0, 4),
-    ),
+  // ── Iridescent glow shadows ───────────────────────────────────────
+  static List<BoxShadow> glowShadow(Color color) => [
+    BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 24, offset: const Offset(0, 8)),
+    BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 48, offset: const Offset(0, 16)),
   ];
 
   // ── Gradient presets ──────────────────────────────────────────────
@@ -78,17 +62,10 @@ class VennuzoTheme {
     end: Alignment.bottomRight,
   );
 
-  static const heroGradient = LinearGradient(
-    colors: [Color(0xFF1A0533), Color(0xFF0F0F14)],
+  static const surfaceGradient = LinearGradient(
+    colors: [surface, surfaceElevated],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-  );
-
-  static const shimmerGradient = LinearGradient(
-    colors: [Color(0xFFF0F0F6), Color(0xFFFAFAFC), Color(0xFFF0F0F6)],
-    stops: [0.0, 0.5, 1.0],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
   );
 
   // ── Border radii ─────────────────────────────────────────────────
@@ -101,14 +78,14 @@ class VennuzoTheme {
   static ThemeData get lightTheme {
     final base = ThemeData(
       useMaterial3: true,
+      brightness: Brightness.dark,
       scaffoldBackgroundColor: background,
-      colorScheme: const ColorScheme(
-        brightness: Brightness.light,
+      colorScheme: const ColorScheme.dark(
         primary: primaryStart,
         onPrimary: Colors.white,
-        secondary: accent,
+        secondary: primaryEnd,
         onSecondary: Colors.white,
-        tertiary: accentSoft,
+        tertiary: primaryMid,
         onTertiary: Colors.white,
         error: error,
         onError: Colors.white,
@@ -117,97 +94,61 @@ class VennuzoTheme {
       ),
     );
 
-    // Display: Sora — geometric, modern, authoritative
-    // Body: Inter — clear, readable, neutral
     final displayFont = GoogleFonts.soraTextTheme(base.textTheme);
     final bodyFont = GoogleFonts.interTextTheme(displayFont);
 
     final textTheme = bodyFont.copyWith(
       displayLarge: GoogleFonts.sora(
-        fontSize: 48,
-        height: 1.0,
-        color: textPrimary,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -1.5,
+        fontSize: 48, height: 1.0, color: textPrimary,
+        fontWeight: FontWeight.w800, letterSpacing: -1.5,
       ),
       displayMedium: GoogleFonts.sora(
-        fontSize: 40,
-        height: 1.02,
-        color: textPrimary,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -1.0,
+        fontSize: 40, height: 1.02, color: textPrimary,
+        fontWeight: FontWeight.w800, letterSpacing: -1.0,
       ),
       headlineLarge: GoogleFonts.sora(
-        fontSize: 34,
-        height: 1.05,
-        color: textPrimary,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.5,
+        fontSize: 34, height: 1.05, color: textPrimary,
+        fontWeight: FontWeight.w700, letterSpacing: -0.5,
       ),
       headlineMedium: GoogleFonts.sora(
-        fontSize: 28,
-        height: 1.08,
-        color: textPrimary,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.3,
+        fontSize: 28, height: 1.08, color: textPrimary,
+        fontWeight: FontWeight.w700, letterSpacing: -0.3,
       ),
       headlineSmall: GoogleFonts.sora(
-        fontSize: 24,
-        height: 1.1,
-        color: textPrimary,
+        fontSize: 24, height: 1.1, color: textPrimary,
         fontWeight: FontWeight.w700,
       ),
       titleLarge: GoogleFonts.sora(
-        fontSize: 20,
-        height: 1.15,
-        color: textPrimary,
+        fontSize: 20, height: 1.15, color: textPrimary,
         fontWeight: FontWeight.w700,
       ),
       titleMedium: GoogleFonts.sora(
-        fontSize: 17,
-        color: textPrimary,
-        fontWeight: FontWeight.w600,
+        fontSize: 17, color: textPrimary, fontWeight: FontWeight.w600,
       ),
       titleSmall: GoogleFonts.inter(
-        fontSize: 15,
-        color: textPrimary,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.02,
+        fontSize: 15, color: textPrimary, fontWeight: FontWeight.w600,
       ),
       bodyLarge: GoogleFonts.inter(
-        fontSize: 16,
-        color: textPrimary,
-        height: 1.6,
+        fontSize: 16, color: textSecondary, height: 1.6,
         fontWeight: FontWeight.w400,
       ),
       bodyMedium: GoogleFonts.inter(
-        fontSize: 14,
-        color: textSecondary,
-        height: 1.55,
+        fontSize: 14, color: textSecondary, height: 1.55,
         fontWeight: FontWeight.w400,
       ),
       bodySmall: GoogleFonts.inter(
-        fontSize: 12,
-        color: textTertiary,
-        height: 1.5,
+        fontSize: 12, color: textTertiary, height: 1.5,
         fontWeight: FontWeight.w400,
       ),
       labelLarge: GoogleFonts.inter(
-        fontSize: 15,
-        color: Colors.white,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.02,
+        fontSize: 15, color: Colors.white, fontWeight: FontWeight.w600,
       ),
       labelMedium: GoogleFonts.inter(
-        fontSize: 12,
-        color: textSecondary,
-        fontWeight: FontWeight.w600,
+        fontSize: 12, color: textSecondary, fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
       ),
       labelSmall: GoogleFonts.inter(
-        fontSize: 11,
-        color: textTertiary,
-        fontWeight: FontWeight.w600,
+        fontSize: 11, color: textTertiary, fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
       ),
     );
@@ -232,10 +173,8 @@ class VennuzoTheme {
         foregroundColor: textPrimary,
         centerTitle: false,
         titleTextStyle: GoogleFonts.sora(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-          color: textPrimary,
-          letterSpacing: -0.3,
+          fontSize: 20, fontWeight: FontWeight.w700,
+          color: textPrimary, letterSpacing: -0.3,
         ),
       ),
       cardTheme: CardThemeData(
@@ -246,21 +185,18 @@ class VennuzoTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusLg),
-          side: BorderSide(color: border.withValues(alpha: 0.6)),
+          side: const BorderSide(color: border),
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        backgroundColor: surface,
+        backgroundColor: surfaceElevated,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusFull),
         ),
-        side: BorderSide(color: border),
+        side: const BorderSide(color: border),
         labelStyle: GoogleFonts.inter(
-          color: textPrimary,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+          color: textPrimary, fontSize: 13, fontWeight: FontWeight.w600,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -273,25 +209,22 @@ class VennuzoTheme {
             borderRadius: BorderRadius.circular(radiusMd),
           ),
           textStyle: GoogleFonts.inter(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.02,
+            fontSize: 15, fontWeight: FontWeight.w600,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: textPrimary,
-          backgroundColor: surface,
-          side: BorderSide(color: border),
+          backgroundColor: surfaceElevated,
+          side: const BorderSide(color: border),
           minimumSize: const Size.fromHeight(52),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radiusMd),
           ),
           textStyle: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontSize: 14, fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -299,31 +232,24 @@ class VennuzoTheme {
         style: TextButton.styleFrom(
           foregroundColor: primaryStart,
           textStyle: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontSize: 14, fontWeight: FontWeight.w600,
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceElevated,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 16,
-        ),
-        hintStyle: GoogleFonts.inter(
-          color: textTertiary,
-          fontWeight: FontWeight.w400,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        hintStyle: GoogleFonts.inter(color: textTertiary, fontWeight: FontWeight.w400),
         prefixIconColor: textTertiary,
         suffixIconColor: textTertiary,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMd),
-          borderSide: BorderSide(color: border),
+          borderSide: const BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMd),
-          borderSide: BorderSide(color: border),
+          borderSide: const BorderSide(color: border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMd),
@@ -353,22 +279,16 @@ class VennuzoTheme {
         unselectedItemColor: textTertiary,
         type: BottomNavigationBarType.fixed,
         selectedLabelStyle: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
+          fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.3,
         ),
         unselectedLabelStyle: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.3,
+          fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0.3,
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: darkSurface,
+        backgroundColor: surfaceBright,
         contentTextStyle: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+          color: textPrimary, fontSize: 14, fontWeight: FontWeight.w500,
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -383,8 +303,9 @@ class VennuzoTheme {
           borderRadius: BorderRadius.circular(radiusMd),
         ),
       ),
-      dividerColor: borderSubtle,
+      dividerColor: border,
       dialogTheme: DialogThemeData(
+        backgroundColor: surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusXl),
         ),
@@ -394,11 +315,11 @@ class VennuzoTheme {
           ink: textPrimary,
           slate: textSecondary,
           muted: textTertiary,
-          coral: accent,
+          coral: primaryEnd,
           teal: primaryStart,
-          gold: accentSoft,
-          warm: accentWarm,
-          mint: accentCyan,
+          gold: primaryMid,
+          warm: accentAmber,
+          mint: accentMint,
           card: surface,
           cardElevated: surfaceElevated,
           canvas: background,
@@ -407,8 +328,8 @@ class VennuzoTheme {
           warning: warning,
           border: border,
           borderSubtle: borderSubtle,
-          darkSurface: darkSurface,
-          darkSurfaceMid: darkSurfaceMid,
+          darkSurface: background,
+          darkSurfaceMid: surface,
           primaryStart: primaryStart,
           primaryMid: primaryMid,
           primaryEnd: primaryEnd,
@@ -444,69 +365,31 @@ class VennuzoPalette extends ThemeExtension<VennuzoPalette> {
     required this.primaryEnd,
   });
 
-  final Color ink;
-  final Color slate;
-  final Color muted;
-  final Color coral;
-  final Color teal;
-  final Color gold;
-  final Color warm;
-  final Color mint;
-  final Color card;
-  final Color cardElevated;
-  final Color canvas;
-  final Color success;
-  final Color error;
-  final Color warning;
-  final Color border;
-  final Color borderSubtle;
-  final Color darkSurface;
-  final Color darkSurfaceMid;
-  final Color primaryStart;
-  final Color primaryMid;
-  final Color primaryEnd;
+  final Color ink, slate, muted, coral, teal, gold, warm, mint;
+  final Color card, cardElevated, canvas;
+  final Color success, error, warning;
+  final Color border, borderSubtle;
+  final Color darkSurface, darkSurfaceMid;
+  final Color primaryStart, primaryMid, primaryEnd;
 
   @override
   ThemeExtension<VennuzoPalette> copyWith({
-    Color? ink,
-    Color? slate,
-    Color? muted,
-    Color? coral,
-    Color? teal,
-    Color? gold,
-    Color? warm,
-    Color? mint,
-    Color? card,
-    Color? cardElevated,
-    Color? canvas,
-    Color? success,
-    Color? error,
-    Color? warning,
-    Color? border,
-    Color? borderSubtle,
-    Color? darkSurface,
-    Color? darkSurfaceMid,
-    Color? primaryStart,
-    Color? primaryMid,
+    Color? ink, Color? slate, Color? muted, Color? coral, Color? teal,
+    Color? gold, Color? warm, Color? mint, Color? card, Color? cardElevated,
+    Color? canvas, Color? success, Color? error, Color? warning,
+    Color? border, Color? borderSubtle, Color? darkSurface,
+    Color? darkSurfaceMid, Color? primaryStart, Color? primaryMid,
     Color? primaryEnd,
   }) {
     return VennuzoPalette(
-      ink: ink ?? this.ink,
-      slate: slate ?? this.slate,
-      muted: muted ?? this.muted,
-      coral: coral ?? this.coral,
-      teal: teal ?? this.teal,
-      gold: gold ?? this.gold,
-      warm: warm ?? this.warm,
-      mint: mint ?? this.mint,
-      card: card ?? this.card,
-      cardElevated: cardElevated ?? this.cardElevated,
-      canvas: canvas ?? this.canvas,
-      success: success ?? this.success,
-      error: error ?? this.error,
-      warning: warning ?? this.warning,
-      border: border ?? this.border,
-      borderSubtle: borderSubtle ?? this.borderSubtle,
+      ink: ink ?? this.ink, slate: slate ?? this.slate,
+      muted: muted ?? this.muted, coral: coral ?? this.coral,
+      teal: teal ?? this.teal, gold: gold ?? this.gold,
+      warm: warm ?? this.warm, mint: mint ?? this.mint,
+      card: card ?? this.card, cardElevated: cardElevated ?? this.cardElevated,
+      canvas: canvas ?? this.canvas, success: success ?? this.success,
+      error: error ?? this.error, warning: warning ?? this.warning,
+      border: border ?? this.border, borderSubtle: borderSubtle ?? this.borderSubtle,
       darkSurface: darkSurface ?? this.darkSurface,
       darkSurfaceMid: darkSurfaceMid ?? this.darkSurfaceMid,
       primaryStart: primaryStart ?? this.primaryStart,
@@ -517,12 +400,9 @@ class VennuzoPalette extends ThemeExtension<VennuzoPalette> {
 
   @override
   ThemeExtension<VennuzoPalette> lerp(
-    covariant ThemeExtension<VennuzoPalette>? other,
-    double t,
+    covariant ThemeExtension<VennuzoPalette>? other, double t,
   ) {
-    if (other is! VennuzoPalette) {
-      return this;
-    }
+    if (other is! VennuzoPalette) return this;
     return VennuzoPalette(
       ink: Color.lerp(ink, other.ink, t) ?? ink,
       slate: Color.lerp(slate, other.slate, t) ?? slate,
@@ -533,20 +413,16 @@ class VennuzoPalette extends ThemeExtension<VennuzoPalette> {
       warm: Color.lerp(warm, other.warm, t) ?? warm,
       mint: Color.lerp(mint, other.mint, t) ?? mint,
       card: Color.lerp(card, other.card, t) ?? card,
-      cardElevated:
-          Color.lerp(cardElevated, other.cardElevated, t) ?? cardElevated,
+      cardElevated: Color.lerp(cardElevated, other.cardElevated, t) ?? cardElevated,
       canvas: Color.lerp(canvas, other.canvas, t) ?? canvas,
       success: Color.lerp(success, other.success, t) ?? success,
       error: Color.lerp(error, other.error, t) ?? error,
       warning: Color.lerp(warning, other.warning, t) ?? warning,
       border: Color.lerp(border, other.border, t) ?? border,
-      borderSubtle:
-          Color.lerp(borderSubtle, other.borderSubtle, t) ?? borderSubtle,
+      borderSubtle: Color.lerp(borderSubtle, other.borderSubtle, t) ?? borderSubtle,
       darkSurface: Color.lerp(darkSurface, other.darkSurface, t) ?? darkSurface,
-      darkSurfaceMid:
-          Color.lerp(darkSurfaceMid, other.darkSurfaceMid, t) ?? darkSurfaceMid,
-      primaryStart:
-          Color.lerp(primaryStart, other.primaryStart, t) ?? primaryStart,
+      darkSurfaceMid: Color.lerp(darkSurfaceMid, other.darkSurfaceMid, t) ?? darkSurfaceMid,
+      primaryStart: Color.lerp(primaryStart, other.primaryStart, t) ?? primaryStart,
       primaryMid: Color.lerp(primaryMid, other.primaryMid, t) ?? primaryMid,
       primaryEnd: Color.lerp(primaryEnd, other.primaryEnd, t) ?? primaryEnd,
     );

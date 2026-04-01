@@ -1055,14 +1055,14 @@ class _PremiumPlacementPanel extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: VennuzoTheme.accentSoft.withValues(alpha: 0.18),
+                  color: VennuzoTheme.primaryMid.withValues(alpha: 0.18),
                   borderRadius:
                       BorderRadius.circular(VennuzoTheme.radiusSm),
                 ),
                 child: Icon(
                   Icons.auto_awesome,
                   size: 18,
-                  color: VennuzoTheme.accentSoft,
+                  color: VennuzoTheme.primaryMid,
                 ),
               ),
               const SizedBox(width: 12),

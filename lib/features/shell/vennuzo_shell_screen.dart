@@ -82,8 +82,6 @@ class _FrostedBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
     return SafeArea(
       top: false,
       child: Padding(
@@ -94,17 +92,33 @@ class _FrostedBottomNav extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.88),
+                color: const Color(0xFF0E0E1A).withValues(alpha: 0.92),
                 borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
                 border: Border.all(
-                  color: palette.border.withValues(alpha: 0.3),
+                  color: Colors.white.withValues(alpha: 0.06),
                 ),
-                boxShadow: VennuzoTheme.shadowFloating,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: BottomNavigationBar(
                 currentIndex: currentIndex,
                 onTap: onTap,
                 showUnselectedLabels: true,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                selectedItemColor: const Color(0xFFF0F0F8),
+                unselectedItemColor: const Color(0xFF8E8EA8),
+                type: BottomNavigationBarType.fixed,
+                selectedLabelStyle: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: const TextStyle(fontSize: 11),
                 items: const [
                   BottomNavigationBarItem(
                     icon: Icon(Icons.explore_outlined),
@@ -163,8 +177,6 @@ class _ShellTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: VennuzoReveal(
@@ -176,16 +188,22 @@ class _ShellTopBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.78),
+                color: const Color(0xFF0E0E1A).withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
                 border: Border.all(
-                  color: palette.border.withValues(alpha: 0.25),
+                  color: Colors.white.withValues(alpha: 0.08),
                 ),
-                boxShadow: VennuzoTheme.shadowElevated,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
-                  // Badge
+                  // Badge with iridescent gradient
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -194,17 +212,21 @@ class _ShellTopBar extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          palette.teal.withValues(alpha: 0.12),
-                          palette.coral.withValues(alpha: 0.08),
+                          const Color(0xFF7B8CFF).withValues(alpha: 0.18),
+                          const Color(0xFFB06CFF).withValues(alpha: 0.14),
+                          const Color(0xFFFF6B9D).withValues(alpha: 0.10),
                         ],
                       ),
                       borderRadius:
                           BorderRadius.circular(VennuzoTheme.radiusFull),
+                      border: Border.all(
+                        color: const Color(0xFF7B8CFF).withValues(alpha: 0.15),
+                      ),
                     ),
                     child: Text(
                       badgeLabel,
                       style: context.text.labelSmall?.copyWith(
-                        color: palette.ink,
+                        color: const Color(0xFFF0F0F8),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -215,18 +237,21 @@ class _ShellTopBar extends StatelessWidget {
                     child: Text(
                       isGuest ? 'Explore' : viewerName,
                       style: context.text.titleSmall?.copyWith(
-                        color: palette.ink,
+                        color: const Color(0xFFF0F0F8),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (isBusy)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
                       child: SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: const Color(0xFF7B8CFF),
+                        ),
                       ),
                     ),
                   if (canSwitchWorkspace)
@@ -236,15 +261,16 @@ class _ShellTopBar extends StatelessWidget {
                         onPressed: onSwitchWorkspace,
                         visualDensity: VisualDensity.compact,
                         style: IconButton.styleFrom(
-                          backgroundColor: palette.canvas,
+                          backgroundColor:
+                              const Color(0xFF16162A),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.swap_horiz_outlined,
                           size: 20,
-                          color: palette.ink,
+                          color: Color(0xFF8E8EA8),
                         ),
                         tooltip: 'Switch workspace',
                       ),
@@ -265,7 +291,7 @@ class _ShellTopBar extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: palette.border.withValues(alpha: 0.5),
+                            color: Colors.white.withValues(alpha: 0.08),
                           ),
                           image: photoUrl != null
                               ? DecorationImage(
@@ -273,13 +299,13 @@ class _ShellTopBar extends StatelessWidget {
                                   fit: BoxFit.cover,
                                 )
                               : null,
-                          color: palette.canvas,
+                          color: const Color(0xFF16162A),
                         ),
                         child: photoUrl == null
-                            ? Icon(
+                            ? const Icon(
                                 Icons.person_outline,
                                 size: 18,
-                                color: palette.slate,
+                                color: Color(0xFF8E8EA8),
                               )
                             : null,
                       ),
@@ -295,58 +321,56 @@ class _ShellTopBar extends StatelessWidget {
   }
 }
 
-/// Refined ambient backdrop with subtle gradients.
+/// Dark ambient backdrop with subtle iridescent glows.
 class _Backdrop extends StatelessWidget {
   const _Backdrop();
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
     return Stack(
       children: [
-        // Base gradient
+        // Solid dark base
         Positioned.fill(
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  palette.teal.withValues(alpha: 0.03),
-                  palette.canvas,
-                  palette.coral.withValues(alpha: 0.02),
-                ],
-                stops: const [0.0, 0.5, 1.0],
-              ),
+            decoration: const BoxDecoration(
+              color: Color(0xFF060611),
             ),
           ),
         ),
-        // Top-right ambient glow
+        // Top-right: soft pink/rose glow
         Positioned(
           top: -80,
           right: -40,
           child: _AmbientOrb(
             size: 260,
-            color: palette.coral.withValues(alpha: 0.08),
+            color: const Color(0xFFFF6B9D).withValues(alpha: 0.06),
           ),
         ),
-        // Top-left cool glow
+        // Top-left: blue glow
         Positioned(
           top: -40,
           left: -60,
           child: _AmbientOrb(
             size: 200,
-            color: palette.teal.withValues(alpha: 0.06),
+            color: const Color(0xFF7B8CFF).withValues(alpha: 0.05),
           ),
         ),
-        // Bottom ambient
+        // Bottom-left: purple glow
         Positioned(
           bottom: 40,
           left: -40,
           child: _AmbientOrb(
             size: 220,
-            color: palette.gold.withValues(alpha: 0.05),
+            color: const Color(0xFFB06CFF).withValues(alpha: 0.04),
+          ),
+        ),
+        // Center-right: faint blue accent
+        Positioned(
+          top: MediaQuery.sizeOf(context).height * 0.4,
+          right: -80,
+          child: _AmbientOrb(
+            size: 180,
+            color: const Color(0xFF7B8CFF).withValues(alpha: 0.03),
           ),
         ),
       ],

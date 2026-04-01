@@ -9,17 +9,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #5B4CFF;
-            --primary-mid: #8B5CF6;
-            --primary-end: #FF3366;
-            --bg: #F5F5F7;
-            --surface: #FFFFFF;
-            --dark: #0F0F14;
-            --dark-mid: #1A1A24;
-            --text: #0F0F14;
-            --text-secondary: #64648C;
-            --text-muted: #9494B8;
-            --border: #E8E8F0;
+            --primary: #7B8CFF;
+            --primary-mid: #B06CFF;
+            --primary-end: #FF6B9D;
+            --bg: #060611;
+            --surface: #0E0E1A;
+            --surface-elevated: #16162A;
+            --dark: #060611;
+            --dark-mid: #0E0E1A;
+            --text: #ffffff;
+            --text-secondary: #8E8EA8;
+            --text-muted: #5A5A78;
+            --amber: #FFB86C;
+            --border: rgba(255,255,255,0.08);
             --radius-sm: 10px;
             --radius-md: 16px;
             --radius-lg: 22px;
@@ -29,14 +31,14 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             color: var(--text);
-            background: var(--bg);
+            background: #060611;
             line-height: 1.7;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Hero header ─────────────────────────────── */
+        /* -- Hero header ---------------------------------------- */
         header {
-            background: linear-gradient(145deg, var(--dark) 0%, var(--dark-mid) 40%, #1a0f3a 100%);
+            background: linear-gradient(145deg, #060611 0%, #0E0E1A 40%, #12082a 100%);
             color: #fff;
             padding: 80px 24px 72px;
             text-align: center;
@@ -48,7 +50,7 @@
             position: absolute;
             top: -100px; right: -60px;
             width: 280px; height: 280px;
-            background: radial-gradient(circle, rgba(91,76,255,0.2) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(123,140,255,0.15) 0%, transparent 70%);
             border-radius: 50%;
         }
         header::after {
@@ -56,7 +58,7 @@
             position: absolute;
             bottom: -60px; left: -40px;
             width: 200px; height: 200px;
-            background: radial-gradient(circle, rgba(255,51,102,0.12) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(255,107,157,0.1) 0%, transparent 70%);
             border-radius: 50%;
         }
         header h1 {
@@ -77,12 +79,13 @@
             max-width: 780px;
             margin: 0 auto;
             padding: 48px 24px 80px;
+            background: transparent;
         }
 
-        /* ── Effective date badge ─────────────────────── */
+        /* -- Effective date badge -------------------------------- */
         .effective {
-            background: var(--surface);
-            border-left: 4px solid var(--primary);
+            background: #0E0E1A;
+            border-left: 4px solid #7B8CFF;
             padding: 16px 22px;
             border-radius: var(--radius-sm);
             margin-bottom: 36px;
@@ -91,20 +94,22 @@
             z-index: 2;
             font-size: 0.9rem;
             color: var(--text-secondary);
-            box-shadow: 0 4px 20px rgba(15,15,20,0.06);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-left: 4px solid #7B8CFF;
         }
-        .effective strong { color: var(--text); }
+        .effective strong { color: #fff; }
 
-        /* ── Headings ─────────────────────────────────── */
+        /* -- Headings -------------------------------------------- */
         h2 {
             font-family: 'Sora', sans-serif;
             font-size: 1.25rem;
             font-weight: 700;
-            color: var(--text);
+            color: #fff;
             margin-top: 44px;
             margin-bottom: 14px;
             padding-bottom: 10px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
             letter-spacing: -0.02em;
         }
         h2::before {
@@ -112,7 +117,7 @@
             display: inline-block;
             width: 4px;
             height: 1.1em;
-            background: linear-gradient(180deg, var(--primary), var(--primary-mid));
+            background: linear-gradient(180deg, #7B8CFF, #B06CFF);
             border-radius: 2px;
             margin-right: 12px;
             vertical-align: middle;
@@ -123,13 +128,13 @@
             font-weight: 600;
             margin-top: 24px;
             margin-bottom: 8px;
-            color: var(--text);
+            color: #fff;
         }
 
-        /* ── Body text ────────────────────────────────── */
+        /* -- Body text ------------------------------------------- */
         p, li {
             font-size: 0.93rem;
-            color: var(--text-secondary);
+            color: #8E8EA8;
             line-height: 1.75;
         }
         p { margin-bottom: 14px; }
@@ -137,18 +142,21 @@
             margin: 8px 0 18px 24px;
         }
         li { margin-bottom: 8px; }
-        li strong { color: var(--text); }
-        a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        li strong { color: #fff; }
+        a { color: #7B8CFF; text-decoration: none; font-weight: 500; }
         a:hover { text-decoration: underline; }
 
-        /* ── Footer ───────────────────────────────────── */
+        /* -- Footer ---------------------------------------------- */
         footer {
             text-align: center;
             padding: 36px 24px;
             font-size: 0.82rem;
-            color: var(--text-muted);
-            border-top: 1px solid var(--border);
+            color: #5A5A78;
+            background: #040410;
+            border-top: 1px solid rgba(255,255,255,0.04);
         }
+        footer a { color: #7B8CFF; text-decoration: none; font-weight: 500; }
+        footer a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>

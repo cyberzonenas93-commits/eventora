@@ -188,10 +188,10 @@ export function OverviewPage() {
                 <span>{formatMoney(upcomingEvent.grossRevenue)}</span>
               </div>
               <div className="hero-actions">
-                <Link className="button button--primary" to={`/events/${upcomingEvent.id}/edit`}>
+                <Link className="button button--primary" to={`/studio/events/${upcomingEvent.id}/edit`}>
                   Open event
                 </Link>
-                <Link className="button button--secondary" to="/events/new">
+                <Link className="button button--secondary" to="/studio/events/new">
                   Create event
                 </Link>
               </div>
@@ -200,7 +200,7 @@ export function OverviewPage() {
             <>
               <h3>Ready for your first event.</h3>
               <div className="hero-actions">
-                <Link className="button button--primary" to="/events/new">
+                <Link className="button button--primary" to="/studio/events/new">
                   Create event
                 </Link>
               </div>
@@ -399,7 +399,7 @@ export function OverviewPage() {
               </div>
             ) : (
               orderedEvents.slice(0, 4).map((event) => (
-                <Link className="event-row" key={event.id} to={`/events/${event.id}/edit`}>
+                <Link className="event-row" key={event.id} to={`/studio/events/${event.id}/edit`}>
                   <div>
                     <strong>{event.title}</strong>
                     <span>

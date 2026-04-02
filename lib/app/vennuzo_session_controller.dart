@@ -745,7 +745,8 @@ class VennuzoSessionController extends ChangeNotifier {
         'That email is already linked to a different sign-in method.',
       'email-already-in-use' => 'That email already has an Vennuzo account.',
       'invalid-email' => 'Enter a valid email address.',
-      'invalid-credential' => 'Those sign-in details did not match an account.',
+      'invalid-credential' =>
+        'Sign-in failed. If you signed up with Google, use the "Continue with Google" button instead.',
       'network-request-failed' =>
         'Network issue detected. Check your connection and try again.',
       'operation-not-allowed' =>

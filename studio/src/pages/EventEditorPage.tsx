@@ -226,7 +226,7 @@ export function EventEditorPage() {
                   <div className="cover-upload-drop__inner">
                     <span className="cover-upload-drop__icon">+</span>
                     <strong>{isUploadingCover ? 'Uploading…' : 'Upload cover image'}</strong>
-                    <span>JPG, PNG or WebP · recommended 1400×700px</span>
+                    <span>JPG, PNG or WebP · portrait, square, or landscape</span>
                   </div>
                   <input
                     accept="image/*"

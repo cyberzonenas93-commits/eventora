@@ -33,5 +33,17 @@ service firebase.storage {
     match /organizations/{organizationId}/{allPaths=**} {
       allow read, write: if isAdmin() || isOrgMember(organizationId);
     }
+
+    // Event cover images uploaded from the organizer studio
+    match /event-covers/{eventId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Social post images uploaded from the Flutter app
+    match /event_posts/{eventId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
   }
 }

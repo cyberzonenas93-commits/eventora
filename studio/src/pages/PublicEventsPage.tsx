@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { copy } from '../lib/copy'
-import { formatDateTime } from '../lib/formatters'
+import { formatDateTime, formatMoney } from '../lib/formatters'
 import { listPublicEvents } from '../lib/portalData'
 import type { PortalEvent } from '../lib/types'
 
@@ -85,7 +85,10 @@ export function PublicEventsPage() {
               <p>{event.venue}</p>
               {event.ticketingEnabled && event.tiers.length > 0 && (
                 <span className="event-card__price">
-                  From {event.tiers[0].price === 0 ? 'Free' : `GHS ${event.tiers[0].price}`}
+                  {(() => {
+                    const min = Math.min(...event.tiers.map((t) => t.price))
+                    return min === 0 ? 'Free' : `From ${formatMoney(min)}`
+                  })()}
                 </span>
               )}
             </Link>

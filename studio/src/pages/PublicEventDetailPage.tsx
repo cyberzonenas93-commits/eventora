@@ -56,10 +56,21 @@ export function PublicEventDetailPage() {
   return (
     <div className="public-page">
       <article className="public-event-detail">
+        {event.coverImageUrl && (
+          <div className="public-event-detail__cover">
+            <img src={event.coverImageUrl} alt={event.title} />
+          </div>
+        )}
+
         <div className="public-event-detail__header">
           <p className="eyebrow">{event.city} · {event.venue}</p>
           <h1>{event.title}</h1>
           <p className="public-event-detail__datetime">{formatDateTime(event.startAt)}</p>
+          {event.endAt && (
+            <p className="public-event-detail__datetime public-event-detail__datetime--end">
+              Ends {formatDateTime(event.endAt)}
+            </p>
+          )}
           {minPrice !== null && (
             <p className="public-event-detail__price">
               {minPrice === 0 ? 'Free entry' : `From ${formatMoney(minPrice)}`}
@@ -88,30 +99,75 @@ export function PublicEventDetailPage() {
               <ul className="public-event-detail__tiers">
                 {event.tiers.map((tier) => (
                   <li key={tier.tierId}>
-                    <span>{tier.name}</span>
-                    <span>{tier.price === 0 ? 'Free' : formatMoney(tier.price)}</span>
-                    {tier.maxQuantity > 0 && (
-                      <span className="public-event-detail__tier-avail">
-                        {tier.maxQuantity - tier.sold} left
+                    <div className="public-event-detail__tier-info">
+                      <span className="public-event-detail__tier-name">{tier.name}</span>
+                      {tier.description && (
+                        <span className="public-event-detail__tier-desc">{tier.description}</span>
+                      )}
+                    </div>
+                    <div className="public-event-detail__tier-right">
+                      <span className="public-event-detail__tier-price">
+                        {tier.price === 0 ? 'Free' : formatMoney(tier.price)}
                       </span>
-                    )}
+                      {tier.maxQuantity > 0 && (
+                        <span className="public-event-detail__tier-avail">
+                          {tier.maxQuantity - tier.sold > 0
+                            ? `${tier.maxQuantity - tier.sold} left`
+                            : 'Sold out'}
+                        </span>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
             </section>
           )}
+          {event.tags.length > 0 && (
+            <section className="public-event-detail__section">
+              <div className="public-event-detail__tags">
+                {event.tags.map((tag) => (
+                  <span key={tag} className="public-event-detail__tag">{tag}</span>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         <div className="public-event-detail__actions">
-          {/* Placeholder CTA: in a full flow this would go to checkout or RSVP */}
-          <a
-            href={`https://vennuzo.page.link/event/${event.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="button button--primary"
-          >
-            {hasTickets ? 'Get tickets' : 'View event'}
-          </a>
+          {hasTickets ? (
+            <div className="public-event-detail__ticket-cta">
+              <p className="public-event-detail__ticket-cta-note">
+                Tickets are available via the Vennuzo app — download it to complete your purchase.
+              </p>
+              <div className="public-event-detail__ticket-cta-buttons">
+                <a
+                  href="https://apps.apple.com/app/vennuzo/id6504255953"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="button button--primary"
+                >
+                  Get on iOS
+                </a>
+                <a
+                  href={`https://vennuzo.page.link/event/${event.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="button button--secondary"
+                >
+                  Open in app
+                </a>
+              </div>
+            </div>
+          ) : (
+            <a
+              href={`https://vennuzo.page.link/event/${event.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button button--primary"
+            >
+              View in app
+            </a>
+          )}
           <Link to="/events" className="button button--ghost">
             Back to events
           </Link>

@@ -2930,9 +2930,80 @@ textarea { resize: vertical; }
 .rsvp-form input { padding:0.65rem 0.85rem;border-radius:10px;border:1px solid rgba(209,213,219,0.95);background:#fff;color:#111827;font-size:0.88rem;outline:none; }
 .rsvp-form input:focus { border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,0.15); }
 
-/* Public event detail header */
+/* Public event detail — full layout */
+.public-event-detail { display: grid; gap: 2rem; max-width: 680px; margin: 0 auto; }
+
+/* Cover image */
+.public-event-detail__cover {
+  border-radius: var(--card-radius, 16px);
+  overflow: hidden;
+  aspect-ratio: 16/7;
+  background: var(--panel, #1a1a2e);
+}
+.public-event-detail__cover img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+
+/* Header */
+.public-event-detail__header { display: grid; gap: 0.5rem; }
 .public-event-detail__header .eyebrow { color: var(--v-text-secondary, #64648C); }
-.public-event-detail__header h1 { color: var(--v-text, #0F0F14); }
+.public-event-detail__header h1 { color: var(--v-text, #0F0F14); margin: 0; }
+.public-event-detail__datetime { margin: 0; font-size: 0.95rem; color: var(--muted-strong, #888); }
+.public-event-detail__datetime--end { font-size: 0.88rem; color: var(--muted, #aaa); }
+.public-event-detail__price {
+  margin: 0.25rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+/* Body sections */
+.public-event-detail__body { display: grid; gap: 1.5rem; }
+.public-event-detail__section { display: grid; gap: 0.6rem; }
+.public-event-detail__section h3 { margin: 0; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.public-event-detail__section p { margin: 0; line-height: 1.65; color: var(--text); }
+
+/* Ticket tiers */
+.public-event-detail__tiers { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.public-event-detail__tiers li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: var(--panel-strong, rgba(255,255,255,0.06));
+  border: 1px solid var(--line, rgba(255,255,255,0.1));
+}
+.public-event-detail__tier-info { display: grid; gap: 0.2rem; flex: 1; min-width: 0; }
+.public-event-detail__tier-name { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+.public-event-detail__tier-desc { font-size: 0.8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.public-event-detail__tier-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; flex-shrink: 0; }
+.public-event-detail__tier-price { font-weight: 800; font-size: 1rem; color: var(--text); }
+.public-event-detail__tier-avail { font-size: 0.75rem; color: var(--muted); }
+
+/* Tags */
+.public-event-detail__tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.public-event-detail__tag {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--panel-strong, rgba(255,255,255,0.08));
+  color: var(--muted-strong, #aaa);
+  border: 1px solid var(--line, rgba(255,255,255,0.1));
+}
+
+/* Actions / CTA */
+.public-event-detail__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-start; }
+.public-event-detail__ticket-cta { display: grid; gap: 0.75rem; }
+.public-event-detail__ticket-cta-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.public-event-detail__ticket-cta-buttons { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 
 /* Unsubscribe page */
 .unsubscribe-page {

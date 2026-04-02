@@ -196,7 +196,7 @@ export function SetupPage() {
 
         <div className="setup-summary-card">
           <span className="eyebrow">Workspace status</span>
-          <h3>Live</h3>
+          <h3>{form.status === 'active' ? 'Live' : form.status === 'submitted' ? 'Under review' : form.status === 'approved' ? 'Approved' : 'Setting up'}</h3>
         </div>
       </aside>
 

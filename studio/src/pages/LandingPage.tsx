@@ -396,13 +396,23 @@ export function LandingPage() {
         <div className="auth-panel__footer">
           <p>
             By continuing, you agree to our{' '}
-            <button className="inline-link-button" type="button">
+            <a
+              className="inline-link-button"
+              href="https://vennuzo.com/support.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Terms
-            </button>{' '}
+            </a>{' '}
             and{' '}
-            <button className="inline-link-button" type="button">
+            <a
+              className="inline-link-button"
+              href="https://vennuzo.com/privacy-policy.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Privacy Policy
-            </button>
+            </a>
           </p>
         </div>
       </section>

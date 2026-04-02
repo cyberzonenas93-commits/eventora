@@ -167,8 +167,13 @@ export function EventEditorPage() {
               Back to events
             </button>
             {eventId ? (
-              <Link className="button button--secondary" to={`/promote?eventId=${eventId}`}>
+              <Link className="button button--secondary" to={`/studio/promote?eventId=${eventId}`}>
                 Promote event
+              </Link>
+            ) : null}
+            {eventId && eventDraft.status === 'published' ? (
+              <Link className="button button--secondary" to={`/events/${eventId}`} target="_blank" rel="noopener noreferrer">
+                View public page ↗
               </Link>
             ) : null}
             <button
@@ -653,6 +658,16 @@ export function EventEditorPage() {
               >
                 Back to events
               </button>
+              {eventId && eventDraft.status === 'published' ? (
+                <Link
+                  className="button button--secondary button--full"
+                  to={`/events/${eventId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View public page ↗
+                </Link>
+              ) : null}
               <button
                 className="button button--primary button--full"
                 disabled={isSaving || !eventDraft.title.trim() || !eventDraft.venue.trim()}

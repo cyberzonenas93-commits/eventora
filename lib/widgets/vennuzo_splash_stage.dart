@@ -126,12 +126,11 @@ class _VennuzoSplashStageState extends State<VennuzoSplashStage>
                               ],
                             ),
                             child: Image.asset(
-                              'assets/logo.png',
+                              'assets/logo-transparent.png',
                               fit: BoxFit.contain,
                               gaplessPlayback: true,
                               frameBuilder: (context, child, frame, loaded) {
                                 if (frame == null) {
-                                  // Show text "V" while image loads
                                   return Center(
                                     child: Text(
                                       'V',

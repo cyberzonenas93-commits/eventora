@@ -55,30 +55,43 @@ class _VennuzoShellScreenState extends State<VennuzoShellScreen> {
                   onSwitchWorkspace: session.openWorkspaceChooser,
                 ),
                 Expanded(
-                  child: IndexedStack(index: _currentIndex, children: _screens),
+                  child: IndexedStack(
+                    index: _currentIndex,
+                    children: _screens,
+                  ),
                 ),
               ],
             ),
           ),
         ],
       ),
-      bottomNavigationBar: _FrostedBottomNav(
+      bottomNavigationBar: _PremiumBottomNav(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (i) => setState(() => _currentIndex = i),
       ),
     );
   }
 }
 
-/// Frosted glass bottom navigation — inspired by Apple + Ticketmaster.
-class _FrostedBottomNav extends StatelessWidget {
-  const _FrostedBottomNav({
+// ─────────────────────────────────────────────────────────────────────────────
+// _PremiumBottomNav — frosted glass pill container, active item has glow pill
+// ─────────────────────────────────────────────────────────────────────────────
+class _PremiumBottomNav extends StatelessWidget {
+  const _PremiumBottomNav({
     required this.currentIndex,
     required this.onTap,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+
+  static const _items = [
+    _NavItem(icon: Icons.explore_outlined, activeIcon: Icons.explore_rounded, label: 'Explore'),
+    _NavItem(icon: Icons.people_outline_rounded, activeIcon: Icons.people_rounded, label: 'Social'),
+    _NavItem(icon: Icons.edit_calendar_outlined, activeIcon: Icons.edit_calendar_rounded, label: 'Host'),
+    _NavItem(icon: Icons.confirmation_num_outlined, activeIcon: Icons.confirmation_num_rounded, label: 'Passes'),
+    _NavItem(icon: Icons.campaign_outlined, activeIcon: Icons.campaign_rounded, label: 'Reach'),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -89,63 +102,32 @@ class _FrostedBottomNav extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF0E0E1A).withValues(alpha: 0.92),
+                color: const Color(0xFF0C0C1A).withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.06),
+                  color: Colors.white.withValues(alpha: 0.07),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 24,
+                    color: Colors.black.withValues(alpha: 0.45),
+                    blurRadius: 32,
                     offset: const Offset(0, 8),
                   ),
                 ],
               ),
-              child: BottomNavigationBar(
-                currentIndex: currentIndex,
-                onTap: onTap,
-                showUnselectedLabels: true,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                selectedItemColor: const Color(0xFFF0F0F8),
-                unselectedItemColor: const Color(0xFF8E8EA8),
-                type: BottomNavigationBarType.fixed,
-                selectedLabelStyle: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-                unselectedLabelStyle: const TextStyle(fontSize: 11),
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.explore_outlined),
-                    activeIcon: Icon(Icons.explore),
-                    label: 'Explore',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.people_outline),
-                    activeIcon: Icon(Icons.people),
-                    label: 'Social',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.edit_calendar_outlined),
-                    activeIcon: Icon(Icons.edit_calendar),
-                    label: 'Host',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.confirmation_num_outlined),
-                    activeIcon: Icon(Icons.confirmation_num),
-                    label: 'Passes',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.campaign_outlined),
-                    activeIcon: Icon(Icons.campaign),
-                    label: 'Reach',
-                  ),
-                ],
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(_items.length, (index) {
+                  return _NavButton(
+                    item: _items[index],
+                    selected: currentIndex == index,
+                    onTap: () => onTap(index),
+                  );
+                }),
               ),
             ),
           ),
@@ -155,7 +137,92 @@ class _FrostedBottomNav extends StatelessWidget {
   }
 }
 
-/// Top bar with frosted glass, compact profile, and workspace badge.
+class _NavItem {
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+}
+
+class _NavButton extends StatelessWidget {
+  const _NavButton({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _NavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+          gradient: selected
+              ? LinearGradient(
+                  colors: [
+                    VennuzoTheme.primaryStart.withValues(alpha: 0.20),
+                    VennuzoTheme.primaryMid.withValues(alpha: 0.12),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          border: selected
+              ? Border.all(
+                  color: VennuzoTheme.primaryStart.withValues(alpha: 0.22),
+                )
+              : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: Icon(
+                selected ? item.activeIcon : item.icon,
+                key: ValueKey(selected),
+                size: 22,
+                color: selected
+                    ? VennuzoTheme.primaryStart
+                    : const Color(0xFF5A5A78),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              item.label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight:
+                    selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected
+                    ? VennuzoTheme.primaryStart
+                    : const Color(0xFF5A5A78),
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ShellTopBar — compact frosted header with Vennuzo branding
+// ─────────────────────────────────────────────────────────────────────────────
 class _ShellTopBar extends StatelessWidget {
   const _ShellTopBar({
     required this.badgeLabel,
@@ -180,7 +247,7 @@ class _ShellTopBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: VennuzoReveal(
-        delay: const Duration(milliseconds: 50),
+        delay: const Duration(milliseconds: 40),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
           child: BackdropFilter(
@@ -188,127 +255,111 @@ class _ShellTopBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF0E0E1A).withValues(alpha: 0.85),
+                color: const Color(0xFF0C0C1A).withValues(alpha: 0.88),
                 borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: Colors.white.withValues(alpha: 0.07),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
-                  // Badge with iridescent gradient
+                  // Role badge with gradient
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+                      horizontal: 10, vertical: 5,
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF7B8CFF).withValues(alpha: 0.18),
-                          const Color(0xFFB06CFF).withValues(alpha: 0.14),
-                          const Color(0xFFFF6B9D).withValues(alpha: 0.10),
+                          VennuzoTheme.primaryStart.withValues(alpha: 0.18),
+                          VennuzoTheme.primaryMid.withValues(alpha: 0.12),
                         ],
                       ),
-                      borderRadius:
-                          BorderRadius.circular(VennuzoTheme.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        VennuzoTheme.radiusFull,
+                      ),
                       border: Border.all(
-                        color: const Color(0xFF7B8CFF).withValues(alpha: 0.15),
+                        color: VennuzoTheme.primaryStart.withValues(alpha: 0.18),
                       ),
                     ),
                     child: Text(
                       badgeLabel,
                       style: context.text.labelSmall?.copyWith(
-                        color: const Color(0xFFF0F0F8),
+                        color: VennuzoTheme.textPrimary,
                         fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  // Name
                   Expanded(
                     child: Text(
-                      isGuest ? 'Explore' : viewerName,
+                      isGuest ? 'Explore Vennuzo' : viewerName,
                       style: context.text.titleSmall?.copyWith(
-                        color: const Color(0xFFF0F0F8),
+                        color: VennuzoTheme.textPrimary,
+                        fontWeight: FontWeight.w600,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (isBusy)
                     Padding(
-                      padding: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.only(right: 8),
                       child: SizedBox(
-                        width: 16,
-                        height: 16,
+                        width: 14,
+                        height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: const Color(0xFF7B8CFF),
+                          color: VennuzoTheme.primaryStart,
                         ),
                       ),
                     ),
                   if (canSwitchWorkspace)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: IconButton(
-                        onPressed: onSwitchWorkspace,
-                        visualDensity: VisualDensity.compact,
-                        style: IconButton.styleFrom(
-                          backgroundColor:
-                              const Color(0xFF16162A),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        icon: const Icon(
-                          Icons.swap_horiz_outlined,
-                          size: 20,
-                          color: Color(0xFF8E8EA8),
-                        ),
-                        tooltip: 'Switch workspace',
-                      ),
+                    _TopBarIconBtn(
+                      icon: Icons.swap_horiz_rounded,
+                      onTap: onSwitchWorkspace,
+                      tooltip: 'Switch workspace',
                     ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const AccountScreen(),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08),
-                          ),
-                          image: photoUrl != null
-                              ? DecorationImage(
-                                  image: NetworkImage(photoUrl!),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                          color: const Color(0xFF16162A),
+                  const SizedBox(width: 6),
+                  // Avatar button
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AccountScreen(),
                         ),
-                        child: photoUrl == null
-                            ? const Icon(
-                                Icons.person_outline,
-                                size: 18,
-                                color: Color(0xFF8E8EA8),
+                      );
+                    },
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.10),
+                        ),
+                        image: photoUrl != null
+                            ? DecorationImage(
+                                image: NetworkImage(photoUrl!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                        gradient: photoUrl == null
+                            ? LinearGradient(
+                                colors: [
+                                  VennuzoTheme.surfaceElevated,
+                                  VennuzoTheme.surfaceBright,
+                                ],
                               )
                             : null,
                       ),
+                      child: photoUrl == null
+                          ? const Icon(
+                              Icons.person_outline_rounded,
+                              size: 16,
+                              color: Color(0xFF8E8EA8),
+                            )
+                          : null,
                     ),
                   ),
                 ],
@@ -321,7 +372,40 @@ class _ShellTopBar extends StatelessWidget {
   }
 }
 
-/// Dark ambient backdrop with subtle iridescent glows.
+class _TopBarIconBtn extends StatelessWidget {
+  const _TopBarIconBtn({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: VennuzoTheme.surfaceElevated,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: VennuzoTheme.border),
+          ),
+          child: Icon(icon, size: 17, color: const Color(0xFF8E8EA8)),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _Backdrop — ambient dark canvas with iridescent glow orbs
+// ─────────────────────────────────────────────────────────────────────────────
 class _Backdrop extends StatelessWidget {
   const _Backdrop();
 
@@ -329,48 +413,36 @@ class _Backdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Solid dark base
-        Positioned.fill(
+        const Positioned.fill(
           child: DecoratedBox(
-            decoration: const BoxDecoration(
-              color: Color(0xFF060611),
-            ),
+            decoration: BoxDecoration(color: VennuzoTheme.background),
           ),
         ),
-        // Top-right: soft pink/rose glow
+        // Top-right: rose glow
         Positioned(
-          top: -80,
-          right: -40,
-          child: _AmbientOrb(
-            size: 260,
-            color: const Color(0xFFFF6B9D).withValues(alpha: 0.06),
+          top: -60,
+          right: -30,
+          child: _Orb(
+            size: 240,
+            color: VennuzoTheme.primaryEnd.withValues(alpha: 0.055),
           ),
         ),
         // Top-left: blue glow
         Positioned(
-          top: -40,
-          left: -60,
-          child: _AmbientOrb(
-            size: 200,
-            color: const Color(0xFF7B8CFF).withValues(alpha: 0.05),
+          top: -30,
+          left: -50,
+          child: _Orb(
+            size: 180,
+            color: VennuzoTheme.primaryStart.withValues(alpha: 0.045),
           ),
         ),
         // Bottom-left: purple glow
         Positioned(
-          bottom: 40,
-          left: -40,
-          child: _AmbientOrb(
-            size: 220,
-            color: const Color(0xFFB06CFF).withValues(alpha: 0.04),
-          ),
-        ),
-        // Center-right: faint blue accent
-        Positioned(
-          top: MediaQuery.sizeOf(context).height * 0.4,
-          right: -80,
-          child: _AmbientOrb(
-            size: 180,
-            color: const Color(0xFF7B8CFF).withValues(alpha: 0.03),
+          bottom: 60,
+          left: -30,
+          child: _Orb(
+            size: 200,
+            color: VennuzoTheme.primaryMid.withValues(alpha: 0.035),
           ),
         ),
       ],
@@ -378,9 +450,8 @@ class _Backdrop extends StatelessWidget {
   }
 }
 
-class _AmbientOrb extends StatelessWidget {
-  const _AmbientOrb({required this.size, required this.color});
-
+class _Orb extends StatelessWidget {
+  const _Orb({required this.size, required this.color});
   final double size;
   final Color color;
 
@@ -393,7 +464,7 @@ class _AmbientOrb extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(
-            colors: [color, color.withValues(alpha: 0.0)],
+            colors: [color, color.withValues(alpha: 0)],
           ),
         ),
       ),

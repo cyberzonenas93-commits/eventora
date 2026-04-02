@@ -111,80 +111,93 @@ class EventDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: ClipRRect(
+      bottomNavigationBar: ClipRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
             decoration: BoxDecoration(
-              color: context.palette.card.withValues(alpha: 0.82),
+              color: const Color(0xFF0C0C1A).withValues(alpha: 0.94),
               border: Border(
                 top: BorderSide(
-                  color: context.palette.border.withValues(alpha: 0.4),
+                  color: Colors.white.withValues(alpha: 0.07),
                 ),
               ),
               boxShadow: VennuzoTheme.shadowFloating,
             ),
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                child: Row(
                   children: [
-                    if (!event.ticketing.requireTicket)
-                      SizedBox(
-                        width: event.ticketing.enabled ? 150 : double.infinity,
+                    // Price column
+                    if (event.ticketing.minimumPrice != null) ...[
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'From',
+                            style: context.text.labelSmall?.copyWith(
+                              color: VennuzoTheme.textTertiary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            formatMoney(event.ticketing.minimumPrice!),
+                            style: context.text.titleMedium?.copyWith(
+                              color: VennuzoTheme.textPrimary,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                    // RSVP button (secondary)
+                    if (!event.ticketing.requireTicket &&
+                        event.ticketing.enabled) ...[
+                      Expanded(
+                        flex: 2,
                         child: OutlinedButton(
                           onPressed: hasRsvp
                               ? null
                               : () => _openRsvpFlow(context, event),
                           style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(50),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                VennuzoTheme.radiusMd,
-                              ),
+                              borderRadius:
+                                  BorderRadius.circular(VennuzoTheme.radiusMd),
                             ),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                            foregroundColor: VennuzoTheme.textPrimary,
                           ),
-                          child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
+                          child: Text(hasRsvp ? 'Reserved ✓' : 'RSVP'),
                         ),
                       ),
-                    if (event.ticketing.enabled)
-                      SizedBox(
-                        width:
-                            event.ticketing.requireTicket ? double.infinity : 190,
-                        child: ElevatedButton(
-                          onPressed: () => _openCheckoutFlow(context, event),
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                VennuzoTheme.radiusMd,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            event.ticketing.requireTicket
+                      const SizedBox(width: 10),
+                    ],
+                    // Primary CTA — gradient button
+                    Expanded(
+                      flex: 3,
+                      child: _GradientCTAButton(
+                        label: () {
+                          if (event.ticketing.enabled) {
+                            return event.ticketing.requireTicket
                                 ? 'Get tickets'
-                                : 'Buy support ticket',
-                          ),
-                        ),
-                      )
-                    else
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: hasRsvp
-                              ? null
-                              : () => _openRsvpFlow(context, event),
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                VennuzoTheme.radiusMd,
-                              ),
-                            ),
-                          ),
-                          child: Text(hasRsvp ? 'Spot reserved' : 'Reserve spot'),
-                        ),
+                                : 'Buy support ticket';
+                          }
+                          return hasRsvp ? 'Spot reserved ✓' : 'Reserve spot';
+                        }(),
+                        onPressed: event.ticketing.enabled
+                            ? () => _openCheckoutFlow(context, event)
+                            : hasRsvp
+                                ? null
+                                : () => _openRsvpFlow(context, event),
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -2433,6 +2446,61 @@ class _RatingRow extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _GradientCTAButton — gradient primary action button for event detail
+// ─────────────────────────────────────────────────────────────────────────────
+class _GradientCTAButton extends StatelessWidget {
+  const _GradientCTAButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onPressed == null;
+    return GestureDetector(
+      onTap: onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 50,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+          gradient: disabled
+              ? null
+              : const LinearGradient(
+                  colors: [
+                    VennuzoTheme.primaryStart,
+                    VennuzoTheme.primaryMid,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+          color: disabled ? VennuzoTheme.surfaceElevated : null,
+          boxShadow: disabled
+              ? null
+              : VennuzoTheme.glowShadow(VennuzoTheme.primaryStart),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: disabled
+                  ? VennuzoTheme.textTertiary
+                  : Colors.white,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

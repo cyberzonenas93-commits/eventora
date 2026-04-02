@@ -8,8 +8,7 @@ import '../core/utils/formatters.dart';
 import '../domain/models/event_models.dart';
 import 'vennuzo_motion.dart';
 
-/// Premium event card inspired by Ticketmaster's 3-tier shadow system,
-/// Eventbrite's image-led design, and DICE's immersive dark overlays.
+/// Premium event card — image-led, clean hierarchy, minimal clutter.
 class EventCard extends StatelessWidget {
   const EventCard({
     super.key,
@@ -29,218 +28,181 @@ class EventCard extends StatelessWidget {
     final palette = context.palette;
     final minPrice = event.ticketing.minimumPrice;
     final entryLabel =
-        minPrice == null ? 'Free entry' : 'From ${formatMoney(minPrice)}';
-    final artHeight = compact ? 180.0 : 220.0;
+        minPrice == null ? 'Free' : formatMoney(minPrice);
+    final artHeight = compact ? 160.0 : 200.0;
     final moodPal = MoodArtPalette.fromMood(event.mood);
 
     return VennuzoReveal(
-      delay: const Duration(milliseconds: 110),
+      delay: const Duration(milliseconds: 80),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
           boxShadow: [
             BoxShadow(
-              color: moodPal.base.withValues(alpha: 0.12),
-              blurRadius: 32,
-              offset: const Offset(0, 16),
-            ),
-            const BoxShadow(
-              color: Color(0x080F0F14),
-              blurRadius: 8,
-              offset: Offset(0, 2),
+              color: moodPal.base.withValues(alpha: 0.10),
+              blurRadius: 28,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
           child: Material(
-            color: palette.card,
+            color: VennuzoTheme.surface,
             child: InkWell(
               onTap: onTap,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Immersive hero image ─────────────────────────
+                  // ── Hero image ──────────────────────────────────
                   SizedBox(
                     height: artHeight,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
                         EventArtwork(event: event, height: artHeight),
-                        // Cinematic gradient scrim
+                        // Cinematic scrim
                         Positioned.fill(
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
+                                stops: const [0.0, 0.5, 1.0],
                                 colors: [
-                                  Colors.black.withValues(alpha: 0.05),
-                                  Colors.black.withValues(alpha: 0.15),
-                                  Colors.black.withValues(alpha: 0.65),
-                                ],
-                                stops: const [0.0, 0.4, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Top gradient for pills
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.center,
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.3),
-                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.0),
+                                  Colors.black.withValues(alpha: 0.08),
+                                  Colors.black.withValues(alpha: 0.60),
                                 ],
                               ),
                             ),
                           ),
                         ),
-                        // Content overlay
-                        Padding(
-                          padding: EdgeInsets.all(compact ? 14 : 18),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        // Status pills — top left
+                        Positioned(
+                          top: 12,
+                          left: 14,
+                          child: Wrap(
+                            spacing: 6,
                             children: [
-                              // Status pills
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: [
-                                  _GlassPill(
-                                    label: event.isPrivate
-                                        ? 'Invite only'
-                                        : 'Public',
-                                    icon: event.isPrivate
-                                        ? Icons.lock_outline
-                                        : Icons.public,
-                                  ),
-                                  if (event.ticketing.enabled)
-                                    _GlassPill(
-                                      label: event.ticketing.requireTicket
-                                          ? 'Tickets'
-                                          : 'RSVP',
-                                      icon:
-                                          Icons.confirmation_num_outlined,
-                                    ),
-                                  if (event.recurrence.isRecurring)
-                                    const _GlassPill(
-                                      label: 'Recurring',
-                                      icon: Icons.repeat,
-                                    ),
-                                ],
-                              ),
-                              const Spacer(),
-                              // Date badge
-                              _DateChip(
-                                label: formatShortDate(event.startDate),
-                              ),
-                              const SizedBox(height: 8),
-                              // Title + price row
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final stackBelow =
-                                      compact && constraints.maxWidth < 320;
-                                  final title = Text(
-                                    event.title,
-                                    style: context.text.headlineSmall
-                                        ?.copyWith(
-                                      color: Colors.white,
-                                      height: 1.08,
-                                      letterSpacing: -0.3,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.4,
-                                          ),
-                                          blurRadius: 12,
-                                        ),
-                                      ],
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  );
-
-                                  if (stackBelow) {
-                                    return Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        title,
-                                        const SizedBox(height: 8),
-                                        _PriceBadge(label: entryLabel),
-                                      ],
-                                    );
-                                  }
-
-                                  return Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end,
-                                    children: [
-                                      Expanded(child: title),
-                                      const SizedBox(width: 12),
-                                      _PriceBadge(label: entryLabel),
+                              if (event.isPrivate)
+                                _GlassPill(
+                                  label: 'Private',
+                                  icon: Icons.lock_outline_rounded,
+                                )
+                              else
+                                _GlassPill(
+                                  label: 'Public',
+                                  icon: Icons.public_rounded,
+                                ),
+                              if (event.ticketing.enabled)
+                                _GlassPill(
+                                  label: event.ticketing.requireTicket
+                                      ? 'Ticketed'
+                                      : 'RSVP',
+                                  icon: Icons.confirmation_num_outlined,
+                                ),
+                            ],
+                          ),
+                        ),
+                        // Date + price — bottom overlay
+                        Positioned(
+                          left: 14,
+                          right: 14,
+                          bottom: 12,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  event.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: context.text.titleLarge?.copyWith(
+                                    color: Colors.white,
+                                    height: 1.1,
+                                    letterSpacing: -0.3,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black
+                                            .withValues(alpha: 0.5),
+                                        blurRadius: 10,
+                                      ),
                                     ],
-                                  );
-                                },
+                                  ),
+                                ),
                               ),
+                              const SizedBox(width: 10),
+                              _PriceBadge(label: entryLabel),
                             ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  // ── Gradient accent line ─────────────────────────
+                  // ── Mood accent line ────────────────────────────
                   Container(
-                    height: 2.5,
+                    height: 2,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [
-                          moodPal.mid,
-                          moodPal.highlight,
-                          moodPal.pop.withValues(alpha: 0.4),
-                        ],
+                        colors: [moodPal.mid, moodPal.highlight],
                       ),
                     ),
                   ),
-                  // ── Card body ────────────────────────────────────
+                  // ── Card body ───────────────────────────────────
                   Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      compact ? 14 : 18,
-                      14,
-                      compact ? 14 : 18,
-                      0,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Date row
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today_outlined,
+                              size: 13,
+                              color: palette.slate,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              formatShortDate(event.startDate),
+                              style: context.text.labelMedium?.copyWith(
+                                color: VennuzoTheme.primaryStart,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Icon(
+                              Icons.place_outlined,
+                              size: 13,
+                              color: palette.slate,
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                '${event.venue}, ${event.city}',
+                                overflow: TextOverflow.ellipsis,
+                                style: context.text.labelMedium?.copyWith(
+                                  color: palette.slate,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Description
                         Text(
                           event.description,
-                          style: context.text.bodyMedium?.copyWith(
+                          style: context.text.bodySmall?.copyWith(
                             color: palette.slate,
-                            height: 1.5,
+                            height: 1.55,
+                            fontWeight: FontWeight.w400,
                           ),
                           maxLines: compact ? 2 : 3,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 14),
-                        _InfoRow(
-                          icon: Icons.place_outlined,
-                          label: '${event.venue}, ${event.city}',
-                        ),
-                        const SizedBox(height: 8),
-                        _InfoRow(
-                          icon: Icons.schedule_outlined,
-                          label: formatEventWindow(
-                            event.startDate,
-                            event.endDate,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        // Social proof row
+                        const SizedBox(height: 10),
+                        // Social proof + tags row
                         Row(
                           children: [
                             _MicroStat(
@@ -248,47 +210,31 @@ class EventCard extends StatelessWidget {
                               value: '${event.likesCount}',
                               color: palette.coral,
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 14),
                             _MicroStat(
                               icon: Icons.people_rounded,
                               value: '${event.rsvpCount}',
                               color: palette.teal,
                             ),
+                            const Spacer(),
+                            if (event.tags.isNotEmpty)
+                              _TagChip(
+                                label: event.tags.first,
+                                color: moodPal.mid,
+                              ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                  // ── Tags ─────────────────────────────────────────
-                  if (event.tags.isNotEmpty)
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        compact ? 14 : 18,
-                        10,
-                        compact ? 14 : 18,
-                        0,
-                      ),
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: event.tags
-                            .take(compact ? 2 : 4)
-                            .map(
-                              (tag) => _TagChip(
-                                label: tag,
-                                color: moodPal.mid,
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
+                  // ── Footer (action buttons) ─────────────────────
                   if (footer != null)
                     Padding(
-                      padding: EdgeInsets.all(compact ? 14 : 16),
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
                       child: footer,
                     )
                   else
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                 ],
               ),
             ),
@@ -299,22 +245,21 @@ class EventCard extends StatelessWidget {
   }
 }
 
-// ── Glass-morphism pill (over images) ─────────────────────────────────
+// ── Glass pill over image ──────────────────────────────────────────────
 class _GlassPill extends StatelessWidget {
   const _GlassPill({required this.label, this.icon});
-
   final String label;
   final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+        color: Colors.black.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+          color: Colors.white.withValues(alpha: 0.18),
           width: 0.5,
         ),
       ),
@@ -322,15 +267,15 @@ class _GlassPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: Colors.white.withValues(alpha: 0.9)),
-            const SizedBox(width: 5),
+            Icon(icon, size: 11, color: Colors.white.withValues(alpha: 0.85)),
+            const SizedBox(width: 4),
           ],
           Text(
             label,
             style: context.text.labelSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -339,32 +284,7 @@ class _GlassPill extends StatelessWidget {
   }
 }
 
-// ── Date chip ────────────────────────────────────────────────────────
-class _DateChip extends StatelessWidget {
-  const _DateChip({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: VennuzoTheme.primaryStart.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: context.text.labelSmall?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Price badge ──────────────────────────────────────────────────────
+// ── Price badge ─────────────────────────────────────────────────────────
 class _PriceBadge extends StatelessWidget {
   const _PriceBadge({required this.label});
   final String label;
@@ -372,65 +292,31 @@ class _PriceBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 8,
+            color: Color(0x18000000),
+            blurRadius: 6,
             offset: Offset(0, 2),
           ),
         ],
       ),
       child: Text(
         label,
-        style: context.text.titleSmall?.copyWith(
-          color: VennuzoTheme.textPrimary,
-          fontWeight: FontWeight.w700,
+        style: context.text.labelSmall?.copyWith(
+          color: VennuzoTheme.background,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.1,
         ),
       ),
     );
   }
 }
 
-// ── Info row (venue, time) ───────────────────────────────────────────
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Row(
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: palette.canvas,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 16, color: palette.slate),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: context.text.bodyMedium?.copyWith(
-              color: palette.ink,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Micro stat (likes, RSVPs) ────────────────────────────────────────
+// ── Micro stat ──────────────────────────────────────────────────────────
 class _MicroStat extends StatelessWidget {
   const _MicroStat({
     required this.icon,
@@ -446,13 +332,13 @@ class _MicroStat extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: color),
+        Icon(icon, size: 13, color: color),
         const SizedBox(width: 4),
         Text(
           value,
-          style: context.text.labelMedium?.copyWith(
-            color: context.palette.ink,
-            fontWeight: FontWeight.w700,
+          style: context.text.labelSmall?.copyWith(
+            color: context.palette.slate,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -460,7 +346,7 @@ class _MicroStat extends StatelessWidget {
   }
 }
 
-// ── Tag chip ─────────────────────────────────────────────────────────
+// ── Tag chip ───────────────────────────────────────────────────────────
 class _TagChip extends StatelessWidget {
   const _TagChip({required this.label, required this.color});
   final String label;
@@ -469,16 +355,16 @@ class _TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-        border: Border.all(color: color.withValues(alpha: 0.15)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Text(
         label,
         style: context.text.labelSmall?.copyWith(
-          color: context.palette.ink,
+          color: color.withValues(alpha: 0.9),
           fontWeight: FontWeight.w600,
         ),
       ),

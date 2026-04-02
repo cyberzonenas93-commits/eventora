@@ -5,6 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/utils/formatters.dart';
@@ -327,29 +328,67 @@ class _VennuzoTicketPaymentStatusScreenState
                   else
                     ..._order.tickets.map(
                       (ticket) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    ticket.tierName,
-                                    style: context.text.bodyLarge,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  ticket.tierName,
+                                  style: context.text.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    ticket.qrToken,
-                                    style: context.text.bodySmall,
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
                                   ),
-                                ],
+                                  decoration: BoxDecoration(
+                                    color: palette.teal.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    _ticketStatusLabel(ticket.status),
+                                    style: context.text.bodySmall?.copyWith(
+                                      color: palette.teal,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // QR code centred in a rounded container
+                            Center(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.08),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: QrImageView(
+                                  data: ticket.qrToken,
+                                  version: QrVersions.auto,
+                                  size: 200,
+                                  backgroundColor: Colors.white,
+                                ),
                               ),
                             ),
-                            Text(
-                              _ticketStatusLabel(ticket.status),
-                              style: context.text.bodyMedium?.copyWith(
-                                color: palette.slate,
+                            const SizedBox(height: 10),
+                            Center(
+                              child: Text(
+                                'For: ${ticket.attendeeName}',
+                                style: context.text.bodyMedium,
                               ),
                             ),
                           ],

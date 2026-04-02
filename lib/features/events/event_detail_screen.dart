@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -1656,9 +1657,18 @@ class _CheckoutSheet extends StatefulWidget {
   State<_CheckoutSheet> createState() => _CheckoutSheetState();
 }
 
+// ── Step enum for the multi-step checkout sheet ──────────────────────────────
+enum _CheckoutStep { tierSelect, buyerDetails }
+
 class _CheckoutSheetState extends State<_CheckoutSheet> {
   late final Map<String, int> _selections;
+  _CheckoutStep _step = _CheckoutStep.tierSelect;
   bool _submitting = false;
+
+  // Buyer-details controllers — pre-filled in _initBuyerControllers()
+  final _nameCtrl  = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -1666,6 +1676,28 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
     _selections = {
       for (final tier in widget.event.ticketing.tiers) tier.tierId: 0,
     };
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pre-fill buyer fields from the signed-in viewer profile (once only).
+    if (_nameCtrl.text.isEmpty) {
+      final viewer = context.read<VennuzoSessionController>().viewer;
+      final user   = FirebaseAuth.instance.currentUser;
+      _nameCtrl.text  = (viewer.displayName.isNotEmpty ? viewer.displayName : null)
+          ?? user?.displayName ?? '';
+      _emailCtrl.text = viewer.email ?? user?.email ?? '';
+      _phoneCtrl.text = viewer.phone ?? user?.phoneNumber ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
   }
 
   int get _ticketCount =>
@@ -1679,6 +1711,72 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
     return total;
   }
 
+  void _advanceToBuyerDetails() {
+    if (_ticketCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose at least one ticket option.')),
+      );
+      return;
+    }
+    setState(() => _step = _CheckoutStep.buyerDetails);
+  }
+
+  Future<void> _submitPayment() async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+
+    // Capture context-dependent objects before any await.
+    final repository = context.read<VennuzoRepository>();
+    final session    = context.read<VennuzoSessionController>();
+    final navigator  = Navigator.of(context);
+    final messenger  = ScaffoldMessenger.of(context);
+
+    try {
+      // Free / offline path — no Hubtel
+      if (_total <= 0 || !session.firebaseEnabled) {
+        final order = repository.checkout(
+          event: widget.event,
+          selections: _selections,
+        );
+        navigator.pop(_CheckoutResult.reservation(order));
+        return;
+      }
+
+      final checkoutSession = await VennuzoPaymentService.startPaidCheckout(
+        event: widget.event,
+        selections: _selections,
+        viewer: session.viewer,
+        buyerNameOverride:
+            _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : null,
+        buyerEmailOverride:
+            _emailCtrl.text.trim().isNotEmpty ? _emailCtrl.text.trim() : null,
+        buyerPhoneOverride:
+            _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+      );
+      repository.upsertOrder(checkoutSession.order);
+      if (!mounted) return;
+      navigator.pop(
+        _CheckoutResult.payment(
+          checkoutSession.order,
+          checkoutSession.checkoutUrl,
+          checkoutSession.launched,
+        ),
+      );
+    } on VennuzoPaymentException catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(error.message ?? 'Could not start Hubtel checkout.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1690,247 +1788,393 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-          20,
-          20,
-          20,
+          20, 20, 20,
           MediaQuery.of(context).viewInsets.bottom + 24,
         ),
         child: GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
           child: SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Checkout', style: context.text.titleLarge),
-                const SizedBox(height: 8),
-                Text(
-                  'Pick the ticket types you want. Free options become pay-at-door reservations.',
-                  style: context.text.bodyMedium,
-                ),
-                const SizedBox(height: 20),
-                ...widget.event.ticketing.tiers.map(
-                  (tier) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: context.palette.card,
-                        borderRadius:
-                            BorderRadius.circular(VennuzoTheme.radiusLg),
-                        border: Border.all(
-                          color: context.palette.border.withValues(alpha: 0.6),
-                        ),
-                        boxShadow: VennuzoTheme.shadowResting,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      tier.name,
-                                      style:
-                                          context.text.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      tier.price == 0
-                                          ? 'Free or pay at door'
-                                          : formatMoney(tier.price),
-                                      style: context.text.bodyMedium,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  IconButton(
-                                    onPressed:
-                                        (_selections[tier.tierId] ?? 0) > 0
-                                        ? () => setState(
-                                            () => _selections[tier.tierId] =
-                                                (_selections[tier.tierId] ??
-                                                    0) -
-                                                1,
-                                          )
-                                        : null,
-                                    icon: const Icon(
-                                      Icons.remove_circle_outline,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${_selections[tier.tierId] ?? 0}',
-                                    style: context.text.titleLarge,
-                                  ),
-                                  IconButton(
-                                    onPressed:
-                                        tier.soldOut ||
-                                            (_selections[tier.tierId] ?? 0) >=
-                                                tier.remaining
-                                        ? null
-                                        : () => setState(
-                                            () => _selections[tier.tierId] =
-                                                (_selections[tier.tierId] ??
-                                                    0) +
-                                                1,
-                                          ),
-                                    icon: const Icon(Icons.add_circle_outline),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          if (tier.description != null &&
-                              tier.description!.trim().isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              tier.description!,
-                              style: context.text.bodyMedium,
-                            ),
-                          ],
-                          const SizedBox(height: 10),
-                          Text(
-                            '${tier.remaining} remaining',
-                            style: context.text.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: context.palette.canvas,
-                    borderRadius:
-                        BorderRadius.circular(VennuzoTheme.radiusLg),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Summary',
-                        style: context.text.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Tickets: $_ticketCount',
-                        style: context.text.bodyLarge,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Total: ${formatMoney(_total)}',
-                        style: context.text.bodyLarge,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _submitting
-                        ? null
-                        : () async {
-                            if (_ticketCount == 0) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Choose at least one ticket option.',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-                            setState(() => _submitting = true);
-                            try {
-                              final repository = context
-                                  .read<VennuzoRepository>();
-                              final session = context
-                                  .read<VennuzoSessionController>();
-
-                              if (_total <= 0 || !session.firebaseEnabled) {
-                                final order = repository.checkout(
-                                  event: widget.event,
-                                  selections: _selections,
-                                );
-                                if (!context.mounted) {
-                                  return;
-                                }
-                                Navigator.of(
-                                  context,
-                                ).pop(_CheckoutResult.reservation(order));
-                                return;
-                              }
-
-                              final checkoutSession =
-                                  await VennuzoPaymentService.startPaidCheckout(
-                                    event: widget.event,
-                                    selections: _selections,
-                                    viewer: session.viewer,
-                                  );
-                              repository.upsertOrder(checkoutSession.order);
-                              if (!context.mounted) {
-                                return;
-                              }
-                              Navigator.of(context).pop(
-                                _CheckoutResult.payment(
-                                  checkoutSession.order,
-                                  checkoutSession.checkoutUrl,
-                                  checkoutSession.launched,
-                                ),
-                              );
-                            } on VennuzoPaymentException catch (error) {
-                              if (!context.mounted) {
-                                return;
-                              }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(error.message)),
-                              );
-                            } on FirebaseFunctionsException catch (error) {
-                              if (!context.mounted) {
-                                return;
-                              }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    error.message ??
-                                        'Could not start Hubtel checkout.',
-                                  ),
-                                ),
-                              );
-                            } finally {
-                              if (mounted) {
-                                setState(() => _submitting = false);
-                              }
-                            }
-                          },
-                    child: Text(
-                      _submitting
-                          ? 'Getting checkout ready...'
-                          : _total == 0
-                          ? 'Reserve now'
-                          : 'Pay ${formatMoney(_total)}',
-                    ),
-                  ),
-                ),
-              ],
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: _step == _CheckoutStep.tierSelect
+                  ? _buildTierSelectStep(context)
+                  : _buildBuyerDetailsStep(context),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // ── Step 1: Tier selection ─────────────────────────────────────────────────
+
+  Widget _buildTierSelectStep(BuildContext context) {
+    return Column(
+      key: const ValueKey('tiers'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Step indicator
+        _StepIndicator(current: 1, total: 3, label: 'Select tickets'),
+        const SizedBox(height: 16),
+        Text(
+          'Pick the ticket types you want. Free options become pay-at-door reservations.',
+          style: context.text.bodyMedium,
+        ),
+        const SizedBox(height: 20),
+        ...widget.event.ticketing.tiers.map(
+          (tier) => Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: context.palette.card,
+                borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+                border: Border.all(
+                  color: context.palette.border.withValues(alpha: 0.6),
+                ),
+                boxShadow: VennuzoTheme.shadowResting,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tier.name,
+                              style: context.text.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              tier.price == 0
+                                  ? 'Free or pay at door'
+                                  : formatMoney(tier.price),
+                              style: context.text.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: (_selections[tier.tierId] ?? 0) > 0
+                                ? () => setState(() =>
+                                    _selections[tier.tierId] =
+                                        (_selections[tier.tierId] ?? 0) - 1)
+                                : null,
+                            icon: const Icon(Icons.remove_circle_outline),
+                          ),
+                          Text(
+                            '${_selections[tier.tierId] ?? 0}',
+                            style: context.text.titleLarge,
+                          ),
+                          IconButton(
+                            onPressed: tier.soldOut ||
+                                    (_selections[tier.tierId] ?? 0) >=
+                                        tier.remaining
+                                ? null
+                                : () => setState(() =>
+                                    _selections[tier.tierId] =
+                                        (_selections[tier.tierId] ?? 0) + 1),
+                            icon: const Icon(Icons.add_circle_outline),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (tier.description != null &&
+                      tier.description!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(tier.description!, style: context.text.bodyMedium),
+                  ],
+                  const SizedBox(height: 10),
+                  Text(
+                    '${tier.remaining} remaining',
+                    style: context.text.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Summary
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: context.palette.canvas,
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Summary',
+                style: context.text.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              Text('Tickets: $_ticketCount', style: context.text.bodyLarge),
+              const SizedBox(height: 4),
+              Text(
+                'Total: ${formatMoney(_total)}',
+                style: context.text.bodyLarge,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _total <= 0 ? null : _advanceToBuyerDetails,
+            child: Text(
+              _total == 0 ? 'Reserve now' : 'Continue →',
+            ),
+          ),
+        ),
+        // Free-ticket path goes straight to reservation
+        if (_total <= 0 && _ticketCount > 0) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () async {
+                setState(() => _submitting = true);
+                try {
+                  final order = context.read<VennuzoRepository>().checkout(
+                    event: widget.event,
+                    selections: _selections,
+                  );
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop(_CheckoutResult.reservation(order));
+                } finally {
+                  if (mounted) setState(() => _submitting = false);
+                }
+              },
+              child: const Text('Reserve (free / pay at door)'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ── Step 2: Buyer details ──────────────────────────────────────────────────
+
+  Widget _buildBuyerDetailsStep(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      key: const ValueKey('details'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _StepIndicator(current: 2, total: 3, label: 'Your details'),
+        const SizedBox(height: 16),
+        // Order summary pill row
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: palette.canvas,
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ...widget.event.ticketing.tiers
+                  .where((t) => (_selections[t.tierId] ?? 0) > 0)
+                  .map((t) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('${t.name} × ${_selections[t.tierId]}',
+                                style: context.text.bodyMedium),
+                            Text(
+                              formatMoney(
+                                  t.price * (_selections[t.tierId] ?? 0)),
+                              style: context.text.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      )),
+              const Divider(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Total',
+                      style: context.text.bodyLarge
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  Text(formatMoney(_total),
+                      style: context.text.bodyLarge
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Confirm the details for this order. Mobile money payments will use the phone number below.',
+          style: context.text.bodyMedium,
+        ),
+        const SizedBox(height: 18),
+        _LabeledField(
+          label: 'Full name',
+          controller: _nameCtrl,
+          keyboardType: TextInputType.name,
+          hint: 'e.g. Kwame Mensah',
+          autofocus: true,
+        ),
+        const SizedBox(height: 14),
+        _LabeledField(
+          label: 'Email address',
+          controller: _emailCtrl,
+          keyboardType: TextInputType.emailAddress,
+          hint: 'you@example.com',
+        ),
+        const SizedBox(height: 14),
+        _LabeledField(
+          label: 'Phone number',
+          controller: _phoneCtrl,
+          keyboardType: TextInputType.phone,
+          hint: '+233 XX XXX XXXX',
+          helperText: 'Used for mobile money and ticket delivery',
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _submitting
+                    ? null
+                    : () => setState(() => _step = _CheckoutStep.tierSelect),
+                child: const Text('← Back'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: _submitting ||
+                        _nameCtrl.text.trim().isEmpty ||
+                        _phoneCtrl.text.trim().isEmpty
+                    ? null
+                    : _submitPayment,
+                child: Text(
+                  _submitting
+                      ? 'Opening payment…'
+                      : 'Pay ${formatMoney(_total)}',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Reusable helpers ──────────────────────────────────────────────────────────
+
+class _StepIndicator extends StatelessWidget {
+  const _StepIndicator({
+    required this.current,
+    required this.total,
+    required this.label,
+  });
+
+  final int current;
+  final int total;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: context.palette.primaryStart,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              '$current',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: context.text.titleLarge,
+          ),
+        ),
+        Text(
+          'Step $current of $total',
+          style: context.text.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _LabeledField extends StatelessWidget {
+  const _LabeledField({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    this.keyboardType,
+    this.helperText,
+    this.autofocus = false,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String hint;
+  final TextInputType? keyboardType;
+  final String? helperText;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: context.text.bodyMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          autofocus: autofocus,
+          decoration: InputDecoration(
+            hintText: hint,
+            helperText: helperText,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

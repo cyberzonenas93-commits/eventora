@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
@@ -264,7 +265,10 @@ class _GateQueue extends StatelessWidget {
                               entry.order.paymentStatus,
                             ),
                           ),
-                          _InfoPill(label: 'Code ${entry.ticket.qrToken}'),
+                          _QrPill(
+                            qrToken: entry.ticket.qrToken,
+                            label: entry.ticket.tierName,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -407,12 +411,18 @@ class _OrderCard extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${ticket.tierName} • Code ${ticket.qrToken}',
+                                  ticket.tierName,
                                   style: context.text.bodyMedium,
+                                ),
+                                const SizedBox(height: 6),
+                                _QrPill(
+                                  qrToken: ticket.qrToken,
+                                  label: ticket.tierName,
                                 ),
                               ],
                             ),
                           ),
+                          const SizedBox(width: 8),
                           _StatusPill(
                             label: _ticketStatusLabel(ticket.status),
                             color: ticket.status == TicketStatus.admitted
@@ -503,6 +513,121 @@ class _GateEntry {
 
   final TicketOrder order;
   final EventTicket ticket;
+}
+
+// ── QR pill — tappable chip that opens a full-screen QR dialog ───────────────
+
+class _QrPill extends StatelessWidget {
+  const _QrPill({required this.qrToken, required this.label});
+
+  final String qrToken;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showQrDialog(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: context.palette.canvas,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: context.palette.border.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.qr_code_2_outlined,
+              size: 16,
+              color: context.palette.ink,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Show QR',
+              style: context.text.bodySmall?.copyWith(
+                color: context.palette.ink,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showQrDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _QrDialog(qrToken: qrToken, label: label),
+    );
+  }
+}
+
+class _QrDialog extends StatelessWidget {
+  const _QrDialog({required this.qrToken, required this.label});
+
+  final String qrToken;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: context.text.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Show this at the door',
+              style: context.text.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: QrImageView(
+                data: qrToken,
+                version: QrVersions.auto,
+                size: 240,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              qrToken,
+              style: context.text.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                letterSpacing: 0.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Done'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 String _orderStatusLabel(TicketOrderStatus status) => switch (status) {

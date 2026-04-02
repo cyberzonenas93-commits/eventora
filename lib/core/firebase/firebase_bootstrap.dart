@@ -12,6 +12,7 @@ class FirebaseBootstrap {
     final supported = switch (defaultTargetPlatform) {
       TargetPlatform.android => true,
       TargetPlatform.iOS => true,
+      TargetPlatform.macOS => true,
       _ => false,
     };
     if (!supported) {

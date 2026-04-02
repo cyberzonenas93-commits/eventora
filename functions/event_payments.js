@@ -1377,6 +1377,20 @@ exports.hubtelReturn = onRequest(
       return response.status(400).send("Invalid return payload.");
     }
 
+    // For web orders, redirect the browser straight to the web confirmation page
+    // instead of showing the app deep-link HTML.
+    try {
+      const orderSnap = await db.collection("event_ticket_orders").doc(orderId).get();
+      if (orderSnap.exists && orderSnap.data().source === "web") {
+        const webUrl =
+          `https://vennuzo.com/checkout/${encodeURIComponent(orderId)}/confirmation` +
+          `?status=${encodeURIComponent(status)}`;
+        return response.redirect(302, webUrl);
+      }
+    } catch (_err) {
+      // Fall through to the default app deep-link page on any error.
+    }
+
     const deepLink =
       `${VENNUZO_SCHEME}://payment-status?orderId=${encodeURIComponent(orderId)}` +
       `&status=${encodeURIComponent(status)}`;

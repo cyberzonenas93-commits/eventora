@@ -8,6 +8,8 @@ class DefaultFirebaseOptions {
         return android;
       case TargetPlatform.iOS:
         return ios;
+      case TargetPlatform.macOS:
+        return macos;
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for this platform.',
@@ -24,6 +26,15 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyBGjRTuEircFcvXjQoDOAhXwSXQoB91ZBw',
+    appId: '1:872808273884:ios:a9e1919c2b6925158c2119',
+    messagingSenderId: '872808273884',
+    projectId: 'eventora-10063',
+    storageBucket: 'eventora-10063.firebasestorage.app',
+    iosBundleId: 'com.vennuzo.app',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBGjRTuEircFcvXjQoDOAhXwSXQoB91ZBw',
     appId: '1:872808273884:ios:a9e1919c2b6925158c2119',
     messagingSenderId: '872808273884',

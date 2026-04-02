@@ -37,6 +37,11 @@ class VennuzoPaymentService {
     required EventModel event,
     required Map<String, int> selections,
     required VennuzoViewer viewer,
+    // Optional buyer-detail overrides collected from the checkout form.
+    // When provided these take priority over the viewer profile.
+    String? buyerNameOverride,
+    String? buyerPhoneOverride,
+    String? buyerEmailOverride,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -57,12 +62,16 @@ class VennuzoPaymentService {
     }
 
     final buyerName = _firstNonEmpty(
-      viewer.displayName,
-      user.displayName,
-      'Vennuzo guest',
+      buyerNameOverride,
+      _firstNonEmpty(viewer.displayName, user.displayName, 'Vennuzo guest'),
     );
-    final buyerPhone = _normalizePhone(viewer.phone ?? user.phoneNumber);
-    final buyerEmail = _firstNonEmpty(viewer.email, user.email);
+    final buyerPhone = _normalizePhone(
+      buyerPhoneOverride ?? viewer.phone ?? user.phoneNumber,
+    );
+    final buyerEmail = _firstNonEmpty(
+      buyerEmailOverride,
+      _firstNonEmpty(viewer.email, user.email),
+    );
     final orderRef = _firestore.collection('event_ticket_orders').doc();
     final now = DateTime.now();
 

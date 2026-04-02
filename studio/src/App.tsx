@@ -77,6 +77,14 @@ const PublicEventsPage = lazy(() =>
 const PublicEventDetailPage = lazy(() =>
   import('./pages/PublicEventDetailPage').then((module) => ({ default: module.PublicEventDetailPage })),
 )
+const CheckoutPage = lazy(() =>
+  import('./pages/CheckoutPage').then((module) => ({ default: module.CheckoutPage })),
+)
+const CheckoutConfirmationPage = lazy(() =>
+  import('./pages/CheckoutConfirmationPage').then((module) => ({
+    default: module.CheckoutConfirmationPage,
+  })),
+)
 
 function AppRoutes() {
   const session = usePortalSession()
@@ -93,6 +101,8 @@ function AppRoutes() {
           <Route index element={<HomePage />} />
           <Route element={<PublicEventsPage />} path="events" />
           <Route element={<PublicEventDetailPage />} path="events/:eventId" />
+          <Route element={<CheckoutPage />} path="checkout/:eventId" />
+          <Route element={<CheckoutConfirmationPage />} path="checkout/:orderId/confirmation" />
         </Route>
         <Route element={<UnsubscribePage />} path="/unsubscribe" />
         <Route path="/studio" element={session.user ? <Outlet /> : <LandingPage />}>

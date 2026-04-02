@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/art/mood_art_palette.dart';
+
 enum EventVisibility { publicEvent, privateEvent }
 
 enum RecurrenceFrequency { none, daily, weekly, monthly }
@@ -333,6 +335,8 @@ extension EventMoodPalette on EventMood {
     EventMood.electric => const [Color(0xFF2B7A78), Color(0xFF10212A)],
     EventMood.garden => const [Color(0xFF7EBB74), Color(0xFFF4E7B6)],
   };
+
+  MoodArtPalette get artPalette => MoodArtPalette.fromMood(this);
 }
 
 extension ReminderTimingLabel on ReminderTiming {

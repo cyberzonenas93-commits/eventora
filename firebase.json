@@ -85,6 +85,11 @@
           "destination": "/index.html"
         }
       ]
+    },
+    {
+      "target": "pages",
+      "public": "public-pages",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
     }
   ],
   "storage": {

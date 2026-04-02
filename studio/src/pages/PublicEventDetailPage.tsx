@@ -135,29 +135,12 @@ export function PublicEventDetailPage() {
 
         <div className="public-event-detail__actions">
           {hasTickets ? (
-            <div className="public-event-detail__ticket-cta">
-              <p className="public-event-detail__ticket-cta-note">
-                Tickets are available via the Vennuzo app — download it to complete your purchase.
-              </p>
-              <div className="public-event-detail__ticket-cta-buttons">
-                <a
-                  href="https://apps.apple.com/app/vennuzo/id6504255953"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="button button--primary"
-                >
-                  Get on iOS
-                </a>
-                <a
-                  href={`https://vennuzo.page.link/event/${event.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="button button--secondary"
-                >
-                  Open in app
-                </a>
-              </div>
-            </div>
+            <Link
+              to={`/checkout/${event.id}`}
+              className="button button--primary public-event-detail__get-tickets"
+            >
+              Get tickets
+            </Link>
           ) : (
             <a
               href={`https://vennuzo.page.link/event/${event.id}`}

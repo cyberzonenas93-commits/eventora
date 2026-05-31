@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,6 +32,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String? _lastAnnouncementId;
   String _searchQuery = '';
   bool _announcementEligible = false;
+  final ScrollController _scroll = ScrollController();
 
   TextEditingController get _searchController =>
       _searchControllerInstance ??= TextEditingController();
@@ -48,6 +51,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   void dispose() {
     _searchControllerInstance?.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -92,6 +96,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             .toList();
 
     return ListView(
+      controller: _scroll,
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
@@ -144,6 +149,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 24),
+        // ── Tonight on Vennuzo — cinematic film strip ────────────
+        VennuzoReveal(
+          delay: const Duration(milliseconds: 140),
+          child: const _FilmStrip(assets: _filmStripPhotos),
         ),
         const SizedBox(height: 28),
         // ── Featured this week ───────────────────────────────────
@@ -228,6 +239,21 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ),
               ),
         ],
+        // ── Editorial showcase — every kind of night ─────────────
+        const SizedBox(height: 34),
+        VennuzoReveal(
+          child: const SectionHeading(
+            title: 'Every kind of night',
+            subtitle: 'One app, from doors to dancefloor',
+          ),
+        ),
+        const SizedBox(height: 16),
+        const _ShowcaseMoments(),
+        // ── Closing CTA band ─────────────────────────────────────
+        const SizedBox(height: 28),
+        VennuzoReveal(
+          child: _CtaBand(onBrowseAll: _browseAll),
+        ),
       ],
     );
   }
@@ -264,6 +290,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   void _clearAllFilters() {
     _searchController.clear();
     setState(() { _searchQuery = ''; _selectedTag = null; });
+  }
+
+  void _browseAll() {
+    _clearAllFilters();
+    if (_scroll.hasClients) {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   Future<void> _loadNearbyEvents() async {
@@ -337,54 +374,159 @@ class _DiscoverHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Discover',
-                    style: context.text.displayMedium?.copyWith(
-                      color: VennuzoTheme.textPrimary,
-                      letterSpacing: -1.5,
-                      height: 0.95,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+        boxShadow: VennuzoTheme.glowShadow(VennuzoTheme.primaryMid),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+        child: SizedBox(
+          height: 344,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Cinematic photo with slow Ken Burns drift
+              const _KenBurnsImage(
+                asset: 'assets/photos/01_hero_concert_crowd.jpg',
+                cacheWidth: 1080,
+              ),
+              // Legibility scrim — darkest toward the bottom-left copy
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                      stops: const [0.0, 0.45, 1.0],
+                      colors: [
+                        VennuzoTheme.background.withValues(alpha: 0.10),
+                        VennuzoTheme.background.withValues(alpha: 0.55),
+                        VennuzoTheme.background.withValues(alpha: 0.92),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _StatPill(
-                        icon: Icons.bolt_rounded,
-                        label: '$eventCount events',
-                        color: VennuzoTheme.primaryStart,
-                      ),
-                      if (featuredCount > 0) ...[
-                        const SizedBox(width: 8),
-                        _StatPill(
-                          icon: Icons.auto_awesome_rounded,
-                          label: '$featuredCount featured',
-                          color: VennuzoTheme.primaryEnd,
+                ),
+              ),
+              // Iridescent sheen in the top-left corner
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.center,
+                      colors: [
+                        VennuzoTheme.primaryStart.withValues(alpha: 0.16),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const _HeroEyebrow(),
+                        const Spacer(),
+                        if (featuredCount > 0)
+                          _SpotlightButton(onTap: onShowAnnouncement),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Discover what’s\nhappening tonight',
+                          style: context.text.headlineLarge?.copyWith(
+                            color: Colors.white,
+                            height: 1.04,
+                            letterSpacing: -0.8,
+                            fontWeight: FontWeight.w800,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 16,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            _StatPill(
+                              icon: Icons.bolt_rounded,
+                              label: '$eventCount events',
+                              color: VennuzoTheme.primaryStart,
+                            ),
+                            if (featuredCount > 0) ...[
+                              const SizedBox(width: 8),
+                              _StatPill(
+                                icon: Icons.auto_awesome_rounded,
+                                label: '$featuredCount featured',
+                                color: VennuzoTheme.primaryEnd,
+                              ),
+                            ],
+                          ],
                         ),
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Spotlight button
-            if (featuredCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: _SpotlightButton(onTap: onShowAnnouncement),
-              ),
-          ],
+            ],
+          ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _HeroEyebrow — frosted "live tonight" pill with a pulse dot
+// ─────────────────────────────────────────────────────────────────────────────
+class _HeroEyebrow extends StatelessWidget {
+  const _HeroEyebrow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.32),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.22),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: VennuzoTheme.accentMint,
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            'LIVE TONIGHT',
+            style: context.text.labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -405,19 +547,22 @@ class _StatPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: Colors.black.withValues(alpha: 0.34),
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.16),
+          width: 0.5,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 5),
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 6),
           Text(
             label,
             style: context.text.labelSmall?.copyWith(
-              color: color,
+              color: Colors.white,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.2,
             ),
@@ -1002,6 +1147,464 @@ class _InfoPill extends StatelessWidget {
         style: context.text.labelMedium?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cinematic photo layer — Ken Burns hero, film strip, editorial moments, CTA.
+// Photos bundled in assets/photos/ (see pubspec). Harmonized to the iridescent
+// brand palette, in the app's inset rounded-card design language.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const List<String> _filmStripPhotos = [
+  'assets/photos/02_dj_booth_night.jpg',
+  'assets/photos/03_festival_dusk.jpg',
+  'assets/photos/07_dancefloor_silhouettes.jpg',
+  'assets/photos/08_live_band_intimate.jpg',
+  'assets/photos/10_gallery_culture_event.jpg',
+];
+
+const double _kFilmItemW = 172;
+const double _kFilmItemH = 108;
+const double _kFilmGap = 10;
+
+// Slowly drifting + scaling photo (Ken Burns). Fills its parent constraints.
+class _KenBurnsImage extends StatefulWidget {
+  const _KenBurnsImage({
+    required this.asset,
+    this.cacheWidth = 900,
+  });
+
+  final String asset;
+  final int cacheWidth;
+
+  static const Alignment _alignmentBegin = Alignment(-0.55, -0.35);
+  static const Alignment _alignmentEnd = Alignment(0.5, 0.4);
+  static const double _scaleBegin = 1.04;
+  static const double _scaleEnd = 1.16;
+  static const Duration _duration = Duration(seconds: 22);
+
+  @override
+  State<_KenBurnsImage> createState() => _KenBurnsImageState();
+}
+
+class _KenBurnsImageState extends State<_KenBurnsImage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _KenBurnsImage._duration,
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    );
+    return AnimatedBuilder(
+      animation: curved,
+      builder: (context, _) {
+        final t = curved.value;
+        final scale =
+            lerpDouble(_KenBurnsImage._scaleBegin, _KenBurnsImage._scaleEnd, t)!;
+        final align = Alignment.lerp(
+            _KenBurnsImage._alignmentBegin, _KenBurnsImage._alignmentEnd, t)!;
+        return Transform.scale(
+          scale: scale,
+          alignment: align,
+          child: Image.asset(
+            widget.asset,
+            fit: BoxFit.cover,
+            cacheWidth: widget.cacheWidth,
+            gaplessPlayback: true,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Auto-scrolling marquee of show photos, with faded edges.
+class _FilmStrip extends StatefulWidget {
+  const _FilmStrip({required this.assets});
+  final List<String> assets;
+
+  @override
+  State<_FilmStrip> createState() => _FilmStripState();
+}
+
+class _FilmStripState extends State<_FilmStrip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: Duration(seconds: widget.assets.length * 4),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final setWidth = widget.assets.length * (_kFilmItemW + _kFilmGap);
+    return SizedBox(
+      height: _kFilmItemH,
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Colors.transparent,
+            Colors.white,
+            Colors.white,
+            Colors.transparent,
+          ],
+          stops: [0.0, 0.06, 0.94, 1.0],
+        ).createShader(rect),
+        child: ClipRect(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              return OverflowBox(
+                minWidth: 0,
+                maxWidth: double.infinity,
+                alignment: Alignment.centerLeft,
+                child: Transform.translate(
+                  offset: Offset(-_controller.value * setWidth, 0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < widget.assets.length * 2; i++) ...[
+                        _FilmFrame(
+                          asset: widget.assets[i % widget.assets.length],
+                        ),
+                        const SizedBox(width: _kFilmGap),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilmFrame extends StatelessWidget {
+  const _FilmFrame({required this.asset});
+  final String asset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _kFilmItemW,
+      height: _kFilmItemH,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(asset, fit: BoxFit.cover, cacheWidth: 360),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  VennuzoTheme.background.withValues(alpha: 0.30),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Editorial "every kind of night" — three photo moments with numbered captions.
+class _Moment {
+  const _Moment({
+    required this.number,
+    required this.title,
+    required this.sub,
+    required this.asset,
+    required this.accent,
+  });
+  final String number;
+  final String title;
+  final String sub;
+  final String asset;
+  final Color accent;
+}
+
+class _ShowcaseMoments extends StatelessWidget {
+  const _ShowcaseMoments();
+
+  static const _moments = [
+    _Moment(
+      number: '01',
+      title: 'Find the nights\nworth showing up for',
+      sub: 'Browse what’s on near you — filter by vibe, venue or date.',
+      asset: 'assets/photos/04_friends_arriving.jpg',
+      accent: VennuzoTheme.primaryStart,
+    ),
+    _Moment(
+      number: '02',
+      title: 'Tap in.\nSkip the line.',
+      sub: 'Secure checkout, tickets in your pocket, QR entry at the door.',
+      asset: 'assets/photos/05_qr_entry.jpg',
+      accent: VennuzoTheme.primaryMid,
+    ),
+    _Moment(
+      number: '03',
+      title: 'Bring the crew,\nrelive the moment',
+      sub: 'Share events, roll deep, keep the memories after the lights go up.',
+      asset: 'assets/photos/06_rooftop_party.jpg',
+      accent: VennuzoTheme.primaryEnd,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < _moments.length; i++) ...[
+          if (i > 0) const SizedBox(height: 14),
+          VennuzoReveal(
+            delay: Duration(milliseconds: 60 * i),
+            child: _MomentCard(moment: _moments[i]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MomentCard extends StatelessWidget {
+  const _MomentCard({required this.moment});
+  final _Moment moment;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+      child: SizedBox(
+        height: 188,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(moment.asset, fit: BoxFit.cover, cacheWidth: 900),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  stops: const [0.0, 0.5, 1.0],
+                  colors: [
+                    VennuzoTheme.background.withValues(alpha: 0.14),
+                    VennuzoTheme.background.withValues(alpha: 0.62),
+                    VennuzoTheme.background.withValues(alpha: 0.9),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    moment.number,
+                    style: context.text.titleMedium?.copyWith(
+                      color: moment.accent,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
+                    child: Text(
+                      moment.title,
+                      style: context.text.titleLarge?.copyWith(
+                        color: Colors.white,
+                        height: 1.12,
+                        letterSpacing: -0.4,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 252),
+                    child: Text(
+                      moment.sub,
+                      style: context.text.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Closing call-to-action over a celebratory photo.
+class _CtaBand extends StatelessWidget {
+  const _CtaBand({required this.onBrowseAll});
+  final VoidCallback onBrowseAll;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+        boxShadow: VennuzoTheme.glowShadow(VennuzoTheme.primaryEnd),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/photos/09_confetti_celebration.jpg',
+                fit: BoxFit.cover,
+                cacheWidth: 1000,
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      VennuzoTheme.background.withValues(alpha: 0.55),
+                      VennuzoTheme.background.withValues(alpha: 0.86),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'YOUR NEXT NIGHT OUT',
+                    textAlign: TextAlign.center,
+                    style: context.text.labelSmall?.copyWith(
+                      color: VennuzoTheme.accentMint,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Ready to find\nwhat’s next?',
+                    textAlign: TextAlign.center,
+                    style: context.text.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      height: 1.05,
+                      letterSpacing: -0.6,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Discover events near you and grab tickets in seconds.',
+                    textAlign: TextAlign.center,
+                    style: context.text.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _GradientButton(
+                    label: 'Browse all events',
+                    icon: Icons.explore_rounded,
+                    onTap: onBrowseAll,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
+  const _GradientButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: VennuzoTheme.brandGradient,
+          borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+          boxShadow: VennuzoTheme.glowShadow(VennuzoTheme.primaryMid),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: context.text.labelLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );

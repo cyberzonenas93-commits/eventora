@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="preload" as="image" href="photos/01_hero_concert_crowd.png">
     <style>
         :root {
             --primary: #7B8CFF;
@@ -483,6 +484,203 @@
             color: #5A5A78;
         }
 
+        /* -- Hero photographic treatment ------------------------- */
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+        .hero-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center 35%;
+            transform: scale(1.05);
+            animation: heroKen 22s ease-in-out infinite alternate;
+        }
+        @keyframes heroKen {
+            from { transform: scale(1.05) translateY(0); }
+            to { transform: scale(1.12) translateY(-1.5%); }
+        }
+        .hero-scrim {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            background:
+                radial-gradient(ellipse 80% 60% at 50% 40%, transparent 0%, rgba(6,6,17,0.55) 100%),
+                linear-gradient(180deg, rgba(6,6,17,0.72) 0%, rgba(6,6,17,0.38) 32%, rgba(6,6,17,0.55) 72%, rgba(6,6,17,0.95) 100%);
+        }
+
+        /* Hero load choreography */
+        .hero .anim { opacity: 0; animation: heroUp 0.9s cubic-bezier(0.2,0.7,0.2,1) forwards; }
+        @keyframes heroUp {
+            from { opacity: 0; transform: translateY(26px); filter: blur(6px); }
+            to { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+
+        /* -- Event film-strip (marquee) -------------------------- */
+        .marquee {
+            position: relative;
+            padding: 28px 0 8px;
+            background: #060611;
+            overflow: hidden;
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+        }
+        .marquee-track {
+            display: flex;
+            gap: 18px;
+            width: max-content;
+            animation: scrollX 48s linear infinite;
+        }
+        .marquee:hover .marquee-track { animation-play-state: paused; }
+        .marquee-item {
+            position: relative;
+            flex: 0 0 auto;
+            width: 380px;
+            aspect-ratio: 16 / 9;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .marquee-item img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transition: transform 0.7s cubic-bezier(0.2,0.7,0.2,1);
+        }
+        .marquee-item::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(123,140,255,0.16), transparent 45%, rgba(255,107,157,0.18));
+            mix-blend-mode: screen;
+            opacity: 0.6;
+        }
+        .marquee-item:hover img { transform: scale(1.07); }
+        @keyframes scrollX { to { transform: translateX(-50%); } }
+
+        /* -- Editorial showcase rows ----------------------------- */
+        .showcase {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 110px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 96px;
+        }
+        .show-head { max-width: 620px; margin-bottom: 8px; }
+        .show-row {
+            display: grid;
+            grid-template-columns: 1.05fr 0.95fr;
+            gap: 64px;
+            align-items: center;
+        }
+        .show-row.reverse .show-media { order: 2; }
+        .show-media {
+            position: relative;
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            aspect-ratio: 4 / 3;
+            box-shadow: 0 40px 90px rgba(0,0,0,0.55);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .show-media img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transition: transform 0.9s cubic-bezier(0.2,0.7,0.2,1);
+        }
+        .show-row:hover .show-media img { transform: scale(1.05); }
+        .show-media::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(123,140,255,0.18), transparent 48%, rgba(255,107,157,0.18));
+            mix-blend-mode: screen;
+        }
+        .show-media .badge-float {
+            position: absolute;
+            left: 18px; bottom: 18px;
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 8px 16px;
+            background: rgba(6,6,17,0.6);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .show-num {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #7B8CFF, #FF6B9D);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 14px;
+        }
+        .show-text h3 {
+            font-family: 'Sora', sans-serif;
+            font-size: clamp(1.7rem, 3vw, 2.3rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: #F4F4FB;
+            margin-bottom: 16px;
+        }
+        .show-text p {
+            font-size: 1.02rem;
+            color: #9898B4;
+            line-height: 1.7;
+            max-width: 440px;
+        }
+
+        /* -- How-it-works photographic backing ------------------- */
+        .how-it-works .how-photo {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.16;
+            background-size: cover;
+            background-position: center;
+            -webkit-mask-image: radial-gradient(ellipse 70% 80% at 70% 40%, #000 0%, transparent 75%);
+            mask-image: radial-gradient(ellipse 70% 80% at 70% 40%, #000 0%, transparent 75%);
+        }
+
+        /* -- CTA photographic band ------------------------------- */
+        .cta-band { position: relative; overflow: hidden; }
+        .cta-band .cta-bg { position: absolute; inset: 0; z-index: 0; }
+        .cta-band .cta-bg img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            object-position: center 40%;
+        }
+        .cta-band .cta-scrim {
+            position: absolute; inset: 0; z-index: 1;
+            background:
+                radial-gradient(ellipse 70% 70% at 50% 45%, transparent 0%, rgba(6,6,17,0.7) 100%),
+                linear-gradient(180deg, rgba(6,6,17,0.9) 0%, rgba(6,6,17,0.68) 50%, rgba(6,6,17,0.96) 100%);
+        }
+        .cta-band .cta-section { position: relative; z-index: 2; }
+
+        /* -- Scroll reveal --------------------------------------- */
+        .reveal {
+            opacity: 0;
+            transform: translateY(34px);
+            transition: opacity 0.8s cubic-bezier(0.2,0.7,0.2,1), transform 0.8s cubic-bezier(0.2,0.7,0.2,1);
+        }
+        .reveal.in-view { opacity: 1; transform: none; }
+        .show-row .show-media { transition-delay: 0.08s; }
+        .reveal.from-left { transform: translateX(-40px); }
+        .reveal.from-right { transform: translateX(40px); }
+        .reveal.from-left.in-view,
+        .reveal.from-right.in-view { transform: none; }
+        @media (prefers-reduced-motion: reduce) {
+            .reveal, .hero .anim, .hero-bg img, .marquee-track { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
+        }
+
         /* -- Mobile ---------------------------------------------- */
         @media (max-width: 768px) {
             .nav-links a:not(.nav-cta) { display: none; }
@@ -491,6 +689,11 @@
             .features-grid { grid-template-columns: 1fr; }
             .steps-grid { grid-template-columns: 1fr; }
             .footer-inner { flex-direction: column; }
+            .marquee-item { width: 260px; }
+            .showcase { padding: 72px 24px; gap: 64px; }
+            .show-row { grid-template-columns: 1fr; gap: 28px; }
+            .show-row.reverse .show-media { order: 0; }
+            .reveal.from-left, .reveal.from-right { transform: translateY(34px); }
         }
     </style>
 </head>
@@ -511,16 +714,20 @@
 
 <!-- -- Hero ------------------------------------------------------- -->
 <section class="hero">
+    <div class="hero-bg">
+        <img src="photos/01_hero_concert_crowd.png" alt="Crowd at a live event bathed in stage light" fetchpriority="high">
+    </div>
+    <div class="hero-scrim"></div>
     <div class="hero-orb-1"></div>
     <div class="hero-orb-2"></div>
     <div class="hero-content">
-        <div class="hero-badge">
+        <div class="hero-badge anim" style="animation-delay:0.05s">
             <span class="hero-badge-dot"></span>
             Now available on iOS
         </div>
-        <h1>Experience events<br><span class="gradient-text">differently</span></h1>
-        <p>Discover, book, and share the events that matter to you. From intimate gatherings to sold-out nights, Vennuzo puts the scene at your fingertips.</p>
-        <div class="hero-actions">
+        <h1 class="anim" style="animation-delay:0.15s">Experience events<br><span class="gradient-text">differently</span></h1>
+        <p class="anim" style="animation-delay:0.28s">Discover, book, and share the events that matter to you. From intimate gatherings to sold-out nights, Vennuzo puts the scene at your fingertips.</p>
+        <div class="hero-actions anim" style="animation-delay:0.4s">
             <a href="#download" class="btn-primary">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
                 Download free
@@ -530,7 +737,7 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </a>
         </div>
-        <div class="stats-bar">
+        <div class="stats-bar anim" style="animation-delay:0.52s">
             <div class="stat-item">
                 <div class="stat-value">Live</div>
                 <div class="stat-label">Event listings</div>
@@ -547,38 +754,55 @@
     </div>
 </section>
 
+<!-- -- Event film-strip ------------------------------------------- -->
+<section class="marquee" aria-label="A glimpse of the scene">
+    <div class="marquee-track">
+        <div class="marquee-item"><img src="photos/02_dj_booth_night.png" alt="DJ performing at a club night" loading="lazy"></div>
+        <div class="marquee-item"><img src="photos/03_festival_dusk.png" alt="Outdoor festival at dusk" loading="lazy"></div>
+        <div class="marquee-item"><img src="photos/07_dancefloor_silhouettes.png" alt="Silhouettes on a dancefloor" loading="lazy"></div>
+        <div class="marquee-item"><img src="photos/08_live_band_intimate.png" alt="Intimate live performance" loading="lazy"></div>
+        <div class="marquee-item"><img src="photos/10_gallery_culture_event.png" alt="Upscale cultural event" loading="lazy"></div>
+        <!-- duplicate set for a seamless loop -->
+        <div class="marquee-item" aria-hidden="true"><img src="photos/02_dj_booth_night.png" alt="" loading="lazy"></div>
+        <div class="marquee-item" aria-hidden="true"><img src="photos/03_festival_dusk.png" alt="" loading="lazy"></div>
+        <div class="marquee-item" aria-hidden="true"><img src="photos/07_dancefloor_silhouettes.png" alt="" loading="lazy"></div>
+        <div class="marquee-item" aria-hidden="true"><img src="photos/08_live_band_intimate.png" alt="" loading="lazy"></div>
+        <div class="marquee-item" aria-hidden="true"><img src="photos/10_gallery_culture_event.png" alt="" loading="lazy"></div>
+    </div>
+</section>
+
 <!-- -- Features --------------------------------------------------- -->
 <section class="features" id="features">
-    <div class="section-label">Platform</div>
-    <h2 class="section-title">Everything you need<br>for unforgettable nights</h2>
-    <p class="section-subtitle">Built for the culture. Whether you're discovering events or hosting them, Vennuzo handles the details so you can focus on the experience.</p>
+    <div class="section-label reveal">Platform</div>
+    <h2 class="section-title reveal">Everything you need<br>for unforgettable nights</h2>
+    <p class="section-subtitle reveal">Built for the culture. Whether you're discovering events or hosting them, Vennuzo handles the details so you can focus on the experience.</p>
     <div class="features-grid">
-        <div class="feature-card">
+        <div class="feature-card reveal">
             <div class="feature-icon purple">&#9906;</div>
             <h3>Smart discovery</h3>
             <p>Find events near you with location-aware search. Filter by vibe, venue, date, or tag to match your mood.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card reveal">
             <div class="feature-icon rose">&#127915;</div>
             <h3>Instant ticketing</h3>
             <p>Purchase tickets in one seamless flow. Secure mobile checkout with QR codes for contactless entry.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card reveal">
             <div class="feature-icon mint">&#128205;</div>
             <h3>Live maps</h3>
             <p>See event locations on an interactive map. Get directions and explore what's happening around you.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card reveal">
             <div class="feature-icon warm">&#128276;</div>
             <h3>Smart reminders</h3>
             <p>Never miss an event. Set custom reminders and get push notifications for events you care about.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card reveal">
             <div class="feature-icon blue">&#128101;</div>
             <h3>Social features</h3>
             <p>Save events, share with friends, write reviews, and see what your community is attending.</p>
         </div>
-        <div class="feature-card">
+        <div class="feature-card reveal">
             <div class="feature-icon violet">&#128640;</div>
             <h3>Host tools</h3>
             <p>Create events, manage tickets, run promotions, and track analytics. Everything an organizer needs in one place.</p>
@@ -586,24 +810,70 @@
     </div>
 </section>
 
+<!-- -- Editorial showcase ----------------------------------------- -->
+<section class="showcase" aria-label="How Vennuzo works for you">
+    <div class="show-head reveal">
+        <div class="section-label">The experience</div>
+        <h2 class="section-title">Every kind of night,<br>one app away</h2>
+        <p class="section-subtitle">From the warm-up to the encore, Vennuzo follows the whole arc of a great night out.</p>
+    </div>
+
+    <div class="show-row reveal">
+        <div class="show-media reveal from-left">
+            <img src="photos/04_friends_arriving.png" alt="Friends arriving at a venue at night" loading="lazy">
+            <span class="badge-float">&#9906; Discover</span>
+        </div>
+        <div class="show-text reveal from-right">
+            <div class="show-num">01 — Discover</div>
+            <h3>Find the nights worth showing up for</h3>
+            <p>Location-aware discovery surfaces concerts, parties, and pop-ups near you. Filter by vibe, venue, or date and let the scene come to you.</p>
+        </div>
+    </div>
+
+    <div class="show-row reverse reveal">
+        <div class="show-media reveal from-right">
+            <img src="photos/05_qr_entry.png" alt="Phone held up to a venue ticket scanner" loading="lazy">
+            <span class="badge-float">&#127915; Instant entry</span>
+        </div>
+        <div class="show-text reveal from-left">
+            <div class="show-num">02 — Ticket</div>
+            <h3>Book in seconds, breeze past the door</h3>
+            <p>Secure mobile checkout with a QR code that lives in your pocket. No paper, no queue — just flash your phone and walk straight in.</p>
+        </div>
+    </div>
+
+    <div class="show-row reveal">
+        <div class="show-media reveal from-left">
+            <img src="photos/06_rooftop_party.png" alt="Friends at a rooftop party with a city skyline" loading="lazy">
+            <span class="badge-float">&#128101; Share</span>
+        </div>
+        <div class="show-text reveal from-right">
+            <div class="show-num">03 — Share</div>
+            <h3>Bring the crew, relive the moment</h3>
+            <p>Save events, invite friends, and see what your community is heading to. The best nights are better together — Vennuzo keeps everyone in sync.</p>
+        </div>
+    </div>
+</section>
+
 <!-- -- How it works ------------------------------------------------ -->
 <section class="how-it-works" id="how-it-works">
+    <div class="how-photo" style="background-image:url('photos/07_dancefloor_silhouettes.png')"></div>
     <div class="how-inner">
-        <div class="section-label">Getting started</div>
-        <h2 class="section-title">Three steps to your<br>next great night</h2>
-        <p class="section-subtitle">From download to doorstep in minutes.</p>
+        <div class="section-label reveal">Getting started</div>
+        <h2 class="section-title reveal">Three steps to your<br>next great night</h2>
+        <p class="section-subtitle reveal">From download to doorstep in minutes.</p>
         <div class="steps-grid">
-            <div class="step-card">
+            <div class="step-card reveal">
                 <div class="step-number">01</div>
                 <h3>Browse and discover</h3>
                 <p>Open Vennuzo and explore trending, nearby, and featured events curated just for you.</p>
             </div>
-            <div class="step-card">
+            <div class="step-card reveal">
                 <div class="step-number">02</div>
                 <h3>Book your spot</h3>
                 <p>Grab tickets or RSVP in seconds. Secure checkout with instant confirmation to your phone.</p>
             </div>
-            <div class="step-card">
+            <div class="step-card reveal">
                 <div class="step-number">03</div>
                 <h3>Show up and enjoy</h3>
                 <p>Flash your QR code at the door. Share the moment, rate the experience, and find your next one.</p>
@@ -613,15 +883,19 @@
 </section>
 
 <!-- -- CTA -------------------------------------------------------- -->
-<section class="cta-section" id="download">
-    <div class="section-label">Download</div>
-    <h2 class="section-title">Ready to find<br>what's next?</h2>
-    <p>Join the community. Vennuzo is free for attendees and available now on the App Store.</p>
-    <a href="https://apps.apple.com/app/vennuzo/id6744145957" class="btn-primary" target="_blank" rel="noopener">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-        Download on the App Store
-    </a>
-</section>
+<div class="cta-band" id="download">
+    <div class="cta-bg"><img src="photos/09_confetti_celebration.png" alt="Crowd celebrating under falling confetti" loading="lazy"></div>
+    <div class="cta-scrim"></div>
+    <section class="cta-section">
+        <div class="section-label reveal">Download</div>
+        <h2 class="section-title reveal">Ready to find<br>what's next?</h2>
+        <p class="reveal">Join the community. Vennuzo is free for attendees and available now on the App Store.</p>
+        <a href="https://apps.apple.com/app/vennuzo/id6744145957" class="btn-primary reveal" target="_blank" rel="noopener">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            Download on the App Store
+        </a>
+    </section>
+</div>
 
 <!-- -- Footer ----------------------------------------------------- -->
 <footer>
@@ -659,6 +933,34 @@
     window.addEventListener('scroll', () => {
         nav.classList.toggle('scrolled', window.scrollY > 40);
     });
+
+    // Stagger grid children so cards cascade in
+    document.querySelectorAll('.features-grid, .steps-grid').forEach((grid) => {
+        [...grid.children].forEach((child, i) => {
+            if (child.classList.contains('reveal')) {
+                child.style.transitionDelay = (i * 0.08) + 's';
+            }
+        });
+    });
+
+    // Scroll-triggered reveals (rAF-throttled — robust across browsers)
+    const revealEls = [...document.querySelectorAll('.reveal')];
+    let ticking = false;
+    function showReveals() {
+        const trigger = window.innerHeight * 0.92;
+        for (let i = revealEls.length - 1; i >= 0; i--) {
+            if (revealEls[i].getBoundingClientRect().top < trigger) {
+                revealEls[i].classList.add('in-view');
+                revealEls.splice(i, 1);
+            }
+        }
+        ticking = false;
+    }
+    function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(showReveals); } }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    window.addEventListener('load', showReveals);
+    showReveals();
 </script>
 </body>
 </html>

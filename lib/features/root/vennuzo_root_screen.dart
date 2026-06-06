@@ -100,6 +100,7 @@ class _RootLoadingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
+      backgroundColor: Colors.black,
       body: VennuzoSplashStage(subtitle: null, showLoader: true),
     );
   }

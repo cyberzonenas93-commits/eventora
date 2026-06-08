@@ -72,8 +72,10 @@ class PlaceProfile {
   final bool featured;
   final String status;
 
-  /// Server-authoritative verification lifecycle:
-  /// 'unverified' | 'pending_review' | 'verified' | 'rejected' | 'suspended'.
+  /// Server-authoritative verification lifecycle. The backend emits
+  /// 'verification_pending' for an in-review submission (see
+  /// normalizedVerificationStatus in functions/places_platform.js):
+  /// 'unverified' | 'verification_pending' | 'verified' | 'rejected' | 'suspended'.
   final String verificationStatus;
   final bool verified;
   final DateTime createdAt;
@@ -82,7 +84,10 @@ class PlaceProfile {
   bool get isActive => status != 'hidden' && status != 'disabled';
 
   bool get isVerified => verified || verificationStatus == 'verified';
-  bool get isVerificationPending => verificationStatus == 'pending_review';
+  bool get isVerificationPending =>
+      verificationStatus == 'verification_pending' ||
+      verificationStatus == 'pending_review' ||
+      verificationStatus == 'pending';
 
   IconData get icon {
     final text = [...categories, name, description].join(' ').toLowerCase();

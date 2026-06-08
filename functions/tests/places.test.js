@@ -42,6 +42,7 @@ const {
   normalizeOtpInput,
   maskPhone,
 } = require("../places_platform");
+const { hubtelResponseLooksSuccessful } = require("../hubtel_sms");
 
 describe("isAllowedMediaUrl (media URL allow-list / anti-SSRF)", () => {
   test("accepts Firebase/GCS storage hosts over https", () => {
@@ -142,5 +143,33 @@ describe("place verification helpers (claim + OTP)", () => {
     expect(placeOtpHash("gpl_other", "123456", salt)).not.toBe(good);
     // Same code+place, different salt -> different hash
     expect(placeOtpHash("gpl_abc", "123456", "differentsalt")).not.toBe(good);
+  });
+});
+
+describe("hubtelResponseLooksSuccessful (numeric status:0 = success)", () => {
+  test("recognizes Hubtel v1 success (numeric status 0 + submitted)", () => {
+    // The exact shape sms.hubtel.com returns on a successful submit.
+    expect(
+      hubtelResponseLooksSuccessful({
+        status: 0,
+        statusDescription: "request submitted successfully",
+        messageId: "36774895-3fd5-4746-882c-d6b32707bca9",
+        rate: 0.0243,
+      }),
+    ).toBe(true);
+  });
+
+  test("recognizes string statuses and responseCode forms", () => {
+    expect(hubtelResponseLooksSuccessful({ responseCode: "0000" })).toBe(true);
+    expect(hubtelResponseLooksSuccessful({ status: "submitted" })).toBe(true);
+    expect(hubtelResponseLooksSuccessful({ Status: "Success" })).toBe(true);
+  });
+
+  test("treats invalid-credentials / errors as failure", () => {
+    expect(
+      hubtelResponseLooksSuccessful({ status: 100, statusDescription: "invalid api key credentials" }),
+    ).toBe(false);
+    expect(hubtelResponseLooksSuccessful({})).toBe(false);
+    expect(hubtelResponseLooksSuccessful(null)).toBe(false);
   });
 });

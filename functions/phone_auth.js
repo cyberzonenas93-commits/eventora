@@ -50,11 +50,22 @@ function isValidGhanaMobileNumber(phone) {
 }
 
 function hubtelResponseLooksSuccessful(body) {
-  const code = safeString(body && (body.ResponseCode || body.responseCode || body.code));
+  if (!body || typeof body !== "object") return false;
+  // Hubtel's v1 SMS API returns numeric status 0 ("request submitted
+  // successfully") on success — guard this BEFORE safeString, since safeString(0)
+  // is "" (0 is falsy) and would otherwise misread success as failure.
+  if (body.status === 0 || body.status === "0" || body.Status === 0) return true;
+  if (
+    safeString(body.messageId) &&
+    safeString(body.statusDescription).toLowerCase().includes("submitted")
+  ) {
+    return true;
+  }
+  const code = safeString(body.ResponseCode || body.responseCode || body.code);
   if (code && ["0000", "0", "200", "201"].includes(code)) {
     return true;
   }
-  const status = safeString(body && (body.Status || body.status)).toLowerCase();
+  const status = safeString(body.Status || body.status).toLowerCase();
   return ["success", "successful", "accepted", "submitted", "sent"].includes(status);
 }
 
@@ -118,44 +129,37 @@ async function sendHubtelSms({ to, message, reference }) {
   };
   const basicAuth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
 
-  const response = await fetch("https://smsc.hubtel.com/v1/messages/send", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  const body = await parseResponseBody(response);
-  if (response.ok && hubtelResponseLooksSuccessful(body)) {
-    return normalizedPhone;
-  }
-
-  const fallbackResponse = await fetch("https://sms.hubtel.com/v1/messages/send", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      From: payload.From,
-      To: normalizedPhone,
-      Content: payload.Content,
-    }),
-  });
-  const fallbackBody = await parseResponseBody(fallbackResponse);
-  if (!fallbackResponse.ok || !hubtelResponseLooksSuccessful(fallbackBody)) {
-    logger.error("Phone login OTP SMS failed", {
-      status: fallbackResponse.status,
-      reference: payload.ClientReference,
+  // Try the endpoint our SMS credentials authenticate against first
+  // (sms.hubtel.com); smsc.hubtel.com is the fallback (it returns "invalid api
+  // key credentials" for these creds). Full payload (incl. ClientReference) to both.
+  const endpoints = [
+    "https://sms.hubtel.com/v1/messages/send",
+    "https://smsc.hubtel.com/v1/messages/send",
+  ];
+  let lastStatus = 0;
+  for (const url of endpoints) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     });
-    throw new HttpsError(
-      "unavailable",
-      "We could not send the Vennuzo code. Please try again.",
-    );
+    const body = await parseResponseBody(response);
+    if (response.ok && hubtelResponseLooksSuccessful(body)) {
+      return normalizedPhone;
+    }
+    lastStatus = response.status;
   }
-
-  return normalizedPhone;
+  logger.error("Phone login OTP SMS failed", {
+    status: lastStatus,
+    reference: payload.ClientReference,
+  });
+  throw new HttpsError(
+    "unavailable",
+    "We could not send the Vennuzo code. Please try again.",
+  );
 }
 
 async function parseResponseBody(response) {

@@ -20,15 +20,16 @@ function safeString(value, fallback = "") {
   return normalized || fallback;
 }
 
-// Rate limit Places proxy calls (per signed-in user, else per IP) to protect the
-// shared Google Places billing/quota from abuse.
+// Require sign-in before proxying to the billed Google Places/Geocoding APIs,
+// then rate limit per user. Gating behind auth removes the anonymous cost-abuse
+// vector (rotating-IP callers driving Google API spend) — the app requires a
+// signed-in session for venue search and place claiming anyway.
 async function enforcePlacesRateLimit(request) {
-  const key = safeString(
-    (request.auth && request.auth.uid) ||
-      (request.rawRequest && request.rawRequest.ip),
-    "unknown",
-  );
-  await checkRateLimit(db, `places_${key}`, "placesLookup", { maxCalls: 60, windowSeconds: 60 });
+  const uid = safeString(request.auth && request.auth.uid);
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Sign in to search places.");
+  }
+  await checkRateLimit(db, `places_${uid}`, "placesLookup", { maxCalls: 60, windowSeconds: 60 });
 }
 
 function safeNumber(value) {

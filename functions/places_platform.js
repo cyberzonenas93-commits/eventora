@@ -45,6 +45,46 @@ function stringArray(value, max = 20) {
   return value.map((item) => safeString(item)).filter(Boolean).slice(0, max);
 }
 
+// Media URLs must resolve to first-party Firebase/Google Cloud Storage, never an
+// arbitrary third-party host. This keeps stored coverUrl/logoUrl/galleryUrls from
+// becoming an SSRF/abuse surface and keeps place media durable.
+const ALLOWED_MEDIA_URL_HOSTS = new Set([
+  "firebasestorage.googleapis.com",
+  "storage.googleapis.com",
+]);
+
+function isAllowedMediaUrl(value) {
+  const raw = safeString(value);
+  if (!raw) return false;
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (error) {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  return ALLOWED_MEDIA_URL_HOSTS.has(host) || host.endsWith(".firebasestorage.app");
+}
+
+// Validate a single media URL: empty -> null; off-allow-list -> reject.
+function sanitizeMediaUrl(value, label) {
+  const raw = safeString(value);
+  if (!raw) return null;
+  if (!isAllowedMediaUrl(raw)) {
+    throw new HttpsError(
+      "invalid-argument",
+      `${label} must be an image hosted in Vennuzo storage.`,
+    );
+  }
+  return raw;
+}
+
+// Validate a media URL array, dropping any entries outside the allow-list.
+function sanitizeMediaUrlArray(value, max) {
+  return stringArray(value, max).filter((url) => isAllowedMediaUrl(url));
+}
+
 function normalizedReservationStatus(value) {
   const status = safeString(value).toLowerCase().replace(/[_\s-]+/g, "");
   if (status === "confirmed") return "confirmed";
@@ -227,13 +267,23 @@ exports.upsertPlaceProfile = onCall({ region: REGION, timeoutSeconds: 60 }, asyn
     description: cleanText(data.description, "", 1000),
     city: cleanText(data.city, "Accra", 80),
     address: cleanText(data.address || data.formattedAddress, "", 240),
-    googlePlaceId: safeString(data.googlePlaceId) || safeString(existingData.googlePlaceId) || null,
+    // googlePlaceId is the dedup anchor — set only by claimOrCreatePlace (server),
+    // never from arbitrary client input here (prevents dedup poisoning).
+    googlePlaceId: safeString(existingData.googlePlaceId) || null,
     mapsUrl: safeString(data.mapsUrl || data.googleMapsUrl) || null,
     phone: safeString(data.phone) || null,
     website: safeString(data.website) || null,
-    logoUrl: safeString(data.logoUrl) || null,
-    coverUrl: safeString(data.coverUrl) || null,
-    galleryUrls: stringArray(data.galleryUrls || data.photos, 40),
+    // Media URLs are validated against the Storage allow-list; omitted values
+    // preserve the existing media rather than wiping it.
+    logoUrl: data.logoUrl === undefined
+      ? (safeString(existingData.logoUrl) || null)
+      : sanitizeMediaUrl(data.logoUrl, "Logo"),
+    coverUrl: data.coverUrl === undefined
+      ? (safeString(existingData.coverUrl) || null)
+      : sanitizeMediaUrl(data.coverUrl, "Cover image"),
+    galleryUrls: (data.galleryUrls === undefined && data.photos === undefined)
+      ? stringArray(existingData.galleryUrls, 40)
+      : sanitizeMediaUrlArray(data.galleryUrls || data.photos, 40),
     categories: stringArray(data.categories, 12),
     amenities: stringArray(data.amenities, 30),
     openingHours: stringArray(data.openingHours || data.hours, 14),
@@ -247,7 +297,9 @@ exports.upsertPlaceProfile = onCall({ region: REGION, timeoutSeconds: 60 }, asyn
       "official_review_responses",
     ],
     verified: verified,
-    featured: verified && data.featured === true ? true : existingData.featured === true,
+    // featured is a server/admin-controlled placement, never client-settable here
+    // (even by a verified owner). Preserve whatever the server last set.
+    featured: existingData.featured === true,
     selfServeOnboarding: true,
     updatedAt: FieldValue.serverTimestamp(),
     createdAt: existing.exists ? existingData.createdAt || FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
@@ -513,3 +565,12 @@ exports.launchPlacePushCampaign = onCall({ region: REGION, timeoutSeconds: 300 }
   }, { merge: true });
   return { ok: true, campaignId, subscriberCount: userIds.length, pushAudience: tokens.length, sent, failed, costGhs: estimatedCost };
 });
+
+// Test-only exports (jest sets NODE_ENV="test"). Production/deploy never run with
+// NODE_ENV==="test", so these helpers stay private at runtime.
+if (process.env.NODE_ENV === "test") {
+  module.exports.isAllowedMediaUrl = isAllowedMediaUrl;
+  module.exports.sanitizeMediaUrl = sanitizeMediaUrl;
+  module.exports.sanitizeMediaUrlArray = sanitizeMediaUrlArray;
+  module.exports.safeString = safeString;
+}

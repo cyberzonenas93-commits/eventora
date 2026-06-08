@@ -561,10 +561,21 @@ service cloud.firestore {
     match /places/{placeId} {
       allow read: if resource.data.status == 'active'
         || isEventManager(resource.data.organizationId);
-      allow create: if isEventManager(request.resource.data.organizationId);
-      allow update: if isEventManager(resource.data.organizationId)
-        && request.resource.data.organizationId == resource.data.organizationId;
+      // All writes go through callables (claimOrCreatePlace, upsertPlaceProfile,
+      // confirmPlaceVerification, reviewPlaceVerification) running on the Admin SDK,
+      // which keep googlePlaceId / ownerId / verified / featured / verificationStatus
+      // server-controlled. No client SDK write path exists — this prevents a manager
+      // from self-setting verified/featured to bypass admin review or the paid-push
+      // and featured-placement entitlement gates.
+      allow create, update: if false;
       allow delete: if isAdmin();
+    }
+
+    // Server-only store for place-verification OTP secrets (hashed code + TTL +
+    // attempts). Written/read exclusively by the Admin SDK in the verification
+    // callables; never exposed to clients.
+    match /place_verification_otps/{otpId} {
+      allow read, write: if false;
     }
 
     match /place_menu_sections/{sectionId} {

@@ -1,8 +1,17 @@
 "use strict";
 
+const crypto = require("crypto");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const { checkRateLimit } = require("./rate_limiter");
+const { sendHubtelSms } = require("./hubtel_sms");
+
+const GOOGLE_PLACES_API_KEY = defineSecret("GOOGLE_PLACES_API_KEY");
+
+const PLACE_OTP_COLLECTION = "place_verification_otps";
+const PLACE_OTP_TTL_SECONDS = 10 * 60;
+const PLACE_OTP_MAX_ATTEMPTS = 5;
 
 try {
   admin.app();
@@ -83,6 +92,70 @@ function sanitizeMediaUrl(value, label) {
 // Validate a media URL array, dropping any entries outside the allow-list.
 function sanitizeMediaUrlArray(value, max) {
   return stringArray(value, max).filter((url) => isAllowedMediaUrl(url));
+}
+
+// ── Claim + verification helpers ─────────────────────────────────────────────
+
+function sha1Hex(value) {
+  return crypto.createHash("sha1").update(safeString(value)).digest("hex");
+}
+
+function placeOtpCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+}
+
+function placeOtpHash(placeId, code, salt) {
+  return crypto.createHash("sha256").update(`${placeId}:${code}:${salt}`).digest("hex");
+}
+
+function normalizeOtpInput(value) {
+  return safeString(value).replace(/\D/g, "").slice(0, 6);
+}
+
+function maskPhone(phone) {
+  const p = safeString(phone);
+  if (p.length <= 3) return "***";
+  return `${"*".repeat(p.length - 3)}${p.slice(-3)}`;
+}
+
+// Server-side Google Places details fetch for claiming. Includes the phone number
+// (the trust anchor for phone-OTP verification) — sourced from Google, NEVER from
+// client input, so a claimant cannot redirect the OTP to a number they control.
+async function fetchGooglePlaceForClaim(googlePlaceId, apiKey) {
+  const id = safeString(googlePlaceId);
+  if (!id) throw new HttpsError("invalid-argument", "googlePlaceId is required.");
+  if (!safeString(apiKey)) {
+    throw new HttpsError("failed-precondition", "Google Places lookup is not configured on the server yet.");
+  }
+  const fieldMask = [
+    "id", "displayName", "formattedAddress", "location",
+    "internationalPhoneNumber", "nationalPhoneNumber", "websiteUri",
+  ].join(",");
+  const response = await fetch(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}`,
+    { headers: { "X-Goog-Api-Key": safeString(apiKey), "X-Goog-FieldMask": fieldMask } },
+  );
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch (error) {
+    payload = {};
+  }
+  if (!response.ok) {
+    throw new HttpsError("internal", "Google Places could not load this location.");
+  }
+  const lat = Number(payload?.location?.latitude);
+  const lng = Number(payload?.location?.longitude);
+  return {
+    googlePlaceId: safeString(payload?.id, id),
+    name: cleanText(payload?.displayName?.text, "Vennuzo place", 120),
+    address: cleanText(payload?.formattedAddress, "", 240),
+    latitude: Number.isFinite(lat) ? lat : null,
+    longitude: Number.isFinite(lng) ? lng : null,
+    phone: safeString(payload?.internationalPhoneNumber || payload?.nationalPhoneNumber) || null,
+    website: safeString(payload?.websiteUri) || null,
+  };
 }
 
 function normalizedReservationStatus(value) {
@@ -566,6 +639,195 @@ exports.launchPlacePushCampaign = onCall({ region: REGION, timeoutSeconds: 300 }
   return { ok: true, campaignId, subscriberCount: userIds.length, pushAudience: tokens.length, sent, failed, costGhs: estimatedCost };
 });
 
+// ── Claim a Google-listed venue (or add a free-form place) ───────────────────
+// Google-anchored claims dedup on a deterministic id (gpl_<sha1(googlePlaceId)>)
+// and carry Google's listed phone for phone-OTP verification. Free-form places
+// have no trusted phone, so they must verify via document review.
+exports.claimOrCreatePlace = onCall(
+  { region: REGION, timeoutSeconds: 60, secrets: [GOOGLE_PLACES_API_KEY] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    const uid = request.auth.uid;
+    await checkRateLimit(db, uid, "claimOrCreatePlace", { maxCalls: 20, windowSeconds: 3600 });
+
+    const data = request.data || {};
+    const organizationId = `org_${uid}`;
+    const googlePlaceId = safeString(data.googlePlaceId);
+
+    let placeId;
+    let prefill;
+    let verifiablePhone = null;
+
+    if (googlePlaceId) {
+      prefill = await fetchGooglePlaceForClaim(googlePlaceId, GOOGLE_PLACES_API_KEY.value());
+      placeId = `gpl_${sha1Hex(googlePlaceId)}`;
+      verifiablePhone = prefill.phone;
+    } else {
+      const name = cleanText(data.name, "", 120);
+      if (!name) throw new HttpsError("invalid-argument", "A place name is required.");
+      placeId = db.collection("places").doc().id;
+      prefill = {
+        googlePlaceId: null,
+        name,
+        address: cleanText(data.address, "", 240),
+        latitude: Number.isFinite(Number(data.latitude)) ? Number(data.latitude) : null,
+        longitude: Number.isFinite(Number(data.longitude)) ? Number(data.longitude) : null,
+        phone: safeString(data.phone) || null,
+        website: safeString(data.website) || null,
+      };
+    }
+
+    const ref = db.collection("places").doc(placeId);
+    const existingSnap = await ref.get();
+    const existingData = existingSnap.exists ? existingSnap.data() || {} : {};
+    const existingOrg = safeString(existingData.organizationId);
+
+    // Ownership/dedup lock: a listing already owned by a different account is
+    // off-limits (verified or not). Disputes go through support, never auto-takeover.
+    if (existingSnap.exists && existingOrg && existingOrg !== organizationId) {
+      throw new HttpsError(
+        "already-exists",
+        "This place has already been claimed. Contact support if you own it.",
+      );
+    }
+
+    await ensureSelfServeWorkspace(uid, organizationId, prefill.name);
+
+    const existingStatus = normalizedVerificationStatus(existingData.verificationStatus);
+    const lat = prefill.latitude;
+    const lng = prefill.longitude;
+    await ref.set({
+      organizationId,
+      ownerId: safeString(existingData.ownerId, uid),
+      createdBy: safeString(existingData.createdBy, uid),
+      claimedBy: uid,
+      claimedAt: existingData.claimedAt || FieldValue.serverTimestamp(),
+      name: prefill.name,
+      address: prefill.address || safeString(existingData.address) || "",
+      googlePlaceId: prefill.googlePlaceId || safeString(existingData.googlePlaceId) || null,
+      verifiablePhone: verifiablePhone || safeString(existingData.verifiablePhone) || null,
+      phone: prefill.phone || safeString(existingData.phone) || null,
+      website: prefill.website || safeString(existingData.website) || null,
+      location: lat != null && lng != null ? new GeoPoint(lat, lng) : (existingData.location || null),
+      status: "active",
+      verificationStatus: existingStatus,
+      verified: existingData.verified === true,
+      featured: existingData.featured === true,
+      verificationRequiredFor: [
+        "featured_placement", "paid_subscriber_push", "payments_or_deposits", "official_review_responses",
+      ],
+      selfServeOnboarding: true,
+      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: existingSnap.exists ? existingData.createdAt || FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return {
+      ok: true,
+      placeId,
+      verificationStatus: existingStatus,
+      canVerifyByPhone: !!verifiablePhone,
+    };
+  },
+);
+
+// ── Start phone verification (send OTP to the venue's Google-listed number) ──
+exports.startPlaceVerification = onCall({ region: REGION, timeoutSeconds: 60 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const uid = request.auth.uid;
+  const data = request.data || {};
+  const method = safeString(data.method, "phone").toLowerCase();
+  const { placeId, placeData } = await loadManagedPlace(uid, safeString(data.placeId));
+
+  if (normalizedVerificationStatus(placeData.verificationStatus) === "verified") {
+    return { ok: true, alreadyVerified: true, verificationStatus: "verified" };
+  }
+  if (method !== "phone") {
+    throw new HttpsError("invalid-argument", "Use document verification for this method.");
+  }
+
+  const phone = safeString(placeData.verifiablePhone);
+  if (!phone) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Phone verification isn't available for this listing. Upload a verification document instead.",
+    );
+  }
+
+  await checkRateLimit(db, uid, "startPlaceVerification", { maxCalls: 5, windowSeconds: 600 });
+  await checkRateLimit(db, `place_${placeId}`, "startPlaceVerificationPlace", { maxCalls: 5, windowSeconds: 600 });
+
+  const code = placeOtpCode();
+  const salt = crypto.randomBytes(16).toString("hex");
+  const expiresAt = Timestamp.fromMillis(Date.now() + PLACE_OTP_TTL_SECONDS * 1000);
+  await db.collection(PLACE_OTP_COLLECTION).doc(`${placeId}_phone`).set({
+    placeId,
+    method: "phone",
+    codeHash: placeOtpHash(placeId, code, salt),
+    salt,
+    target: maskPhone(phone),
+    attempts: 0,
+    expiresAt,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  await sendHubtelSms({
+    to: phone,
+    message: `Your Vennuzo place verification code is ${code}. It expires in 10 minutes.`,
+    reference: `placeverify_${placeId}`,
+  });
+
+  return { ok: true, method: "phone", target: maskPhone(phone), expiresInSeconds: PLACE_OTP_TTL_SECONDS };
+});
+
+// ── Confirm phone verification (check OTP, promote to verified) ──────────────
+exports.confirmPlaceVerification = onCall({ region: REGION, timeoutSeconds: 60 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const uid = request.auth.uid;
+  const data = request.data || {};
+  const code = normalizeOtpInput(data.code);
+  const { placeId, placeData } = await loadManagedPlace(uid, safeString(data.placeId));
+
+  if (normalizedVerificationStatus(placeData.verificationStatus) === "verified") {
+    return { ok: true, verificationStatus: "verified" };
+  }
+  if (code.length !== 6) throw new HttpsError("invalid-argument", "Enter the 6-digit code.");
+
+  const ref = db.collection(PLACE_OTP_COLLECTION).doc(`${placeId}_phone`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("failed-precondition", "Start verification first.");
+  const otp = snap.data() || {};
+
+  const expiresAt = otp.expiresAt && otp.expiresAt.toMillis ? otp.expiresAt.toMillis() : 0;
+  if (expiresAt <= Date.now()) {
+    await ref.delete().catch(() => {});
+    throw new HttpsError("deadline-exceeded", "That code has expired. Request a new one.");
+  }
+  if (Number(otp.attempts || 0) >= PLACE_OTP_MAX_ATTEMPTS) {
+    throw new HttpsError("resource-exhausted", "Too many attempts. Request a new code.");
+  }
+
+  const expected = Buffer.from(safeString(otp.codeHash));
+  const actual = Buffer.from(placeOtpHash(placeId, code, safeString(otp.salt)));
+  const match = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  if (!match) {
+    await ref.set({ attempts: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    throw new HttpsError("permission-denied", "That code did not match.");
+  }
+
+  // Promote to verified. Ownership is already pinned by the claim lock, so we do
+  // not reassign organizationId/ownerId here (keeps real-org places intact).
+  await db.collection("places").doc(placeId).set({
+    verificationStatus: "verified",
+    verified: true,
+    verificationMethod: "phone",
+    verifiedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  await ref.delete().catch(() => {});
+
+  return { ok: true, verificationStatus: "verified" };
+});
+
 // Test-only exports (jest sets NODE_ENV="test"). Production/deploy never run with
 // NODE_ENV==="test", so these helpers stay private at runtime.
 if (process.env.NODE_ENV === "test") {
@@ -573,4 +835,8 @@ if (process.env.NODE_ENV === "test") {
   module.exports.sanitizeMediaUrl = sanitizeMediaUrl;
   module.exports.sanitizeMediaUrlArray = sanitizeMediaUrlArray;
   module.exports.safeString = safeString;
+  module.exports.sha1Hex = sha1Hex;
+  module.exports.placeOtpHash = placeOtpHash;
+  module.exports.normalizeOtpInput = normalizeOtpInput;
+  module.exports.maskPhone = maskPhone;
 }

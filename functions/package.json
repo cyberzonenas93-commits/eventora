@@ -10,7 +10,7 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "lint": "node --check index.js && node --check admin_console.js && node --check admin_permissions.js && node --check admin_settings.js && node --check analytics.js && node --check creative_services.js && node --check event_notifications.js && node --check event_ops.js && node --check event_payments.js && node --check event_parity.js && node --check event_safety.js && node --check gplus_sync.js && node --check gplus_ticket_bridge.js && node --check organizer_applications.js && node --check phone_auth.js && node --check places_lookup.js && node --check places_platform.js && node --check share_link.js && node --check support_chat.js && node --check logger.js && node --check rate_limiter.js",
+    "lint": "node --check index.js && node --check admin_console.js && node --check admin_permissions.js && node --check admin_settings.js && node --check analytics.js && node --check creative_services.js && node --check event_notifications.js && node --check event_ops.js && node --check event_payments.js && node --check event_parity.js && node --check event_safety.js && node --check gplus_sync.js && node --check gplus_ticket_bridge.js && node --check organizer_applications.js && node --check phone_auth.js && node --check hubtel_sms.js && node --check places_lookup.js && node --check places_platform.js && node --check share_link.js && node --check support_chat.js && node --check logger.js && node --check rate_limiter.js",
     "test": "npm run lint && jest --runInBand --forceExit",
     "test:unit": "jest --runInBand --forceExit",
     "test:watch": "jest --watch"

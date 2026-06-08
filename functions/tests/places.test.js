@@ -37,6 +37,10 @@ const {
   isAllowedMediaUrl,
   sanitizeMediaUrl,
   sanitizeMediaUrlArray,
+  sha1Hex,
+  placeOtpHash,
+  normalizeOtpInput,
+  maskPhone,
 } = require("../places_platform");
 
 describe("isAllowedMediaUrl (media URL allow-list / anti-SSRF)", () => {
@@ -102,5 +106,41 @@ describe("sanitizeMediaUrlArray", () => {
   test("returns [] for non-array", () => {
     expect(sanitizeMediaUrlArray(undefined, 40)).toEqual([]);
     expect(sanitizeMediaUrlArray("nope", 40)).toEqual([]);
+  });
+});
+
+describe("place verification helpers (claim + OTP)", () => {
+  test("sha1Hex is deterministic and dedups one venue to one id", () => {
+    const a = sha1Hex("ChIJxxxGooglePlaceId");
+    const b = sha1Hex("ChIJxxxGooglePlaceId");
+    const c = sha1Hex("ChIJyyyOtherPlace");
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(`gpl_${a}`).toMatch(/^gpl_[0-9a-f]{40}$/);
+  });
+
+  test("normalizeOtpInput strips non-digits and caps at 6", () => {
+    expect(normalizeOtpInput(" 12-34 56 ")).toBe("123456");
+    expect(normalizeOtpInput("1234567")).toBe("123456");
+    expect(normalizeOtpInput("ab12")).toBe("12");
+    expect(normalizeOtpInput(null)).toBe("");
+  });
+
+  test("maskPhone reveals only the last 3 digits", () => {
+    expect(maskPhone("+233241234567")).toBe("**********567");
+    expect(maskPhone("12")).toBe("***");
+  });
+
+  test("placeOtpHash binds code to placeId+salt (constant-time-compare friendly)", () => {
+    const salt = "abcdef0123456789";
+    const good = placeOtpHash("gpl_abc", "123456", salt);
+    // Same inputs -> same hash (verification works)
+    expect(placeOtpHash("gpl_abc", "123456", salt)).toBe(good);
+    // Wrong code -> different hash
+    expect(placeOtpHash("gpl_abc", "654321", salt)).not.toBe(good);
+    // Same code, DIFFERENT place -> different hash (can't replay across places)
+    expect(placeOtpHash("gpl_other", "123456", salt)).not.toBe(good);
+    // Same code+place, different salt -> different hash
+    expect(placeOtpHash("gpl_abc", "123456", "differentsalt")).not.toBe(good);
   });
 });

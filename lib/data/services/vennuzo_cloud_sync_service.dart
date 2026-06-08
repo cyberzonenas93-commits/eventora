@@ -608,16 +608,16 @@ class VennuzoCloudSyncService {
     });
   }
 
-  Future<void> subscribeToPlace({
+  Future<bool> subscribeToPlace({
     required String placeId,
     required VennuzoViewer viewer,
     PlaceSubscriptionPrefs prefs = const PlaceSubscriptionPrefs(),
   }) async {
     if (!isEnabled || viewer.uid == null) {
-      return;
+      return true;
     }
 
-    await _runSafely(() {
+    return _runSafely(() {
       return _firestore
           .collection('place_subscriptions')
           .doc('${viewer.uid}_$placeId')
@@ -641,15 +641,15 @@ class VennuzoCloudSyncService {
     });
   }
 
-  Future<void> unsubscribeFromPlace({
+  Future<bool> unsubscribeFromPlace({
     required String placeId,
     required VennuzoViewer viewer,
   }) async {
     if (!isEnabled || viewer.uid == null) {
-      return;
+      return true;
     }
 
-    await _runSafely(() {
+    return _runSafely(() {
       return _firestore
           .collection('place_subscriptions')
           .doc('${viewer.uid}_$placeId')
@@ -660,14 +660,14 @@ class VennuzoCloudSyncService {
     });
   }
 
-  Future<void> createPlaceReservation({
+  Future<bool> createPlaceReservation({
     required PlaceReservation reservation,
   }) async {
     if (!isEnabled) {
-      return;
+      return true;
     }
 
-    await _runSafely(() {
+    return _runSafely(() {
       return _functions
           .httpsCallable('createPlaceReservation')
           .call(<String, Object?>{
@@ -686,15 +686,15 @@ class VennuzoCloudSyncService {
     });
   }
 
-  Future<void> upsertPlaceMenuItem({
+  Future<bool> upsertPlaceMenuItem({
     required PlaceMenuItem item,
     required VennuzoViewer viewer,
   }) async {
     if (!isEnabled || viewer.uid == null) {
-      return;
+      return true;
     }
 
-    await _runSafely(() {
+    return _runSafely(() {
       return _functions
           .httpsCallable('upsertPlaceMenuItem')
           .call(<String, Object?>{
@@ -716,15 +716,15 @@ class VennuzoCloudSyncService {
     });
   }
 
-  Future<void> updatePlaceReservationStatus({
+  Future<bool> updatePlaceReservationStatus({
     required String reservationId,
     required PlaceReservationStatus status,
   }) async {
     if (!isEnabled) {
-      return;
+      return true;
     }
 
-    await _runSafely(() {
+    return _runSafely(() {
       return _functions
           .httpsCallable('updatePlaceReservationStatus')
           .call(<String, Object?>{
@@ -989,12 +989,17 @@ class VennuzoCloudSyncService {
         .replaceAll(RegExp(r'^-|-$'), '');
   }
 
-  Future<void> _runSafely(Future<void> Function() action) async {
+  /// Runs [action], swallowing errors but reporting success via the return
+  /// value so callers can roll back optimistic local state when a write fails.
+  /// Returns true on success, false if [action] threw.
+  Future<bool> _runSafely(Future<void> Function() action) async {
     try {
       await action();
+      return true;
     } catch (error, stackTrace) {
       debugPrint('VennuzoCloudSyncService error: $error');
       debugPrintStack(stackTrace: stackTrace);
+      return false;
     }
   }
 }

@@ -102,6 +102,7 @@ class VennuzoRepository extends ChangeNotifier {
   final VennuzoCloudSyncService _cloudSync;
   final Set<String> _followedCreatorIds = <String>{};
   final Set<String> _subscribedPlaceIds = <String>{};
+  String? _lastPlaceSyncError;
   final List<EventModel> _livePublicEvents = <EventModel>[];
   final List<EventModel> _liveWorkspaceEvents = <EventModel>[];
   final List<TicketOrder> _liveOrders = <TicketOrder>[];
@@ -359,6 +360,22 @@ class VennuzoRepository extends ChangeNotifier {
     return _subscribedPlaceIds.contains(placeId);
   }
 
+  /// Set when an optimistic place mutation was rolled back because its cloud
+  /// write failed. The UI can surface this and call [clearPlaceSyncError].
+  String? get lastPlaceSyncError => _lastPlaceSyncError;
+
+  void clearPlaceSyncError() {
+    if (_lastPlaceSyncError != null) {
+      _lastPlaceSyncError = null;
+      notifyListeners();
+    }
+  }
+
+  void _reportPlaceSyncError(String message) {
+    _lastPlaceSyncError = message;
+    notifyListeners();
+  }
+
   void subscribeToPlace(
     String placeId, {
     PlaceSubscriptionPrefs prefs = const PlaceSubscriptionPrefs(),
@@ -366,11 +383,17 @@ class VennuzoRepository extends ChangeNotifier {
     if (isGuest || currentUserId.isEmpty) return;
     final added = _subscribedPlaceIds.add(placeId);
     unawaited(
-      _cloudSync.subscribeToPlace(
-        placeId: placeId,
-        viewer: _viewer,
-        prefs: prefs,
-      ),
+      _cloudSync
+          .subscribeToPlace(placeId: placeId, viewer: _viewer, prefs: prefs)
+          .then((ok) {
+            // Roll back the optimistic subscription if the cloud write failed.
+            if (!ok && added) {
+              _subscribedPlaceIds.remove(placeId);
+              _reportPlaceSyncError(
+                'Could not subscribe to this place. Please try again.',
+              );
+            }
+          }),
     );
     if (added) notifyListeners();
   }
@@ -379,7 +402,16 @@ class VennuzoRepository extends ChangeNotifier {
     if (currentUserId.isEmpty) return;
     final removed = _subscribedPlaceIds.remove(placeId);
     unawaited(
-      _cloudSync.unsubscribeFromPlace(placeId: placeId, viewer: _viewer),
+      _cloudSync
+          .unsubscribeFromPlace(placeId: placeId, viewer: _viewer)
+          .then((ok) {
+            if (!ok && removed) {
+              _subscribedPlaceIds.add(placeId);
+              _reportPlaceSyncError(
+                'Could not update your subscription. Please try again.',
+              );
+            }
+          }),
     );
     if (removed) notifyListeners();
   }
@@ -406,7 +438,16 @@ class VennuzoRepository extends ChangeNotifier {
       updatedAt: now,
     );
     _placeReservations.add(reservation);
-    unawaited(_cloudSync.createPlaceReservation(reservation: reservation));
+    unawaited(
+      _cloudSync.createPlaceReservation(reservation: reservation).then((ok) {
+        if (!ok) {
+          _placeReservations.removeWhere((r) => r.id == reservation.id);
+          _reportPlaceSyncError(
+            'Could not submit your reservation. Please try again.',
+          );
+        }
+      }),
+    );
     notifyListeners();
     return reservation;
   }
@@ -435,7 +476,16 @@ class VennuzoRepository extends ChangeNotifier {
           .length,
     );
     _placeMenuItems.add(item);
-    unawaited(_cloudSync.upsertPlaceMenuItem(item: item, viewer: _viewer));
+    unawaited(
+      _cloudSync.upsertPlaceMenuItem(item: item, viewer: _viewer).then((ok) {
+        if (!ok) {
+          _placeMenuItems.removeWhere((i) => i.id == item.id);
+          _reportPlaceSyncError(
+            'Could not save the menu item. Please try again.',
+          );
+        }
+      }),
+    );
     notifyListeners();
     return item;
   }
@@ -448,8 +498,10 @@ class VennuzoRepository extends ChangeNotifier {
     final index = _placeReservations.indexWhere(
       (reservation) => reservation.id == reservationId,
     );
+    PlaceReservation? previous;
     if (index != -1) {
       final current = _placeReservations[index];
+      previous = current;
       _placeReservations[index] = PlaceReservation(
         id: current.id,
         placeId: current.placeId,
@@ -468,11 +520,26 @@ class VennuzoRepository extends ChangeNotifier {
         updatedAt: DateTime.now(),
       );
     }
+    final rollbackTo = previous;
     unawaited(
-      _cloudSync.updatePlaceReservationStatus(
-        reservationId: reservationId,
-        status: status,
-      ),
+      _cloudSync
+          .updatePlaceReservationStatus(
+            reservationId: reservationId,
+            status: status,
+          )
+          .then((ok) {
+            if (!ok && rollbackTo != null) {
+              final i = _placeReservations.indexWhere(
+                (r) => r.id == reservationId,
+              );
+              if (i != -1) {
+                _placeReservations[i] = rollbackTo;
+                _reportPlaceSyncError(
+                  'Could not update the reservation. Please try again.',
+                );
+              }
+            }
+          }),
     );
     notifyListeners();
   }

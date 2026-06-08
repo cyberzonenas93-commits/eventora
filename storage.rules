@@ -122,5 +122,17 @@ service firebase.storage {
       allow read: if true;
       allow write: if isSignedIn() && (isDelete() || isImageUpload(15));
     }
+
+    // Owner-uploaded place media (cover/logo/gallery). Public read; writes scoped
+    // to the place's managers, validated as images within a size cap. The place
+    // doc must already exist (claim creates it before media upload).
+    match /place-media/{placeId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn()
+        && (isDelete()
+            || (isImageUpload(15)
+                && firestore.exists(/databases/(default)/documents/places/$(placeId))
+                && isEventManager(firestore.get(/databases/(default)/documents/places/$(placeId)).data.organizationId)));
+    }
   }
 }

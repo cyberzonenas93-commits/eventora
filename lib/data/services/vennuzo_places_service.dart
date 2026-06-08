@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -96,6 +97,7 @@ class VennuzoPlacesService {
   static final VennuzoPlacesService instance = VennuzoPlacesService._();
   static FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: 'us-central1');
+  static FirebaseStorage get _storage => FirebaseStorage.instance;
 
   static final Uri _autocompleteUri = Uri.parse(
     'https://places.googleapis.com/v1/places:autocomplete',
@@ -300,6 +302,97 @@ class VennuzoPlacesService {
       }
       throw const VennuzoPlacesFailure(
         'We could not start verification right now. Please try again.',
+      );
+    }
+  }
+
+  /// Uploads a verification document image to
+  /// `place-verifications/{uid}/{placeId}/doc_<timestamp>.<ext>` and returns its
+  /// download URL. Storage rules require [uid] to match the signed-in user.
+  Future<String> uploadVerificationDocument({
+    required String uid,
+    required String placeId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final extension = _extensionFor(fileName);
+    final ref = _storage.ref(
+      'place-verifications/$uid/$placeId/doc_${DateTime.now().millisecondsSinceEpoch}.$extension',
+    );
+    try {
+      await ref.putData(
+        bytes,
+        SettableMetadata(contentType: _contentTypeFor(extension)),
+      );
+      return await ref.getDownloadURL();
+    } on FirebaseException catch (error) {
+      throw VennuzoPlacesFailure(
+        error.message ??
+            'We could not upload that document right now. Please try again.',
+      );
+    } catch (error) {
+      throw const VennuzoPlacesFailure(
+        'We could not upload that document right now. Please try again.',
+      );
+    }
+  }
+
+  /// Submits a document-review verification request for [placeId]. Use this
+  /// fallback path when the place has no verifiable phone (free-form places or
+  /// Google listings without a phone). [documentUrls] are Storage download URLs
+  /// (uploaded under `place-verifications/{uid}/{placeId}/...`). Returns the
+  /// resolved status (`'pending'` while an admin reviews it).
+  Future<String> submitPlaceVerification({
+    required String placeId,
+    required List<String> documentUrls,
+    String method = 'document',
+    String? contactEmail,
+    String? notes,
+  }) async {
+    final urls = documentUrls
+        .map((url) => url.trim())
+        .where((url) => url.isNotEmpty)
+        .toList();
+    if (urls.isEmpty) {
+      throw const VennuzoPlacesFailure(
+        'Add a document photo before submitting for review.',
+      );
+    }
+
+    final payload = <String, Object?>{
+      'placeId': placeId,
+      'method': method,
+      'documentUrls': urls,
+    };
+    if (contactEmail != null && contactEmail.trim().isNotEmpty) {
+      payload['contactEmail'] = contactEmail.trim();
+    }
+    if (notes != null && notes.trim().isNotEmpty) {
+      payload['notes'] = notes.trim();
+    }
+
+    try {
+      final result = await _functions
+          .httpsCallable('submitPlaceVerification')
+          .call(payload);
+      final data = result.data;
+      if (data is! Map) {
+        throw const VennuzoPlacesFailure(
+          'We could not submit your verification right now. Please try again.',
+        );
+      }
+      return '${data['status'] ?? 'pending'}'.trim();
+    } on FirebaseFunctionsException catch (error) {
+      throw VennuzoPlacesFailure(
+        error.message ??
+            'We could not submit your verification right now. Please try again.',
+      );
+    } catch (error) {
+      if (error is VennuzoPlacesFailure) {
+        rethrow;
+      }
+      throw const VennuzoPlacesFailure(
+        'We could not submit your verification right now. Please try again.',
       );
     }
   }
@@ -672,6 +765,25 @@ class VennuzoPlacesService {
     }
 
     return null;
+  }
+
+  String _extensionFor(String fileName) {
+    final segments = fileName.trim().split('.');
+    if (segments.length < 2) {
+      return 'jpg';
+    }
+    final extension = segments.last.trim().toLowerCase();
+    return extension.isEmpty ? 'jpg' : extension;
+  }
+
+  String _contentTypeFor(String extension) {
+    return switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'heic' => 'image/heic',
+      'pdf' => 'application/pdf',
+      _ => 'image/jpeg',
+    };
   }
 
   String _fallbackVenueName(String address) {

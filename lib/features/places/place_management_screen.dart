@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
@@ -518,7 +519,7 @@ class _VerificationOps extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(body, style: context.text.bodyMedium),
-            if (!verified) ...[
+            if (!verified && !pending) ...[
               const SizedBox(height: 14),
               Wrap(
                 spacing: 10,
@@ -530,7 +531,7 @@ class _VerificationOps extends StatelessWidget {
                     label: const Text('Verify by phone'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: null,
+                    onPressed: () => _startDocumentVerification(context, place),
                     icon: const Icon(Icons.upload_file_outlined),
                     label: const Text('Upload a document'),
                   ),
@@ -538,7 +539,8 @@ class _VerificationOps extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Document verification is coming soon for places without a listed phone.',
+                'No listed phone? Upload a business document (licence, registration, '
+                'or a utility bill showing the place name) for our team to review.',
                 style: context.text.bodySmall?.copyWith(color: palette.slate),
               ),
             ],
@@ -553,16 +555,49 @@ Future<void> _startPhoneVerification(
   BuildContext context,
   PlaceProfile place,
 ) async {
-  final verified = await showModalBottomSheet<bool>(
+  final outcome = await showModalBottomSheet<_VerifyOutcome>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
     builder: (_) => _PhoneVerificationSheet(place: place),
   );
-  if (verified != true || !context.mounted) return;
+  if (outcome == null || !context.mounted) return;
+  switch (outcome) {
+    case _VerifyOutcome.verified:
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${place.name} is now verified.')),
+      );
+    case _VerifyOutcome.switchToDocument:
+      await _startDocumentVerification(context, place);
+    case _VerifyOutcome.dismissed:
+      break;
+  }
+}
+
+Future<void> _startDocumentVerification(
+  BuildContext context,
+  PlaceProfile place,
+) async {
+  final uid = context.read<VennuzoRepository>().currentUserId;
+  if (uid.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sign in to submit a verification document.')),
+    );
+    return;
+  }
+  final submitted = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _DocumentVerificationSheet(place: place, uid: uid),
+  );
+  if (submitted != true || !context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('${place.name} is now verified.')),
+    SnackBar(
+      content: Text('${place.name} submitted for review.'),
+    ),
   );
 }
 
@@ -798,7 +833,7 @@ class _PhoneVerificationSheetState extends State<_PhoneVerificationSheet> {
         code: code,
       );
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(_VerifyOutcome.verified);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -836,7 +871,8 @@ class _PhoneVerificationSheetState extends State<_PhoneVerificationSheet> {
               _InfoCallout(
                 icon: Icons.upload_file_outlined,
                 message:
-                    'This place has no verifiable phone number. Document verification is coming soon — for now, claim the matching Google listing to verify by phone.',
+                    'This place has no verifiable phone number. Upload a business '
+                    'document instead and our team will review it shortly.',
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -850,8 +886,20 @@ class _PhoneVerificationSheetState extends State<_PhoneVerificationSheet> {
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).pop(_VerifyOutcome.switchToDocument),
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Verify with a document'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(false),
+                  onPressed: () =>
+                      Navigator.of(context).pop(_VerifyOutcome.dismissed),
                   child: const Text('Close'),
                 ),
               ),
@@ -905,10 +953,258 @@ class _PhoneVerificationSheetState extends State<_PhoneVerificationSheet> {
                 onPressed: _confirming ? null : _start,
                 child: const Text('Resend code'),
               ),
+              TextButton(
+                onPressed: _confirming
+                    ? null
+                    : () => Navigator.of(
+                        context,
+                      ).pop(_VerifyOutcome.switchToDocument),
+                child: const Text('Verify with a document instead'),
+              ),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Result of the phone-verification sheet.
+enum _VerifyOutcome { verified, switchToDocument, dismissed }
+
+/// A picked verification document (image bytes + original file name).
+class _PickedDocument {
+  const _PickedDocument({required this.bytes, required this.fileName});
+
+  final Uint8List bytes;
+  final String fileName;
+}
+
+/// Document-review fallback: pick business-document photo(s), upload to
+/// `place-verifications/{uid}/{placeId}/...`, then call `submitPlaceVerification`.
+/// Pops `true` once the request is submitted for admin review.
+class _DocumentVerificationSheet extends StatefulWidget {
+  const _DocumentVerificationSheet({required this.place, required this.uid});
+
+  final PlaceProfile place;
+  final String uid;
+
+  @override
+  State<_DocumentVerificationSheet> createState() =>
+      _DocumentVerificationSheetState();
+}
+
+class _DocumentVerificationSheetState
+    extends State<_DocumentVerificationSheet> {
+  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _notesController = TextEditingController();
+  final List<_PickedDocument> _documents = <_PickedDocument>[];
+  bool _submitting = false;
+  bool _submitted = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addDocument() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2000,
+      imageQuality: 88,
+    );
+    if (picked == null || !mounted) return;
+    final bytes = await picked.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _documents.add(_PickedDocument(bytes: bytes, fileName: picked.name));
+      _error = null;
+    });
+  }
+
+  void _removeDocument(int index) {
+    setState(() => _documents.removeAt(index));
+  }
+
+  Future<void> _submit() async {
+    if (_documents.isEmpty) {
+      setState(() => _error = 'Add at least one document photo to continue.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final service = VennuzoPlacesService.instance;
+      final urls = <String>[];
+      for (final document in _documents) {
+        urls.add(
+          await service.uploadVerificationDocument(
+            uid: widget.uid,
+            placeId: widget.place.id,
+            bytes: document.bytes,
+            fileName: document.fileName,
+          ),
+        );
+      }
+      await service.submitPlaceVerification(
+        placeId: widget.place.id,
+        documentUrls: urls,
+        notes: _notesController.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _submitted = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = error is VennuzoPlacesFailure
+            ? error.message
+            : 'We could not submit your verification right now. Please try again.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    return Container(
+      decoration: const BoxDecoration(
+        color: VennuzoTheme.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+        child: _submitted
+            ? _buildSuccess(context)
+            : _buildForm(context),
+      ),
+    );
+  }
+
+  Widget _buildSuccess(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.verified_outlined,
+              color: palette.teal,
+              size: 28,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Submitted for review',
+                style: context.text.headlineSmall,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Submitted for review — we\'ll verify your place shortly. '
+          'You\'ll see the badge update to "Verified" once our team approves it.',
+          style: context.text.bodyMedium,
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Done'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Verify with a document', style: context.text.headlineSmall),
+        const SizedBox(height: 6),
+        Text(widget.place.name, style: context.text.bodyMedium),
+        const SizedBox(height: 16),
+        _InfoCallout(
+          icon: Icons.description_outlined,
+          message:
+              'Upload a clear photo of a business licence, registration '
+              'certificate, or a recent utility bill showing this place\'s name. '
+              'Our team reviews submissions and verifies your place.',
+        ),
+        const SizedBox(height: 16),
+        if (_documents.isEmpty)
+          OutlinedButton.icon(
+            onPressed: _submitting ? null : _addDocument,
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: const Text('Add document photo'),
+          )
+        else ...[
+          for (var i = 0; i < _documents.length; i++)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.insert_drive_file_outlined),
+                title: Text(
+                  _documents[i].fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _submitting ? null : () => _removeDocument(i),
+                ),
+              ),
+            ),
+          TextButton.icon(
+            onPressed: _submitting ? null : _addDocument,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add another'),
+          ),
+        ],
+        const SizedBox(height: 12),
+        TextField(
+          controller: _notesController,
+          minLines: 2,
+          maxLines: 4,
+          enabled: !_submitting,
+          decoration: const InputDecoration(
+            labelText: 'Notes for our team (optional)',
+            hintText: 'Anything that helps us verify your place',
+          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            _error!,
+            style: context.text.bodySmall?.copyWith(color: palette.error),
+          ),
+        ],
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  )
+                : const Text('Submit for review'),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -193,6 +193,15 @@ void main() {
       expect(repository.followedCreatorEvents, isEmpty);
     });
 
+    test('G+ creator fallback uses G+ branding', () {
+      final repository = VennuzoRepository.withFixtures();
+
+      final profile = repository.creatorProfileFor('gplus');
+
+      expect(profile.displayName, 'G+');
+      expect(profile.bio, contains('G+ events'));
+    });
+
     test('checkout applies discount vouchers and redeems the code', () {
       final repository = fixtureRepository();
       const viewer = VennuzoViewer(

@@ -2,6 +2,7 @@
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 
 try {
@@ -15,6 +16,8 @@ const { FieldValue } = admin.firestore;
 const REGION = "us-central1";
 const DEFAULT_GPLUS_BRIDGE_URL =
   "https://us-central1-gplus-admin.cloudfunctions.net/issueVennuzoTicketOrder";
+const DEFAULT_GPLUS_RSVP_BRIDGE_URL =
+  "https://us-central1-gplus-admin.cloudfunctions.net/issueVennuzoEventRsvp";
 
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
@@ -24,6 +27,12 @@ function safeString(value, fallback = "") {
 function moneyAmount(value) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : 0;
+}
+
+function positiveInt(value, fallback = 1) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, parsed);
 }
 
 function asTimestampIso(value) {
@@ -61,6 +70,30 @@ async function getBridgeConfig() {
   return {
     secret: safeString(data.ticketBridgeSecret || data.vennuzoTicketBridgeSecret),
     url: safeString(data.ticketBridgeUrl, envUrl || DEFAULT_GPLUS_BRIDGE_URL),
+  };
+}
+
+async function getRsvpBridgeConfig() {
+  const envSecret = safeString(
+    process.env.GPLUS_RSVP_BRIDGE_SECRET || process.env.GPLUS_TICKET_BRIDGE_SECRET,
+  );
+  const envUrl = safeString(process.env.GPLUS_RSVP_BRIDGE_URL);
+  if (envSecret) {
+    return {
+      secret: envSecret,
+      url: envUrl || DEFAULT_GPLUS_RSVP_BRIDGE_URL,
+    };
+  }
+
+  const snap = await db.collection("app_config").doc("gplus").get();
+  const data = snap.exists ? snap.data() || {} : {};
+  return {
+    secret: safeString(
+      data.rsvpBridgeSecret ||
+        data.ticketBridgeSecret ||
+        data.vennuzoTicketBridgeSecret,
+    ),
+    url: safeString(data.rsvpBridgeUrl, envUrl || DEFAULT_GPLUS_RSVP_BRIDGE_URL),
   };
 }
 
@@ -117,10 +150,70 @@ function buildBridgePayload(orderId, orderData, eventData, tickets) {
   };
 }
 
+function resolveGPlusEventId(eventId, eventData = {}, rsvpData = {}) {
+  const explicit = safeString(
+    eventData.sourceEventId ||
+      rsvpData.sourceEventId ||
+      (eventData.integration && eventData.integration.sourceEventId),
+  );
+  if (explicit) return explicit;
+  const normalized = safeString(eventId);
+  if (normalized.startsWith("gplus_")) return normalized.replace(/^gplus_/, "");
+  return normalized;
+}
+
+function buildBridgeRsvpPayload(rsvpId, rsvpData, eventData) {
+  const eventId = safeString(rsvpData.eventId);
+  const guestCount = positiveInt(
+    rsvpData.guestCount || rsvpData.numberOfPeople || rsvpData.partySize,
+    1,
+  );
+
+  return {
+    vennuzoRsvpId: rsvpId,
+    vennuzoEventId: eventId,
+    gplusEventId: resolveGPlusEventId(eventId, eventData, rsvpData),
+    eventTitle: safeString(rsvpData.eventTitle || eventData.title, "G+Nightclub Event"),
+    eventSnapshot: {
+      title: safeString(eventData.title || rsvpData.eventTitle, "G+Nightclub Event"),
+      startAtIso: asTimestampIso(eventData.startAt || eventData.date),
+      endAtIso: asTimestampIso(eventData.endAt || eventData.endDate),
+      venue: safeString(eventData.venue, "G+Nightclub"),
+      city: safeString(eventData.city, "Accra"),
+      sourceEventId: safeString(eventData.sourceEventId || rsvpData.sourceEventId),
+    },
+    attendee: {
+      id: safeString(rsvpData.userId),
+      name: safeString(rsvpData.name, "Vennuzo attendee"),
+      phone: safeString(rsvpData.phone),
+      guestCount,
+      numberOfPeople: guestCount,
+      bookTable: rsvpData.bookTable === true,
+      gender: safeString(rsvpData.gender, "Unknown"),
+      optedInWhatsApp: rsvpData.optedInWhatsApp === true,
+    },
+    status: safeString(rsvpData.status, "attending"),
+    source: "vennuzo",
+  };
+}
+
 async function markBridgeStatus(orderRef, patch) {
   await orderRef.set(
     {
       gplusTicketBridge: {
+        ...patch,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+async function markRsvpBridgeStatus(rsvpRef, patch) {
+  await rsvpRef.set(
+    {
+      gplusRsvpBridge: {
         ...patch,
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -151,6 +244,32 @@ async function postToGPlusBridge(payload) {
   if (!response.ok || body.success === false) {
     throw new Error(
       `G+ ticket bridge failed (${response.status}): ${safeString(body.error || body.message, "unknown error")}`,
+    );
+  }
+  return body;
+}
+
+async function postToGPlusRsvpBridge(payload) {
+  const config = await getRsvpBridgeConfig();
+  if (!config.secret) {
+    throw new Error(
+      "G+ RSVP bridge secret is not configured. Set GPLUS_RSVP_BRIDGE_SECRET or app_config/gplus.rsvpBridgeSecret.",
+    );
+  }
+  const response = await fetch(config.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Vennuzo-Ticket-Bridge-Secret": config.secret,
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(async () => ({
+    error: await response.text().catch(() => ""),
+  }));
+  if (!response.ok || body.success === false) {
+    throw new Error(
+      `G+ RSVP bridge failed (${response.status}): ${safeString(body.error || body.message, "unknown error")}`,
     );
   }
   return body;
@@ -227,6 +346,104 @@ async function syncOrderToGPlusTicketing(orderId, options = {}) {
     });
     throw error;
   }
+}
+
+async function syncRsvpToGPlus(rsvpId, options = {}) {
+  const rsvpRef = db.collection("event_rsvps").doc(rsvpId);
+  const rsvpSnap = await rsvpRef.get();
+  if (!rsvpSnap.exists) {
+    throw new HttpsError("not-found", "RSVP not found.");
+  }
+  const rsvpData = rsvpSnap.data() || {};
+  const eventId = safeString(rsvpData.eventId);
+  if (!eventId) {
+    throw new HttpsError("failed-precondition", "RSVP is missing eventId.");
+  }
+
+  const eventSnap = await db.collection("events").doc(eventId).get();
+  const eventData = eventSnap.exists ? eventSnap.data() || {} : {};
+  if (!isGPlusEvent(eventId, eventData, rsvpData)) {
+    return { skipped: true, reason: "not_gplus_event" };
+  }
+
+  const existing = rsvpData.gplusRsvpBridge || {};
+  if (
+    !options.force &&
+    safeString(existing.status).toLowerCase() === "synced" &&
+    safeString(existing.gplusRsvpId)
+  ) {
+    return {
+      skipped: true,
+      reason: "already_synced",
+      gplusRsvpId: safeString(existing.gplusRsvpId),
+    };
+  }
+
+  const payload = buildBridgeRsvpPayload(rsvpSnap.id, rsvpData, eventData);
+  if (!payload.gplusEventId) {
+    throw new HttpsError("failed-precondition", "RSVP is missing a G+ source event id.");
+  }
+
+  await markRsvpBridgeStatus(rsvpRef, {
+    status: "syncing",
+    source: safeString(options.source, "backend"),
+    attemptCount: Number(existing.attemptCount || 0) + 1,
+  });
+
+  try {
+    const result = await postToGPlusRsvpBridge(payload);
+    await markRsvpBridgeStatus(rsvpRef, {
+      status: "synced",
+      source: safeString(options.source, "backend"),
+      gplusRsvpId: safeString(result.gplusRsvpId),
+      gplusEventId: safeString(result.gplusEventId),
+      entryQrToken: safeString(result.entryQrToken),
+      alreadyProcessed: result.alreadyProcessed === true,
+      lastError: FieldValue.delete(),
+      syncedAt: FieldValue.serverTimestamp(),
+      attemptCount: Number(existing.attemptCount || 0) + 1,
+    });
+    return result;
+  } catch (error) {
+    await markRsvpBridgeStatus(rsvpRef, {
+      status: "failed",
+      source: safeString(options.source, "backend"),
+      lastError: safeString(error && error.message, "G+ RSVP bridge sync failed").slice(0, 1000),
+      failedAt: FieldValue.serverTimestamp(),
+      attemptCount: Number(existing.attemptCount || 0) + 1,
+    });
+    throw error;
+  }
+}
+
+function normalizedForCompare(value) {
+  if (!value) return value;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  if (Array.isArray(value)) return value.map(normalizedForCompare);
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .reduce((result, [key, entryValue]) => {
+        result[key] = normalizedForCompare(entryValue);
+        return result;
+      }, {});
+  }
+  return value;
+}
+
+function changedTopLevelKeys(before = {}, after = {}) {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].filter((key) => (
+    JSON.stringify(normalizedForCompare(before[key])) !==
+    JSON.stringify(normalizedForCompare(after[key]))
+  ));
+}
+
+function isRsvpBridgeOnlyWrite(before = {}, after = {}) {
+  const changed = changedTopLevelKeys(before, after);
+  return changed.length > 0 &&
+    changed.every((key) => key === "gplusRsvpBridge" || key === "updatedAt");
 }
 
 exports.syncGPlusTicketOrder = onCall(

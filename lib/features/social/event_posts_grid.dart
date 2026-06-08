@@ -6,7 +6,7 @@ import 'social_models.dart';
 import 'social_post_image.dart';
 import 'social_service.dart';
 
-class EventPostsGrid extends StatelessWidget {
+class EventPostsGrid extends StatefulWidget {
   const EventPostsGrid({
     super.key,
     required this.eventId,
@@ -17,15 +17,52 @@ class EventPostsGrid extends StatelessWidget {
   final SocialService socialService;
 
   @override
+  State<EventPostsGrid> createState() => _EventPostsGridState();
+}
+
+class _EventPostsGridState extends State<EventPostsGrid> {
+  late Stream<List<EventPost>> _postsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _postsStream = widget.socialService.getEventPosts(widget.eventId);
+  }
+
+  @override
+  void didUpdateWidget(covariant EventPostsGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.eventId != widget.eventId ||
+        oldWidget.socialService != widget.socialService) {
+      _postsStream = widget.socialService.getEventPosts(widget.eventId);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<EventPost>>(
-      stream: socialService.getEventPosts(eventId),
+      stream: _postsStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(20),
               child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text(
+                'Event photos could not be loaded right now.',
+                style: context.text.bodyMedium?.copyWith(
+                  color: context.palette.slate,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -75,7 +112,7 @@ class EventPostsGrid extends StatelessWidget {
         builder: (_) => _FullScreenPostViewer(
           posts: posts,
           initialIndex: initialIndex,
-          socialService: socialService,
+          socialService: widget.socialService,
         ),
       ),
     );

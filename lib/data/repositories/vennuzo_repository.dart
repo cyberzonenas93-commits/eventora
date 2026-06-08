@@ -402,16 +402,16 @@ class VennuzoRepository extends ChangeNotifier {
     if (currentUserId.isEmpty) return;
     final removed = _subscribedPlaceIds.remove(placeId);
     unawaited(
-      _cloudSync
-          .unsubscribeFromPlace(placeId: placeId, viewer: _viewer)
-          .then((ok) {
-            if (!ok && removed) {
-              _subscribedPlaceIds.add(placeId);
-              _reportPlaceSyncError(
-                'Could not update your subscription. Please try again.',
-              );
-            }
-          }),
+      _cloudSync.unsubscribeFromPlace(placeId: placeId, viewer: _viewer).then((
+        ok,
+      ) {
+        if (!ok && removed) {
+          _subscribedPlaceIds.add(placeId);
+          _reportPlaceSyncError(
+            'Could not update your subscription. Please try again.',
+          );
+        }
+      }),
     );
     if (removed) notifyListeners();
   }
@@ -603,14 +603,26 @@ class VennuzoRepository extends ChangeNotifier {
   CreatorProfile creatorProfileFor(String creatorId) {
     final base = _effectiveCreatorProfiles.firstWhere(
       (profile) => profile.creatorId == creatorId,
-      orElse: () => CreatorProfile(
-        creatorId: creatorId,
-        displayName: creatorId == currentUserId && currentUserName.isNotEmpty
-            ? currentUserName
-            : 'Vennuzo creator',
-        bio: 'Events, tickets, updates, and photos hosted on Vennuzo.',
-        updatedAt: DateTime.now(),
-      ),
+      orElse: () {
+        if (creatorId == 'gplus') {
+          return CreatorProfile(
+            creatorId: creatorId,
+            displayName: 'G+',
+            bio:
+                'G+ events, nightlife, culture, and community moments synced into Vennuzo.',
+            city: 'Accra',
+            updatedAt: DateTime.now(),
+          );
+        }
+        return CreatorProfile(
+          creatorId: creatorId,
+          displayName: creatorId == currentUserId && currentUserName.isNotEmpty
+              ? currentUserName
+              : 'Vennuzo creator',
+          bio: 'Events, tickets, updates, and photos hosted on Vennuzo.',
+          updatedAt: DateTime.now(),
+        );
+      },
     );
     final followsBoost = isFollowingCreator(creatorId) ? 1 : 0;
     return base.copyWith(
@@ -2163,8 +2175,8 @@ class VennuzoRepository extends ChangeNotifier {
           : (data['subscriberCount'] as num?)?.toInt() ?? 0,
       featured: data['featured'] == true,
       status: '${data['status'] ?? 'active'}'.trim(),
-      verificationStatus:
-          '${data['verificationStatus'] ?? 'unverified'}'.trim(),
+      verificationStatus: '${data['verificationStatus'] ?? 'unverified'}'
+          .trim(),
       verified: data['verified'] == true,
       createdAt: _dateFromValue(data['createdAt']) ?? DateTime.now(),
       updatedAt: _dateFromValue(data['updatedAt']) ?? DateTime.now(),

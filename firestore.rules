@@ -446,6 +446,36 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid;
     }
 
+    match /creator_profiles/{creatorId} {
+      allow read: if true;
+      allow create, update: if isSignedIn()
+        && request.auth.uid == creatorId
+        && request.resource.data.creatorId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (request.auth.uid == creatorId || isAdmin());
+    }
+
+    match /creator_event_photos/{photoId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (resource.data.creatorId == request.auth.uid || isAdmin());
+    }
+
+    match /creator_follows/{followId} {
+      allow read: if isSignedIn()
+        && (
+          resource.data.followerId == request.auth.uid
+          || resource.data.creatorId == request.auth.uid
+          || isAdmin()
+        );
+      allow create, update: if isSignedIn()
+        && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (resource.data.followerId == request.auth.uid || isAdmin());
+    }
+
     match /event_posts/{postId} {
       allow read: if true;
       allow create: if isSignedIn()

@@ -103,8 +103,8 @@ function isEventUpcoming(event, nowMs) {
 function normalizeSourceEvent(event) {
   return {
     ...event,
-    organizationId: safeString(event.organizationId, GPLUS_ORGANIZATION_ID),
-    createdBy: safeString(event.createdBy || event.organizerId, GPLUS_CREATOR_ID),
+    organizationId: GPLUS_ORGANIZATION_ID,
+    createdBy: GPLUS_CREATOR_ID,
     venue: safeString(event.venue || event.location, "G+"),
     city: safeString(event.city || event.locationCity, "Accra"),
     addressText: safeString(event.addressText || event.address, GPLUS_ADDRESS),

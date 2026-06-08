@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
+import { trackEvent } from '../lib/analytics'
 import { copy } from '../lib/copy'
 import { getErrorMessage } from '../lib/errorMessages'
 import { createEmptyApplication, setupSteps } from '../lib/organizerApplication'
@@ -107,12 +108,19 @@ export function SetupPage() {
     setMessage('')
     setIsSaving(true)
     try {
-      await saveOrganizerApplicationDraft(session.user!.uid, {
-        ...form,
-        status: 'active',
-        organizationId: session.organizationId || form.organizationId || `org_${session.user!.uid}`,
-      })
-      setMessage(successMessage)
+	      await saveOrganizerApplicationDraft(session.user!.uid, {
+	        ...form,
+	        status: 'active',
+	        organizationId: session.organizationId || form.organizationId || `org_${session.user!.uid}`,
+	      })
+	      void trackEvent('organizer_application_saved', {
+	        completion_percent: completionPercent,
+	        step: safeStep,
+	      }, {
+	        area: 'studio',
+	        organizationId: session.organizationId || form.organizationId,
+	      })
+	      setMessage(successMessage)
       return true
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, copy.setupSaveFailed))
@@ -122,11 +130,17 @@ export function SetupPage() {
     }
   }
 
-  async function handleCompleteSetup(destination: '/studio/overview' | '/studio/events/new') {
-    const saved = await persistWorkspace('Workspace saved successfully.')
-    if (saved) {
-      navigate(destination)
-    }
+	  async function handleCompleteSetup(destination: '/studio/overview' | '/studio/events/new') {
+	    const saved = await persistWorkspace('Workspace saved successfully.')
+	    if (saved) {
+	      void trackEvent('organizer_application_submitted', {
+	        destination,
+	      }, {
+	        area: 'studio',
+	        organizationId: session.organizationId || form.organizationId,
+	      })
+	      navigate(destination)
+	    }
   }
 
   async function handleUpload(file: File | null) {
@@ -153,7 +167,9 @@ export function SetupPage() {
     <main className="setup-page setup-page--reference">
       <aside className="setup-sidebar">
         <div className="studio-brand">
-          <div className="studio-brand__mark">V</div>
+          <div className="studio-brand__mark">
+            <img src="/logo-mark.png" alt="" />
+          </div>
           <div>
             <strong>Vennuzo Studio</strong>
             <span>Workspace setup</span>

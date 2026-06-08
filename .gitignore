@@ -50,3 +50,18 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android release signing secrets (also ignored in android/.gitignore)
+/android/key.properties
+*.keystore
+*.jks
+
+# Local tooling / QA artifact output dirs (should never be tracked)
+/qa-screenshots/
+/.codex-artifacts/
+/.playwright-mcp/
+/artifacts/
+
+# Stray root-level images / cruft
+/IVX4T.jpg
+/logo-transparent.png

@@ -90,10 +90,7 @@ class MetricTile extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text(
                   value,
-                  style: context.text.headlineSmall?.copyWith(
-                    fontSize: 24,
-                    letterSpacing: -0.5,
-                  ),
+                  style: context.text.headlineSmall?.copyWith(fontSize: 24),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -101,7 +98,6 @@ class MetricTile extends StatelessWidget {
                   style: context.text.bodySmall?.copyWith(
                     color: palette.slate,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3,
                   ),
                 ),
               ],

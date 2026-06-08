@@ -27,8 +27,7 @@ class EventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final minPrice = event.ticketing.minimumPrice;
-    final entryLabel =
-        minPrice == null ? 'Free' : formatMoney(minPrice);
+    final entryLabel = minPrice == null ? 'Free' : formatMoney(minPrice);
     final artHeight = compact ? 160.0 : 200.0;
     final moodPal = MoodArtPalette.fromMood(event.mood);
 
@@ -37,13 +36,8 @@ class EventCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
-          boxShadow: [
-            BoxShadow(
-              color: moodPal.base.withValues(alpha: 0.10),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
-            ),
-          ],
+          border: Border.all(color: VennuzoTheme.borderSubtle),
+          boxShadow: VennuzoTheme.shadowResting,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
@@ -121,11 +115,11 @@ class EventCard extends StatelessWidget {
                                   style: context.text.titleLarge?.copyWith(
                                     color: Colors.white,
                                     height: 1.1,
-                                    letterSpacing: -0.3,
                                     shadows: [
                                       Shadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.5),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.5,
+                                        ),
                                         blurRadius: 10,
                                       ),
                                     ],
@@ -275,7 +269,6 @@ class _GlassPill extends StatelessWidget {
             style: context.text.labelSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -304,12 +297,14 @@ class _PriceBadge extends StatelessWidget {
           ),
         ],
       ),
+      constraints: const BoxConstraints(maxWidth: 132),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: context.text.labelSmall?.copyWith(
-          color: VennuzoTheme.background,
+          color: const Color(0xFF031018),
           fontWeight: FontWeight.w800,
-          letterSpacing: 0.1,
         ),
       ),
     );

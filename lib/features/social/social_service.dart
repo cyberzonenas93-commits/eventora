@@ -6,11 +6,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'social_models.dart';
 
 class SocialService {
-  SocialService({
-    FirebaseFirestore? firestore,
-    FirebaseStorage? storage,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  SocialService({FirebaseFirestore? firestore, FirebaseStorage? storage})
+    : _firestore = firestore ?? FirebaseFirestore.instance,
+      _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
@@ -140,7 +138,7 @@ class SocialService {
 
   // ─── Posts ────────────────────────────────────────────────────────────────
 
-  Future<void> createPost(EventPost post, File imageFile) async {
+  Future<EventPost> createPost(EventPost post, File imageFile) async {
     final storageRef = _storage
         .ref()
         .child('event_posts')
@@ -154,6 +152,7 @@ class SocialService {
         .collection('event_posts')
         .doc(post.postId)
         .set(updatedPost.toMap());
+    return updatedPost;
   }
 
   Stream<List<EventPost>> getEventPosts(String eventId) {
@@ -229,11 +228,8 @@ class SocialService {
         .collection('post_comments')
         .doc(comment.postId)
         .collection('comments')
-        .doc(
-          comment.commentId.isEmpty ? null : comment.commentId,
-        );
-    final postRef =
-        _firestore.collection('event_posts').doc(comment.postId);
+        .doc(comment.commentId.isEmpty ? null : comment.commentId);
+    final postRef = _firestore.collection('event_posts').doc(comment.postId);
     batch.set(commentRef, comment.toMap());
     batch.update(postRef, {'commentCount': FieldValue.increment(1)});
     await batch.commit();

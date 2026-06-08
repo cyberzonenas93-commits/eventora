@@ -78,6 +78,7 @@ export interface PortalEvent {
   performers: string
   djs: string
   mcs: string
+  categoryId: string
   mood: string
   tags: string[]
   allowSharing: boolean
@@ -111,6 +112,10 @@ export interface PortalOrder {
   paymentStatus: string
   createdAt: string
   buyerEmail: string
+  buyerName?: string
+  buyerPhone?: string
+  marketingConsent?: boolean
+  smsConsent?: boolean
   ticketCount: number
 }
 
@@ -118,12 +123,30 @@ export interface PortalContact {
   email: string
   displayName: string
   phone: string
+  userId?: string
   lastEventId: string
   lastEventTitle: string
   lastActivityAt: string
   orderCount: number
   rsvpCount: number
   totalSpent: number
+  marketingConsent: boolean
+  smsConsent: boolean
+  tags: string[]
+  notes: string
+  sources: Array<'orders' | 'rsvps' | 'uploaded'>
+  sourceNames: string[]
+  events: PortalContactActivity[]
+}
+
+export interface PortalContactActivity {
+  id: string
+  type: 'order' | 'rsvp' | 'upload'
+  eventId: string
+  eventTitle: string
+  occurredAt: string
+  amount?: number
+  sourceName?: string
 }
 
 export interface PortalCampaign {
@@ -134,20 +157,105 @@ export interface PortalCampaign {
   name: string
   status: string
   channels: string[]
+  audienceSources: string[]
   pushAudience: number
   smsAudience: number
+  uploadedAudience?: number
   walletReservationAmount: number
   totalSmsCharged?: number
+  totalPushCharged?: number
   createdAt: string
   scheduledAt?: string
+}
+
+export interface PortalPlace {
+  id: string
+  organizationId: string
+  ownerId: string
+  name: string
+  description: string
+  city: string
+  address: string
+  status: string
+  verificationStatus: string
+  verified: boolean
+  latestVerificationRequestId: string
+  featured: boolean
+  coverUrl: string
+  logoUrl: string
+  mapsUrl: string
+  googlePlaceId: string
+  phone: string
+  website: string
+  categories: string[]
+  amenities: string[]
+  openingHours: string[]
+  subscriberCount: number
+  rating: number
+  reviewCount: number
+}
+
+export interface PortalPlaceMenuSection {
+  id: string
+  placeId: string
+  name: string
+  description: string
+  sortOrder: number
+  visible: boolean
+}
+
+export interface PortalPlaceMenuItem {
+  id: string
+  placeId: string
+  sectionId: string
+  name: string
+  description: string
+  price: number
+  currency: string
+  imageUrl: string
+  featured: boolean
+  status: string
+  sortOrder: number
+}
+
+export interface PortalPlaceReservation {
+  id: string
+  placeId: string
+  placeName: string
+  organizationId: string
+  userId: string
+  guestName: string
+  phone: string
+  partySize: number
+  requestedAt: string
+  reservationType: string
+  status: string
+  note: string
+  selectedMenuItemIds: string[]
+  createdAt: string
 }
 
 export interface WalletTransaction {
   id: string
   walletId: string
-  type: 'top_up' | 'campaign_reservation' | 'campaign_charge' | 'campaign_release'
+  type: 'top_up' | 'campaign_reservation' | 'campaign_charge' | 'campaign_release' | 'creative_service_charge' | 'creative_service_refund'
   amount: number
   status: string
   createdAt: string
   campaignId?: string
+}
+
+export interface CreativeSession {
+  id: string
+  organizationId: string
+  serviceType: 'event_flyer' | 'table_package_flyer'
+  editMode?: string | null
+  eventName: string
+  imageUrl: string
+  postUrl?: string | null
+  prompt: string
+  priceChargedGhs: number
+  minorEditsRemaining?: number | null
+  redesignsRemaining?: number | null
+  createdAt: string
 }

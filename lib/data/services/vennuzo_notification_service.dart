@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -13,13 +12,18 @@ typedef OnNotificationOpened = void Function(RemoteMessage message);
 class VennuzoNotificationService {
   VennuzoNotificationService._();
 
-  static final VennuzoNotificationService instance = VennuzoNotificationService._();
+  static final VennuzoNotificationService instance =
+      VennuzoNotificationService._();
 
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'vennuzo_event_updates',
-    'Event updates',
-    description: 'Ticket, reminder, and campaign alerts for Vennuzo.',
-    importance: Importance.high,
+    'vennuzo_urgent_alerts_v2',
+    'Urgent event alerts',
+    description:
+        'Time-sensitive ticket, event operations, reminder, and campaign alerts for Vennuzo.',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+    showBadge: true,
   );
 
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -42,9 +46,7 @@ class VennuzoNotificationService {
     _onNotificationOpened = onOpened;
   }
 
-  Future<void> initialize({
-    required bool firebaseEnabled,
-  }) async {
+  Future<void> initialize({required bool firebaseEnabled}) async {
     _firebaseEnabled = firebaseEnabled;
     if (!_firebaseEnabled || _initialized) {
       return;
@@ -64,7 +66,9 @@ class VennuzoNotificationService {
       onDidReceiveNotificationResponse: _onLocalNotificationTap,
     );
     await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(_channel);
     await _messaging.setForegroundNotificationPresentationOptions(
       alert: true,
@@ -75,12 +79,14 @@ class VennuzoNotificationService {
     if (!_foregroundListenerBound) {
       _foregroundListenerBound = true;
       FirebaseMessaging.onMessage.listen(_showForegroundNotification);
-      _tokenRefreshSubscription = _messaging.onTokenRefresh.listen((token) async {
+      _tokenRefreshSubscription = _messaging.onTokenRefresh.listen((
+        token,
+      ) async {
         final uid = _lastBoundUid;
         if (uid == null || token.trim().isEmpty) {
           return;
         }
-        await _saveToken(uid: uid, token: token);
+        await _trySaveToken(uid: uid, token: token);
       });
     }
 
@@ -131,11 +137,14 @@ class VennuzoNotificationService {
         channelDescription: _channel.description,
         importance: Importance.max,
         priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
       ),
       iOS: const DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        interruptionLevel: InterruptionLevel.timeSensitive,
       ),
     );
 
@@ -147,7 +156,10 @@ class VennuzoNotificationService {
     );
   }
 
-  Future<void> bindViewer(VennuzoViewer viewer) async {
+  Future<void> bindViewer(
+    VennuzoViewer viewer, {
+    bool requestPermission = false,
+  }) async {
     if (!_firebaseEnabled) {
       return;
     }
@@ -168,17 +180,36 @@ class VennuzoNotificationService {
       return;
     }
 
-    final settings = await _requestPermissionIfNeeded();
+    var settings = await _messaging.getNotificationSettings();
+    if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+      if (!requestPermission) {
+        return;
+      }
+      settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+    }
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       await _clearToken(uid);
       return;
     }
 
-    final token = await _messaging.getToken();
+    final String? token;
+    try {
+      token = await _messaging.getToken();
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'Vennuzo push token unavailable: ${error.code} ${error.message ?? ''}',
+      );
+      return;
+    }
     if (token == null || token.trim().isEmpty) {
       return;
     }
-    await _saveToken(uid: uid, token: token);
+    await _trySaveToken(uid: uid, token: token);
   }
 
   Future<void> clearBoundToken() async {
@@ -190,23 +221,7 @@ class VennuzoNotificationService {
     _lastBoundUid = null;
   }
 
-  Future<NotificationSettings> _requestPermissionIfNeeded() async {
-    final settings = await _messaging.getNotificationSettings();
-    if (settings.authorizationStatus != AuthorizationStatus.notDetermined) {
-      return settings;
-    }
-    return _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: defaultTargetPlatform == TargetPlatform.iOS,
-    );
-  }
-
-  Future<void> _saveToken({
-    required String uid,
-    required String token,
-  }) async {
+  Future<void> _saveToken({required String uid, required String token}) async {
     await FirebaseFirestore.instance.collection('users').doc(uid).set(
       <String, Object?>{
         'fcmToken': token,
@@ -216,14 +231,33 @@ class VennuzoNotificationService {
     );
   }
 
+  Future<void> _trySaveToken({
+    required String uid,
+    required String token,
+  }) async {
+    try {
+      await _saveToken(uid: uid, token: token);
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'Vennuzo push token save failed: ${error.code} ${error.message ?? ''}',
+      );
+    }
+  }
+
   Future<void> _clearToken(String uid) async {
-    await FirebaseFirestore.instance.collection('users').doc(uid).set(
-      <String, Object?>{
-        'fcmToken': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        <String, Object?>{
+          'fcmToken': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'Vennuzo push token clear failed: ${error.code} ${error.message ?? ''}',
+      );
+    }
   }
 
   Future<void> dispose() async {

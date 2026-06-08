@@ -43,9 +43,9 @@ class _AdminOrganizerApprovalsScreenState
                 'all',
               ])
                 ChoiceChip(
-                  label: Text(option == 'all'
-                      ? 'All'
-                      : option.replaceAll('_', ' ')),
+                  label: Text(
+                    option == 'all' ? 'All' : option.replaceAll('_', ' '),
+                  ),
                   selected: _filter == option,
                   onSelected: (_) => setState(() => _filter = option),
                 ),
@@ -120,13 +120,11 @@ class _AdminOrganizerApprovalsScreenState
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(
-            switch (decision) {
-              'approved' => 'Approve organizer?',
-              'rejected' => 'Reject organizer?',
-              _ => 'Move application into review?',
-            },
-          ),
+          title: Text(switch (decision) {
+            'approved' => 'Approve organizer?',
+            'rejected' => 'Reject organizer?',
+            _ => 'Move application into review?',
+          }),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -140,9 +138,7 @@ class _AdminOrganizerApprovalsScreenState
               const SizedBox(height: 12),
               TextField(
                 controller: noteController,
-                decoration: const InputDecoration(
-                  labelText: 'Review note',
-                ),
+                decoration: const InputDecoration(labelText: 'Review note'),
                 minLines: 2,
                 maxLines: 4,
               ),
@@ -154,16 +150,13 @@ class _AdminOrganizerApprovalsScreenState
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(
-                noteController.text.trim(),
-              ),
-              child: Text(
-                switch (decision) {
-                  'approved' => 'Approve',
-                  'rejected' => 'Reject',
-                  _ => 'Start review',
-                },
-              ),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(noteController.text.trim()),
+              child: Text(switch (decision) {
+                'approved' => 'Approve',
+                'rejected' => 'Reject',
+                _ => 'Start review',
+              }),
             ),
           ],
         );
@@ -177,19 +170,19 @@ class _AdminOrganizerApprovalsScreenState
 
     setState(() => _isSubmitting = true);
     try {
-      await FirebaseFunctions.instanceFor(region: 'us-central1')
-          .httpsCallable('reviewOrganizerApplication')
-          .call(<String, Object?>{
-            'applicationId': applicationId,
-            'decision': decision,
-            'reviewNotes': note,
-          });
+      await FirebaseFunctions.instanceFor(
+        region: 'us-central1',
+      ).httpsCallable('reviewOrganizerApplication').call(<String, Object?>{
+        'applicationId': applicationId,
+        'decision': decision,
+        'reviewNotes': note,
+      });
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Application updated: $decision')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Application updated: $decision')));
     } on FirebaseFunctionsException catch (error) {
       if (!mounted) {
         return;
@@ -220,8 +213,8 @@ class _ApprovalHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        color: Colors.white.withValues(alpha: 0.9),
-        border: Border.all(color: const Color(0x1410212A)),
+        color: context.palette.card,
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,10 +282,13 @@ class _ApplicationCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               [
-                data['email'] as String?,
-                data['phone'] as String?,
-                data['businessType'] as String?,
-              ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' • '),
+                    data['email'] as String?,
+                    data['phone'] as String?,
+                    data['businessType'] as String?,
+                  ]
+                  .whereType<String>()
+                  .where((value) => value.trim().isNotEmpty)
+                  .join(' • '),
               style: context.text.bodyMedium?.copyWith(
                 color: context.palette.slate,
               ),
@@ -317,14 +313,16 @@ class _ApplicationCard extends StatelessWidget {
                   label: 'Reviewed',
                   value: _formatTimestamp(reviewedAt),
                 ),
-                if ((data['settlementPreference'] as String?)?.isNotEmpty == true)
+                if ((data['settlementPreference'] as String?)?.isNotEmpty ==
+                    true)
                   _InfoChip(
                     label: 'Settlement',
                     value: data['settlementPreference'] as String,
                   ),
               ],
             ),
-            if ((data['reviewNotes'] as String?)?.trim().isNotEmpty == true) ...[
+            if ((data['reviewNotes'] as String?)?.trim().isNotEmpty ==
+                true) ...[
               const SizedBox(height: 14),
               Text(
                 'Review note',
@@ -453,7 +451,11 @@ class _MessageCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(title, style: context.text.titleLarge),
             const SizedBox(height: 8),
-            Text(body, style: context.text.bodyMedium, textAlign: TextAlign.center),
+            Text(
+              body,
+              style: context.text.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

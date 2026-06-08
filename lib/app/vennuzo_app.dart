@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../data/services/vennuzo_deep_link_service.dart';
@@ -6,6 +7,7 @@ import '../data/services/vennuzo_notification_service.dart';
 import '../core/theme/vennuzo_theme.dart';
 import '../data/repositories/vennuzo_repository.dart';
 import '../features/events/event_detail_screen.dart';
+import '../features/places/places_screen.dart';
 import '../features/root/vennuzo_root_screen.dart';
 import 'vennuzo_session_controller.dart';
 
@@ -34,11 +36,22 @@ class _VennuzoAppState extends State<VennuzoApp> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       VennuzoDeepLinkService.instance.initialize(navigatorKey: _navigatorKey);
-      VennuzoNotificationService.instance.setNotificationOpenedHandler((message) {
+      VennuzoNotificationService.instance.setNotificationOpenedHandler((
+        message,
+      ) {
         final eventId = message.data['eventId']?.trim();
-        if (eventId == null || eventId.isEmpty) return;
+        final placeId = message.data['placeId']?.trim();
         final navigator = _navigatorKey.currentState;
         if (navigator == null) return;
+        if (placeId != null && placeId.isNotEmpty) {
+          navigator.push(
+            MaterialPageRoute<void>(
+              builder: (_) => PlaceDetailScreen(placeId: placeId),
+            ),
+          );
+          return;
+        }
+        if (eventId == null || eventId.isEmpty) return;
         navigator.push(
           MaterialPageRoute<void>(
             builder: (_) => EventDetailScreen(eventId: eventId),
@@ -59,17 +72,15 @@ class _VennuzoAppState extends State<VennuzoApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => VennuzoSessionController(
-            firebaseEnabled: widget.firebaseEnabled,
-          ),
+          create: (_) =>
+              VennuzoSessionController(firebaseEnabled: widget.firebaseEnabled),
         ),
         ChangeNotifierProxyProvider<
           VennuzoSessionController,
           VennuzoRepository
         >(
-          create: (_) => VennuzoRepository.seeded(
-            firebaseEnabled: widget.firebaseEnabled,
-          ),
+          create: (_) =>
+              VennuzoRepository.seeded(firebaseEnabled: widget.firebaseEnabled),
           update: (_, session, repository) =>
               (repository ??
                     VennuzoRepository.seeded(
@@ -83,6 +94,14 @@ class _VennuzoAppState extends State<VennuzoApp> {
         debugShowCheckedModeBanner: false,
         navigatorKey: _navigatorKey,
         theme: VennuzoTheme.lightTheme,
+        builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: VennuzoTheme.background,
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: VennuzoRootScreen(
           skipLaunchOnboarding: widget.skipLaunchOnboarding,
         ),

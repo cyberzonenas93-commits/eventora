@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../domain/models/event_models.dart';
 import '../manage/host_access_screen.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
+import 'support_chat_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -95,7 +99,11 @@ class AccountScreen extends StatelessWidget {
                     _DetailRow(
                       label: 'App view',
                       value: viewer.isAdminWorkspace
-                          ? 'Admin console'
+                          ? viewer.hasSuperAdminAccess
+                                ? 'Superadmin console'
+                                : 'Admin console'
+                          : viewer.isOrganizerWorkspace
+                          ? 'Organizer portal'
                           : 'Vennuzo app',
                     ),
                     if (viewer.roles.isNotEmpty)
@@ -213,6 +221,72 @@ class AccountScreen extends StatelessWidget {
                                 _updatePrefs(context, marketingOptIn: value),
                       title: const Text('Promotional campaigns'),
                     ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: viewer.notificationPrefs.promotionalPushEnabled,
+                      onChanged:
+                          session.isProcessing ||
+                              !viewer.notificationPrefs.marketingOptIn
+                          ? null
+                          : (value) => _updatePrefs(
+                              context,
+                              promotionalPushEnabled: value,
+                            ),
+                      title: const Text('Promotional push alerts'),
+                      subtitle: const Text(
+                        'Only for event types you choose below.',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Promotional event types',
+                      style: context.text.titleMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: EventTaxonomy.categories.map((category) {
+                        final selected = viewer
+                            .notificationPrefs
+                            .promotionalEventTypes
+                            .map(EventTaxonomy.canonicalCategoryId)
+                            .contains(category.id);
+                        return ChoiceChip(
+                          label: Text(category.shortLabel),
+                          selected: selected,
+                          onSelected:
+                              session.isProcessing ||
+                                  !viewer.notificationPrefs.marketingOptIn
+                              ? null
+                              : (_) {
+                                  final current = viewer
+                                      .notificationPrefs
+                                      .promotionalEventTypes
+                                      .map(EventTaxonomy.canonicalCategoryId)
+                                      .toSet();
+                                  if (selected) {
+                                    current.remove(category.id);
+                                  } else {
+                                    current.add(category.id);
+                                  }
+                                  _updatePrefs(
+                                    context,
+                                    promotionalEventTypes: current.toList()
+                                      ..sort(),
+                                  );
+                                },
+                        );
+                      }).toList(),
+                    ),
+                    if (viewer.notificationPrefs.promotionalEventTypes.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'No type selected means you can receive opted-in promotions for any event type in audiences you joined.',
+                          style: context.text.bodySmall,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -246,7 +320,16 @@ class AccountScreen extends StatelessWidget {
                             ? null
                             : () => _confirmDelete(context),
                         style: FilledButton.styleFrom(
-                          foregroundColor: context.palette.coral,
+                          backgroundColor: context.palette.coral,
+                          foregroundColor: const Color(0xFF031018),
+                          disabledBackgroundColor: context.palette.coral
+                              .withValues(alpha: 0.45),
+                          disabledForegroundColor: const Color(
+                            0xFF031018,
+                          ).withValues(alpha: 0.70),
+                          textStyle: context.text.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                         child: Text(
                           session.isProcessing
@@ -270,6 +353,27 @@ class AccountScreen extends StatelessWidget {
                   Text(
                     'Safety and support',
                     style: context.text.titleLarge?.copyWith(fontSize: 20),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Get help with account access, payments, event safety, and suspicious listings.',
+                    style: context.text.bodyMedium?.copyWith(
+                      color: context.palette.slate,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _SupportActionTile(
+                    icon: Icons.shield_outlined,
+                    title: 'Safety tips',
+                    subtitle: 'How to spot and report risky events',
+                    onTap: () => _openSafetyTips(context),
+                  ),
+                  const SizedBox(height: 10),
+                  _SupportActionTile(
+                    icon: Icons.support_agent_rounded,
+                    title: 'Chat with support',
+                    subtitle: 'Create a secure in-app support ticket',
+                    onTap: () => _openSupportChat(context),
                   ),
                 ],
               ),
@@ -379,10 +483,54 @@ class AccountScreen extends StatelessWidget {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _openSafetyTips(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Safety tips',
+                style: sheetContext.text.titleLarge?.copyWith(fontSize: 22),
+              ),
+              const SizedBox(height: 14),
+              const _SafetyTip(
+                icon: Icons.verified_outlined,
+                text:
+                    'Check the venue, organizer, date, and ticket price before paying.',
+              ),
+              const _SafetyTip(
+                icon: Icons.payment_outlined,
+                text:
+                    'Use Vennuzo checkout or trusted payment links for ticketed events.',
+              ),
+              const _SafetyTip(
+                icon: Icons.flag_outlined,
+                text:
+                    'Use Report event on the event page if a listing looks unsafe.',
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _openHostAccess(BuildContext context) {
     Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const HostAccessScreen()));
+  }
+
+  void _openSupportChat(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SupportChatScreen()));
   }
 
   Future<void> _updatePrefs(
@@ -390,12 +538,16 @@ class AccountScreen extends StatelessWidget {
     bool? pushEnabled,
     bool? smsEnabled,
     bool? marketingOptIn,
+    bool? promotionalPushEnabled,
+    List<String>? promotionalEventTypes,
   }) async {
     try {
       await context.read<VennuzoSessionController>().updateNotificationPrefs(
         pushEnabled: pushEnabled,
         smsEnabled: smsEnabled,
         marketingOptIn: marketingOptIn,
+        promotionalPushEnabled: promotionalPushEnabled,
+        promotionalEventTypes: promotionalEventTypes,
       );
       if (!context.mounted) {
         return;
@@ -425,7 +577,11 @@ class _AccountHero extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(34),
         gradient: LinearGradient(
-          colors: [palette.ink, palette.teal, palette.gold],
+          colors: [
+            VennuzoTheme.surface,
+            VennuzoTheme.surfaceBright,
+            palette.gold,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -451,7 +607,7 @@ class _AccountHero extends StatelessWidget {
                 radius: 30,
                 backgroundColor: Colors.white.withValues(alpha: 0.2),
                 foregroundImage: photoUrl != null
-                    ? NetworkImage(photoUrl!)
+                    ? CachedNetworkImageProvider(photoUrl!)
                     : null,
                 child: photoUrl == null
                     ? const Icon(
@@ -464,6 +620,8 @@ class _AccountHero extends StatelessWidget {
               const SizedBox(height: 18),
               Text(
                 title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: context.text.headlineSmall?.copyWith(
                   color: Colors.white,
                 ),
@@ -472,6 +630,8 @@ class _AccountHero extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   body!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: context.text.bodyLarge?.copyWith(
                     color: Colors.white.withValues(alpha: 0.9),
                   ),
@@ -518,6 +678,101 @@ class _HeroBadge extends StatelessWidget {
   }
 }
 
+class _SupportActionTile extends StatelessWidget {
+  const _SupportActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Semantics(
+      button: true,
+      label: title,
+      hint: subtitle,
+      onTap: onTap,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: palette.canvas,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: palette.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: palette.teal.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: palette.teal),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: context.text.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: context.text.bodyMedium?.copyWith(
+                        color: palette.slate,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: palette.slate),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SafetyTip extends StatelessWidget {
+  const _SafetyTip({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: context.palette.teal, size: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: context.text.bodyLarge)),
+        ],
+      ),
+    );
+  }
+}
+
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.label, required this.value});
 
@@ -540,7 +795,14 @@ class _DetailRow extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(child: Text(value, style: context.text.bodyLarge)),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: context.text.bodyLarge,
+            ),
+          ),
         ],
       ),
     );

@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import { BarChart3, Banknote, LockKeyhole, Megaphone, ShieldCheck, TicketCheck } from 'lucide-react'
 
+import { trackEvent } from '../lib/analytics'
 import { copy } from '../lib/copy'
 import { getErrorMessage } from '../lib/errorMessages'
 import { usePortalSession } from '../lib/portalSession'
@@ -9,10 +11,12 @@ type AuthMode = 'signup' | 'login'
 
 export function LandingPage() {
   const session = usePortalSession()
-  const isAdminHost =
+  const isAdminMode =
     typeof window !== 'undefined' &&
     (window.location.hostname.includes('vennuzo-admin') ||
-      window.location.hostname.startsWith('admin.'))
+      window.location.hostname.startsWith('admin.') ||
+      window.location.pathname.startsWith('/admin') ||
+      window.location.pathname.startsWith('/superadmin'))
   const [mode, setMode] = useState<AuthMode>('signup')
   const [error, setError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
@@ -53,11 +57,11 @@ export function LandingPage() {
   const loginValid = login.email.includes('@') && login.password.length >= 6
 
   if (session.user) {
-    if (isAdminHost && session.isAdmin) {
-      return <Navigate replace to="/superadmin" />
+    if (isAdminMode && session.isAdmin) {
+      return <Navigate replace to="/admin/overview" />
     }
-    if (session.isSuperAdmin) {
-      return <Navigate replace to="/superadmin" />
+    if (session.isAdmin) {
+      return <Navigate replace to="/admin/overview" />
     }
     return <Navigate replace to="/studio/overview" />
   }
@@ -65,19 +69,19 @@ export function LandingPage() {
   async function handleSubmit() {
     setError('')
 
-    if (!isAdminHost && mode === 'signup' && !signupValid) {
+    if (!isAdminMode && mode === 'signup' && !signupValid) {
       setError(copy.completeRequiredFields)
       return
     }
 
-    if (!isAdminHost && mode === 'login' && !loginValid) {
+    if (!isAdminMode && mode === 'login' && !loginValid) {
       setError(copy.validEmailAndPassword)
       return
     }
 
     setIsBusy(true)
     try {
-      if (!isAdminHost && mode === 'signup') {
+      if (!isAdminMode && mode === 'signup') {
         await session.signUp({
           displayName: signup.displayName,
           contactPerson: signup.contactPerson,
@@ -85,6 +89,7 @@ export function LandingPage() {
           password: signup.password,
           phone: signup.phone,
         })
+        void trackEvent('sign_up', { method: 'password' }, { area: 'studio' })
       } else {
         const email = login.email.trim() || loginEmailRef.current?.value.trim() || ''
         const password = login.password || loginPasswordRef.current?.value || ''
@@ -94,6 +99,7 @@ export function LandingPage() {
         }
 
         await session.signIn(email, password)
+        void trackEvent('login', { method: 'password', admin: isAdminMode }, { area: isAdminMode ? 'admin' : 'studio' })
       }
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, copy.authFailed))
@@ -106,7 +112,8 @@ export function LandingPage() {
     setError('')
     setIsBusy(true)
     try {
-      await session.signInWithGoogle({ seedOrganizerProfile: !isAdminHost })
+      await session.signInWithGoogle({ seedOrganizerProfile: !isAdminMode })
+      void trackEvent('login', { method: 'google', admin: isAdminMode }, { area: isAdminMode ? 'admin' : 'studio' })
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, copy.googleSignInFailed))
     } finally {
@@ -118,12 +125,137 @@ export function LandingPage() {
     setError('')
     setIsBusy(true)
     try {
-      await session.signInWithApple({ seedOrganizerProfile: !isAdminHost })
+      await session.signInWithApple({ seedOrganizerProfile: !isAdminMode })
+      void trackEvent('login', { method: 'apple', admin: isAdminMode }, { area: isAdminMode ? 'admin' : 'studio' })
     } catch (caughtError) {
-      setError(getErrorMessage(caughtError, copy.appleSignInFailed))
+      const message = getErrorMessage(caughtError, copy.appleSignInFailed)
+      setError(
+        /auth\/operation-not-allowed|operation-not-allowed/i.test(message)
+          ? copy.appleSignInNotConfigured
+          : message,
+      )
     } finally {
       setIsBusy(false)
     }
+  }
+
+  if (isAdminMode) {
+    return (
+      <main className="admin-login-page">
+        <section className="admin-login-shell" aria-label="Vennuzo admin sign in">
+          <div className="admin-login-brand">
+            <div className="studio-brand">
+              <div className="studio-brand__mark">
+                <img src="/logo-mark.png" alt="" />
+              </div>
+              <div>
+                <strong>Vennuzo Admin</strong>
+                <span>Operations console</span>
+              </div>
+            </div>
+            <div>
+              <p className="eyebrow">Restricted access</p>
+              <h1>Platform control room</h1>
+            </div>
+            <div className="admin-login-status">
+              <span>
+                <LockKeyhole size={15} aria-hidden />
+                Admin-only workspace
+              </span>
+              <span>admin.vennuzo.com</span>
+            </div>
+          </div>
+
+          <form
+            className="admin-login-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSubmit()
+            }}
+          >
+            <div className="auth-panel__header">
+              <p className="eyebrow">Sign in</p>
+              <h2>Access Vennuzo Admin</h2>
+            </div>
+
+            <div className="auth-form auth-form--reference">
+              <label className="field">
+                <span>Email address</span>
+                <input
+                  ref={loginEmailRef}
+                  aria-label="Email address"
+                  autoComplete="email"
+                  onChange={(event) =>
+                    setLogin((current) => ({ ...current, email: event.target.value }))
+                  }
+                  placeholder="admin@vennuzo.com"
+                  type="email"
+                  value={login.email}
+                />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <div className="password-field">
+                  <input
+                    ref={loginPasswordRef}
+                    aria-label="Password"
+                    autoComplete="current-password"
+                    onChange={(event) =>
+                      setLogin((current) => ({ ...current, password: event.target.value }))
+                    }
+                    placeholder="Enter password"
+                    type={showLoginPassword ? 'text' : 'password'}
+                    value={login.password}
+                  />
+                  <button
+                    aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                    className="password-toggle"
+                    onClick={() => setShowLoginPassword((current) => !current)}
+                    type="button"
+                  >
+                    {showLoginPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            {error ? <p className="form-error">{error}</p> : null}
+
+            <button className="button button--primary button--full" disabled={isBusy} type="submit">
+              {isBusy ? 'Signing in...' : 'Sign in'}
+            </button>
+
+            <div className="auth-social">
+              <div className="auth-social__divider">
+                <span>or</span>
+              </div>
+              <button
+                className="button button--secondary button--full auth-social__button"
+                disabled={isBusy}
+                onClick={handleGoogle}
+                type="button"
+              >
+                <span className="auth-social__icon" aria-hidden="true">
+                  G
+                </span>
+                <span>Continue with Google</span>
+              </button>
+              <button
+                className="button button--secondary button--full auth-social__button"
+                disabled={isBusy}
+                onClick={handleApple}
+                type="button"
+              >
+                <span className="auth-social__icon" aria-hidden="true">
+                  
+                </span>
+                <span>Continue with Apple</span>
+              </button>
+            </div>
+          </form>
+        </section>
+      </main>
+    )
   }
 
   return (
@@ -132,51 +264,79 @@ export function LandingPage() {
         <div className="landing-hero__copy">
           <div className="landing-brand-lockup">
             <div className="studio-brand">
-              <div className="studio-brand__mark">V</div>
+              <div className="studio-brand__mark">
+                <img src="/logo-mark.png" alt="" />
+              </div>
               <div>
                 <strong>Vennuzo Studio</strong>
-                <span>{isAdminHost ? 'Operations Console' : 'Creator Workspace'}</span>
+                <span>{isAdminMode ? 'Operations Console' : 'Creator Workspace'}</span>
               </div>
             </div>
-            <span className="eyebrow">{isAdminHost ? 'Platform operations' : 'Premium event platform'}</span>
+            <span className="eyebrow">{isAdminMode ? 'Platform operations' : 'Premium event platform'}</span>
           </div>
-          <h1>{isAdminHost ? 'Run approvals from one control room.' : 'The fastest way to sell out your event.'}</h1>
-          {!isAdminHost && (
+          <h1>{isAdminMode ? 'Run Vennuzo from one control room.' : 'The fastest way to sell out your event.'}</h1>
+          {!isAdminMode && (
             <div className="landing-hero__features">
               <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon" aria-hidden><TicketCheck size={16} /></span>
                 <span>Instant ticket sales, zero setup friction</span>
               </div>
               <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon" aria-hidden><BarChart3 size={16} /></span>
                 <span>Real-time revenue and attendance analytics</span>
               </div>
               <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon" aria-hidden><Banknote size={16} /></span>
                 <span>Fast payouts via mobile money or bank transfer</span>
               </div>
               <div className="landing-hero__feature">
+                <span className="landing-hero__feature-icon" aria-hidden><Megaphone size={16} /></span>
                 <span>Built-in SMS campaigns to reach your audience</span>
               </div>
             </div>
           )}
           <div className="hero-chip-row">
-            <span>{isAdminHost ? 'Organizer approvals' : 'Free to start'}</span>
-            {!isAdminHost && <span>Ghana's #1 events platform</span>}
+            <span>{isAdminMode ? 'Full platform management' : 'Free to start'}</span>
+            {!isAdminMode && <span><ShieldCheck size={14} aria-hidden /> Hubtel-ready payments</span>}
           </div>
         </div>
+        {!isAdminMode ? (
+          <div className="landing-hero__product" aria-hidden>
+            <div className="landing-product-card landing-product-card--main">
+              <span>Tonight's door</span>
+              <strong>GHS 18,420</strong>
+              <div className="landing-product-card__bar"><i style={{ width: '74%' }} /></div>
+              <small>624 tickets issued · 74% sold through</small>
+            </div>
+            <div className="landing-product-grid">
+              <div className="landing-product-card">
+                <span>Campaign</span>
+                <strong>1,280</strong>
+                <small>SMS + push audience</small>
+              </div>
+              <div className="landing-product-card">
+                <span>Next payout</span>
+                <strong>Ready</strong>
+                <small>Mobile money verified</small>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="auth-panel">
         <div className="auth-panel__header">
-          <p className="eyebrow">{isAdminHost ? 'Superadmin access' : 'Get Started'}</p>
+          <p className="eyebrow">{isAdminMode ? 'Admin access' : 'Get Started'}</p>
           <h2>
-            {isAdminHost
-              ? 'Sign in to the approvals dashboard'
+            {isAdminMode
+              ? 'Sign in to the admin console'
               : mode === 'signup'
                 ? 'Create your organizer account'
                 : 'Welcome back'}
           </h2>
         </div>
 
-        {isAdminHost ? null : (
+        {isAdminMode ? null : (
           <div className="auth-toggle">
             <button
               className={mode === 'signup' ? 'is-active' : ''}
@@ -195,11 +355,12 @@ export function LandingPage() {
           </div>
         )}
 
-        {!isAdminHost && mode === 'signup' ? (
+        {!isAdminMode && mode === 'signup' ? (
           <div className="auth-form auth-form--reference">
             <label className="field">
               <span>Organizer / Brand Name *</span>
               <input
+                aria-label="Signup email address"
                 onChange={(event) =>
                   setSignup((current) => ({
                     ...current,
@@ -256,6 +417,7 @@ export function LandingPage() {
               <span>Password *</span>
               <div className="password-field">
                 <input
+                  aria-label="Signup password"
                   onChange={(event) =>
                     setSignup((current) => ({
                       ...current,
@@ -267,6 +429,7 @@ export function LandingPage() {
                   value={signup.password}
                 />
                 <button
+                  aria-label={showSignupPassword ? 'Hide signup password' : 'Show signup password'}
                   className="password-toggle"
                   onClick={() => setShowSignupPassword((current) => !current)}
                   type="button"
@@ -286,6 +449,7 @@ export function LandingPage() {
               <span>Confirm Password *</span>
               <div className="password-field">
                 <input
+                  aria-label="Confirm signup password"
                   onChange={(event) =>
                     setSignup((current) => ({
                       ...current,
@@ -296,6 +460,11 @@ export function LandingPage() {
                   value={signup.confirmPassword}
                 />
                 <button
+                  aria-label={
+                    showSignupConfirmPassword
+                      ? 'Hide confirm signup password'
+                      : 'Show confirm signup password'
+                  }
                   className="password-toggle"
                   onClick={() => setShowSignupConfirmPassword((current) => !current)}
                   type="button"
@@ -311,6 +480,7 @@ export function LandingPage() {
               <span>Email Address *</span>
               <input
                 ref={loginEmailRef}
+                aria-label="Email address"
                 onChange={(event) =>
                   setLogin((current) => ({ ...current, email: event.target.value }))
                 }
@@ -324,6 +494,7 @@ export function LandingPage() {
               <div className="password-field">
                 <input
                   ref={loginPasswordRef}
+                  aria-label="Password"
                   onChange={(event) =>
                     setLogin((current) => ({ ...current, password: event.target.value }))
                   }
@@ -332,6 +503,7 @@ export function LandingPage() {
                   value={login.password}
                 />
                 <button
+                  aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
                   className="password-toggle"
                   onClick={() => setShowLoginPassword((current) => !current)}
                   type="button"
@@ -353,10 +525,10 @@ export function LandingPage() {
         >
           {isBusy
             ? 'Working...'
-            : !isAdminHost && mode === 'signup'
+            : !isAdminMode && mode === 'signup'
               ? 'Create organizer account'
-              : isAdminHost
-                ? 'Sign in to approvals'
+              : isAdminMode
+                ? 'Sign in to Admin'
                 : 'Sign in to Studio'}
         </button>
 
@@ -373,7 +545,7 @@ export function LandingPage() {
             <span className="auth-social__icon" aria-hidden="true">
               G
             </span>
-            <span>{isAdminHost ? 'Continue with Google' : 'Start with Google'}</span>
+            <span>{isAdminMode ? 'Continue with Google' : 'Start with Google'}</span>
           </button>
           <button
             className="button button--secondary button--full auth-social__button"
@@ -389,7 +561,7 @@ export function LandingPage() {
                 />
               </svg>
             </span>
-            <span>{isAdminHost ? 'Continue with Apple' : 'Start with Apple'}</span>
+            <span>{isAdminMode ? 'Continue with Apple' : 'Start with Apple'}</span>
           </button>
         </div>
 

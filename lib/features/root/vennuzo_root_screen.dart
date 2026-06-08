@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +23,7 @@ class VennuzoRootScreen extends StatefulWidget {
 class _VennuzoRootScreenState extends State<VennuzoRootScreen> {
   bool _isCheckingOnboarding = true;
   bool _showOnboarding = false;
+  String? _syncingOnboardingPrefsForUid;
 
   @override
   void initState() {
@@ -31,6 +34,7 @@ class _VennuzoRootScreenState extends State<VennuzoRootScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    precacheImage(const AssetImage('assets/logo-splash-opaque.png'), context);
     precacheImage(const AssetImage('assets/logo.png'), context);
   }
 
@@ -56,7 +60,10 @@ class _VennuzoRootScreenState extends State<VennuzoRootScreen> {
     });
   }
 
-  Future<void> _finishOnboarding() async {
+  Future<void> _finishOnboarding(
+    VennuzoOnboardingPreferences preferences,
+  ) async {
+    await VennuzoLaunchPreferences.saveOnboardingPreferences(preferences);
     await VennuzoLaunchPreferences.markOnboardingCompleted();
     if (!mounted) {
       return;
@@ -82,6 +89,8 @@ class _VennuzoRootScreenState extends State<VennuzoRootScreen> {
       return const _RootLoadingScreen();
     }
 
+    _maybeSyncOnboardingPreferences(session);
+
     if (session.needsWorkspaceChoice) {
       return const AdminFaceChooserScreen();
     }
@@ -91,6 +100,43 @@ class _VennuzoRootScreenState extends State<VennuzoRootScreen> {
     }
 
     return const VennuzoShellScreen();
+  }
+
+  void _maybeSyncOnboardingPreferences(VennuzoSessionController session) {
+    final uid = session.viewer.uid;
+    if (!session.firebaseEnabled ||
+        session.isProcessing ||
+        uid == null ||
+        uid.isEmpty ||
+        _syncingOnboardingPrefsForUid == uid) {
+      return;
+    }
+
+    _syncingOnboardingPrefsForUid = uid;
+    unawaited(() async {
+      try {
+        final shouldSync =
+            await VennuzoLaunchPreferences.shouldSyncOnboardingPreferencesFor(
+              uid,
+            );
+        if (!shouldSync) return;
+        final prefs =
+            await VennuzoLaunchPreferences.loadOnboardingPreferences();
+        await session.updateNotificationPrefs(
+          marketingOptIn:
+              session.viewer.notificationPrefs.marketingOptIn ||
+              prefs.marketingOptIn,
+          promotionalPushEnabled: prefs.promotionalPushEnabled,
+          promotionalEventTypes: prefs.categoryIds,
+          promotionalCities: prefs.city.trim().isEmpty
+              ? const <String>[]
+              : <String>[prefs.city.trim()],
+        );
+        await VennuzoLaunchPreferences.markOnboardingPreferencesSynced(uid);
+      } catch (_) {
+        _syncingOnboardingPrefsForUid = null;
+      }
+    }());
   }
 }
 

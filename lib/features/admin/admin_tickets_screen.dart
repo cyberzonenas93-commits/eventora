@@ -9,6 +9,7 @@ import '../../domain/models/ticket_models.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
+import 'ticket_scanner_screen.dart';
 
 class AdminTicketsScreen extends StatefulWidget {
   const AdminTicketsScreen({super.key});
@@ -68,6 +69,18 @@ class _AdminTicketsScreenState extends State<AdminTicketsScreen> {
               'Search by ticket code, attendee, buyer, or order ID, then admit directly from the admin desk.',
         ),
         const SizedBox(height: 14),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const TicketScannerScreen(),
+              ),
+            );
+          },
+          icon: const Icon(Icons.qr_code_scanner),
+          label: const Text('Scan QR with camera'),
+        ),
+        const SizedBox(height: 12),
         TextField(
           onChanged: (value) =>
               setState(() => _query = value.trim().toLowerCase()),
@@ -366,7 +379,11 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = color ?? context.palette.canvas;
-    final foreground = color == null ? context.palette.ink : Colors.white;
+    final foreground = color == null
+        ? context.palette.ink
+        : accent.computeLuminance() > 0.5
+        ? const Color(0xFF09111F)
+        : Colors.white;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
@@ -388,9 +405,9 @@ String _paymentStatusLabel(TicketPaymentStatus status) {
   return switch (status) {
     TicketPaymentStatus.initiated => 'Initiated',
     TicketPaymentStatus.pending => 'Pending',
-    TicketPaymentStatus.paid => 'Paid',
+    TicketPaymentStatus.paid => '✓ Paid',
     TicketPaymentStatus.cashAtGate => 'Cash at gate',
-    TicketPaymentStatus.cashAtGatePaid => 'Gate settled',
+    TicketPaymentStatus.cashAtGatePaid => '✓ Gate settled',
     TicketPaymentStatus.complimentary => 'Complimentary',
     TicketPaymentStatus.failed => 'Failed',
   };

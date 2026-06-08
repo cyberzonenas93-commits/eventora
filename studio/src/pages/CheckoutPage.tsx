@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 
+import { trackEvent } from '../lib/analytics'
 import { formatDateTime, formatMoney } from '../lib/formatters'
 import { getPublicEvent } from '../lib/portalData'
 import { functions } from '../firebaseFunctions'
@@ -16,14 +17,42 @@ interface Selections {
 interface CreateOrderResult {
   success: boolean
   orderId: string
-  checkoutUrl: string
-  checkoutId: string
+  checkoutUrl?: string
+  checkoutId?: string
+  ticketUrl?: string
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+function normalizeGhanaMobileNumber(value: string) {
+  const digits = value.replace(/\D/g, '')
+
+  if (/^0\d{9}$/.test(digits)) {
+    return `+233${digits.slice(1)}`
+  }
+
+  if (/^233\d{9}$/.test(digits)) {
+    return `+${digits}`
+  }
+
+  return ''
+}
+
+function isValidGhanaMobileNumber(value: string) {
+  return /^\+233(2[03456789]|5[03456789])\d{7}$/.test(
+    normalizeGhanaMobileNumber(value),
+  )
 }
 
 export function CheckoutPage() {
   const { eventId } = useParams<{ eventId: string }>()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const partnerRef = searchParams.get('ref') ?? ''
   const [event, setEvent] = useState<PortalEvent | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => Boolean(eventId))
   const [step, setStep] = useState<Step>('select')
   const [selections, setSelections] = useState<Selections>({})
   const [buyerName, setBuyerName] = useState('')
@@ -34,10 +63,28 @@ export function CheckoutPage() {
   const nameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!eventId) { setLoading(false); return }
-    getPublicEvent(eventId)
-      .then((e) => setEvent(e ?? null))
-      .finally(() => setLoading(false))
+    let cancelled = false
+
+    async function loadEvent() {
+      if (!eventId) {
+        setEvent(null)
+        setLoading(false)
+        return
+      }
+
+      setLoading(true)
+      try {
+        const e = await getPublicEvent(eventId)
+        if (!cancelled) setEvent(e ?? null)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void loadEvent()
+    return () => {
+      cancelled = true
+    }
   }, [eventId])
 
   useEffect(() => {
@@ -72,10 +119,12 @@ export function CheckoutPage() {
     )
   }
 
-  const paidTiers = event.tiers.filter((t) => t.price > 0)
   const freeTiers = event.tiers.filter((t) => t.price === 0)
-  const total = paidTiers.reduce((sum, t) => sum + (selections[t.tierId] ?? 0) * t.price, 0)
+  const analyticsEvent = event
+  const total = event.tiers.reduce((sum, t) => sum + (selections[t.tierId] ?? 0) * t.price, 0)
   const totalTickets = event.tiers.reduce((sum, t) => sum + (selections[t.tierId] ?? 0), 0)
+  const freeTickets = freeTiers.reduce((sum, t) => sum + (selections[t.tierId] ?? 0), 0)
+  const hasMixedSelection = total > 0 && freeTickets > 0
 
   function adjustQty(tierId: string, delta: number) {
     setSelections((prev) => {
@@ -88,7 +137,29 @@ export function CheckoutPage() {
   async function handlePay(e: React.FormEvent) {
     e.preventDefault()
     if (submitting) return
+
+    const trimmedName = buyerName.trim()
+    const trimmedEmail = buyerEmail.trim().toLowerCase()
+    const normalizedPhone = normalizeGhanaMobileNumber(buyerPhone)
+
     setError(null)
+
+    if (!trimmedName) {
+      setError('Enter the buyer name.')
+      nameRef.current?.focus()
+      return
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      setError('Enter a valid email address for ticket delivery.')
+      return
+    }
+
+    if (!isValidGhanaMobileNumber(buyerPhone)) {
+      setError('Enter a valid Ghana mobile number for Hubtel payment and ticket delivery.')
+      return
+    }
+
     setSubmitting(true)
     try {
       const createOrder = httpsCallable<
@@ -98,25 +169,76 @@ export function CheckoutPage() {
           buyerName: string
           buyerPhone: string
           buyerEmail: string
+          partnerRef?: string
         },
         CreateOrderResult
-      >(functions, 'createWebEventTicketOrder')
+      >(functions, total > 0 ? 'createWebEventTicketOrder' : 'createFreeWebTicketOrder')
 
-      const { data } = await createOrder({
-        eventId: eventId!,
-        selections,
-        buyerName: buyerName.trim(),
-        buyerPhone: buyerPhone.trim(),
-        buyerEmail: buyerEmail.trim(),
-      })
+	      const { data } = await createOrder({
+	        eventId: eventId!,
+	        selections,
+        buyerName: trimmedName,
+        buyerPhone: normalizedPhone,
+	        buyerEmail: trimmedEmail,
+        partnerRef: partnerRef || undefined,
+	      })
+	      void trackEvent('ticket_order_created', {
+	        event_id: analyticsEvent.id,
+	        tier_count: Object.values(selections).filter((quantity) => quantity > 0).length,
+	        ticket_count: totalTickets,
+	        value: total,
+          source: partnerRef ? 'promoter_link' : searchParams.get('utm_source') || searchParams.get('source') || 'direct',
+          ref: partnerRef || undefined,
+	      }, {
+	        area: 'checkout',
+          organizationId: analyticsEvent.organizationId,
+          path: `/checkout/${analyticsEvent.id}`,
+          role: 'guest',
+	      })
 
-      if (data.checkoutUrl) {
+	      if (data.checkoutUrl) {
+        void trackEvent('payment_initiated', {
+          event_id: analyticsEvent.id,
+          ticket_count: totalTickets,
+          value: total,
+          provider: 'hubtel',
+          source: partnerRef ? 'promoter_link' : searchParams.get('utm_source') || searchParams.get('source') || 'direct',
+          ref: partnerRef || undefined,
+        }, {
+          area: 'checkout',
+          organizationId: analyticsEvent.organizationId,
+          path: `/checkout/${analyticsEvent.id}`,
+          role: 'guest',
+        })
         // Redirect the browser to the Hubtel hosted checkout page.
         // After payment, Hubtel redirects back to hubtelReturn → which then
-        // redirects to /checkout/:orderId/confirmation.
+        // redirects to /tickets/:orderId.
         window.location.href = data.checkoutUrl
+      } else if (data.orderId) {
+        void trackEvent('payment_completed', {
+          event_id: analyticsEvent.id,
+          ticket_count: totalTickets,
+          value: total,
+          provider: 'free',
+        }, {
+          area: 'checkout',
+          organizationId: analyticsEvent.organizationId,
+          path: `/checkout/${analyticsEvent.id}`,
+          role: 'guest',
+        })
+        void trackEvent('ticket_issued', {
+          event_id: analyticsEvent.id,
+          ticket_count: totalTickets,
+          value: total,
+        }, {
+          area: 'checkout',
+          organizationId: analyticsEvent.organizationId,
+          path: `/checkout/${analyticsEvent.id}`,
+          role: 'guest',
+        })
+        navigate(`/tickets/${encodeURIComponent(data.orderId)}`)
       } else {
-        setError('Could not start payment. Please try again.')
+        setError('Could not create your tickets. Please try again.')
         setSubmitting(false)
       }
     } catch (err: unknown) {
@@ -130,6 +252,14 @@ export function CheckoutPage() {
   }
 
   const hasSelection = totalTickets > 0
+  const hasBuyerEmail = buyerEmail.trim().length > 0
+  const hasBuyerPhone = buyerPhone.trim().length > 0
+  const buyerEmailInvalid = hasBuyerEmail && !isValidEmail(buyerEmail)
+  const buyerPhoneInvalid = hasBuyerPhone && !isValidGhanaMobileNumber(buyerPhone)
+  const canSubmitDetails =
+    buyerName.trim().length > 0 &&
+    isValidEmail(buyerEmail) &&
+    isValidGhanaMobileNumber(buyerPhone)
 
   return (
     <div className="public-page">
@@ -161,8 +291,8 @@ export function CheckoutPage() {
           <div className="checkout__body">
             <h2 className="checkout__section-title">Select tickets</h2>
 
-            {paidTiers.length === 0 && freeTiers.length > 0 && (
-              <p className="checkout__info">This event has free admission — no ticket purchase needed.</p>
+            {freeTiers.length > 0 && (
+              <p className="checkout__info">Free ticket tiers can be confirmed here and sent by SMS/email.</p>
             )}
 
             <ul className="checkout__tiers" aria-label="Ticket tiers">
@@ -193,7 +323,7 @@ export function CheckoutPage() {
                       )}
                     </div>
 
-                    {!soldOut && !isFree && (
+                    {!soldOut && (
                       <div className="checkout__qty" role="group" aria-label={`Quantity for ${tier.name}`}>
                         <button
                           type="button"
@@ -217,13 +347,17 @@ export function CheckoutPage() {
                       </div>
                     )}
 
-                    {isFree && !soldOut && (
-                      <span className="checkout__tier-free-note">Register in the app</span>
-                    )}
+                    {isFree && !soldOut && <span className="checkout__tier-free-note">Free web ticket</span>}
                   </li>
                 )
               })}
             </ul>
+
+            {hasMixedSelection && (
+              <p className="checkout__error" role="alert">
+                Please confirm free tickets separately from paid tickets.
+              </p>
+            )}
 
             {hasSelection && (
               <div className="checkout__summary">
@@ -237,9 +371,32 @@ export function CheckoutPage() {
             <button
               type="button"
               className="button button--primary checkout__cta"
-              disabled={!hasSelection || total === 0}
-              onClick={() => setStep('details')}
-            >
+	              disabled={!hasSelection || hasMixedSelection}
+	              onClick={() => {
+	                void trackEvent('checkout_started', {
+	                  event_id: analyticsEvent.id,
+	                  ticket_count: totalTickets,
+	                  value: total,
+                    source: partnerRef ? 'promoter_link' : searchParams.get('utm_source') || searchParams.get('source') || 'direct',
+                    ref: partnerRef || undefined,
+	                }, {
+                    area: 'checkout',
+                    organizationId: analyticsEvent.organizationId,
+                    path: `/checkout/${analyticsEvent.id}`,
+                    role: 'guest',
+                  })
+	                void trackEvent('checkout_step', {
+                    event_id: analyticsEvent.id,
+                    step: 'details',
+                  }, {
+                    area: 'checkout',
+                    organizationId: analyticsEvent.organizationId,
+                    path: `/checkout/${analyticsEvent.id}`,
+                    role: 'guest',
+                  })
+	                setStep('details')
+	              }}
+	            >
               Continue
             </button>
           </div>
@@ -251,12 +408,12 @@ export function CheckoutPage() {
             <h2 className="checkout__section-title">Your details</h2>
 
             <div className="checkout__order-summary">
-              {paidTiers
+              {event.tiers
                 .filter((t) => (selections[t.tierId] ?? 0) > 0)
                 .map((t) => (
                   <div key={t.tierId} className="checkout__order-row">
                     <span>{t.name} × {selections[t.tierId]}</span>
-                    <span>{formatMoney(t.price * (selections[t.tierId] ?? 0))}</span>
+                    <span>{t.price === 0 ? 'Free' : formatMoney(t.price * (selections[t.tierId] ?? 0))}</span>
                   </div>
                 ))}
               <div className="checkout__order-row checkout__order-row--total">
@@ -277,6 +434,7 @@ export function CheckoutPage() {
                   placeholder="e.g. Kwame Mensah"
                   required
                   autoComplete="name"
+                  disabled={submitting}
                 />
               </label>
 
@@ -290,7 +448,14 @@ export function CheckoutPage() {
                   placeholder="you@example.com"
                   required
                   autoComplete="email"
+                  aria-invalid={buyerEmailInvalid}
+                  disabled={submitting}
                 />
+                {buyerEmailInvalid && (
+                  <span className="checkout__field-error">
+                    Enter a real email address for ticket delivery.
+                  </span>
+                )}
               </label>
 
               <label className="checkout__label">
@@ -303,10 +468,17 @@ export function CheckoutPage() {
                   placeholder="+233 XX XXX XXXX"
                   required
                   autoComplete="tel"
+                  aria-invalid={buyerPhoneInvalid}
+                  disabled={submitting}
                 />
                 <span className="checkout__input-hint">
                   Used for mobile money payment and ticket delivery
                 </span>
+                {buyerPhoneInvalid && (
+                  <span className="checkout__field-error">
+                    Use a valid Ghana mobile number, for example 0550009876.
+                  </span>
+                )}
               </label>
 
               {error && <p className="checkout__error" role="alert">{error}</p>}
@@ -325,18 +497,20 @@ export function CheckoutPage() {
                   className="button button--primary"
                   disabled={
                     submitting ||
-                    !buyerName.trim() ||
-                    !buyerEmail.trim() ||
-                    !buyerPhone.trim()
+                    !canSubmitDetails
                   }
                 >
-                  {submitting ? 'Opening payment…' : `Pay ${formatMoney(total)}`}
+                  {submitting
+                    ? total > 0 ? 'Opening payment…' : 'Creating tickets…'
+                    : total > 0 ? `Pay ${formatMoney(total)}` : 'Confirm free tickets'}
                 </button>
               </div>
 
               {submitting && (
                 <p className="checkout__redirect-note">
-                  Redirecting you to the secure Hubtel payment page…
+                  {total > 0
+                    ? 'Redirecting you to the secure Hubtel payment page…'
+                    : 'Generating your QR tickets and delivery message…'}
                 </p>
               )}
             </form>
@@ -344,7 +518,7 @@ export function CheckoutPage() {
         )}
 
         <p className="checkout__secure-note">
-          🔒 Payments processed securely by Hubtel
+          {total > 0 ? 'Payments processed securely by Hubtel' : 'Free tickets are delivered by SMS and email when available'}
         </p>
       </div>
     </div>

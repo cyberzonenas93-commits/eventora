@@ -14,6 +14,11 @@ const { FieldValue } = admin.firestore;
 
 const REGION = "us-central1";
 const VENNUZO_SCHEME = "vennuzoapp";
+const DEFAULT_WEB_BASE_URL = "https://vennuzo.com";
+
+function normalizeBaseUrl(value, fallback = DEFAULT_WEB_BASE_URL) {
+  return safeString(value, fallback).replace(/\/+$/, "");
+}
 
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
@@ -34,31 +39,42 @@ function functionsBaseUrl() {
 
 async function getShareSettings() {
   try {
-    const snap = await db.collection("app_config").doc("share").get();
-    const data = snap.exists ? snap.data() || {} : {};
+    const [shareSnap, siteSnap] = await Promise.all([
+      db.collection("app_config").doc("share").get(),
+      db.collection("app_config").doc("site").get(),
+    ]);
+    const data = shareSnap.exists ? shareSnap.data() || {} : {};
+    const site = siteSnap.exists ? siteSnap.data() || {} : {};
+    const webBaseUrl = normalizeBaseUrl(
+      data.webBaseUrl ||
+        site.publicUrl ||
+        site.publicBaseUrl ||
+        site.vennuzoPublicUrl ||
+        site.webUrl,
+    );
     return {
       iosDownloadUrl: safeString(
         data.iosDownloadUrl,
-        "https://vennuzo.app/download/ios",
+        `${webBaseUrl}/download/ios`,
       ),
       androidDownloadUrl: safeString(
         data.androidDownloadUrl,
         "https://play.google.com/store/apps/details?id=com.vennuzo.app",
       ),
-      webBaseUrl: safeString(data.webBaseUrl, "https://vennuzo.app"),
+      webBaseUrl,
       defaultImageUrl: safeString(
         data.defaultImageUrl,
-        "https://vennuzo.app/favicon.png",
+        `${webBaseUrl}/logo-transparent.png`,
       ),
       shareFunctionUrl: safeString(data.shareFunctionUrl),
     };
   } catch (error) {
     return {
-      iosDownloadUrl: "https://vennuzo.app/download/ios",
+      iosDownloadUrl: `${DEFAULT_WEB_BASE_URL}/download/ios`,
       androidDownloadUrl:
         "https://play.google.com/store/apps/details?id=com.vennuzo.app",
-      webBaseUrl: "https://vennuzo.app",
-      defaultImageUrl: "https://vennuzo.app/favicon.png",
+      webBaseUrl: DEFAULT_WEB_BASE_URL,
+      defaultImageUrl: `${DEFAULT_WEB_BASE_URL}/logo-transparent.png`,
       shareFunctionUrl: "",
     };
   }
@@ -68,6 +84,19 @@ async function buildShareLinkUrl(shareId) {
   const settings = await getShareSettings();
   const base = safeString(settings.shareFunctionUrl, `${functionsBaseUrl()}/shareLink`);
   return `${base}?shareId=${encodeURIComponent(shareId)}`;
+}
+
+function buildPublicEventUrl(webBaseUrl, eventId) {
+  return `${normalizeBaseUrl(webBaseUrl)}/events/${encodeURIComponent(eventId)}`;
+}
+
+function buildPublicCheckoutUrl(webBaseUrl, eventId) {
+  return `${normalizeBaseUrl(webBaseUrl)}/checkout/${encodeURIComponent(eventId)}`;
+}
+
+async function buildEventWebUrl(eventId) {
+  const settings = await getShareSettings();
+  return buildPublicEventUrl(settings.webBaseUrl, eventId);
 }
 
 function escapeHtml(value) {
@@ -171,9 +200,23 @@ async function ensureEventShareLink({
     const status = safeString(existingData.status, "active");
     const existingTargetId = safeString(existingData.targetId, safeEventId);
     if (existingTargetId === safeEventId && status === "active") {
+      const configuredWebUrl = await buildEventWebUrl(safeEventId);
+      const existingWebUrl = safeString(existingData.webUrl);
+      const shouldRefreshWebUrl =
+        !existingWebUrl ||
+        existingWebUrl.startsWith("https://vennuzo.web.app/") ||
+        existingWebUrl.startsWith("http://vennuzo.web.app/");
+      const webUrl = shouldRefreshWebUrl ? configuredWebUrl : existingWebUrl;
+      if (shouldRefreshWebUrl) {
+        await existingRef.set({
+          webUrl,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
       return {
         shareId: existingSnap.id,
-        url: await buildShareLinkUrl(existingSnap.id),
+        url: webUrl,
+        previewUrl: await buildShareLinkUrl(existingSnap.id),
         data: existingData,
       };
     }
@@ -198,10 +241,12 @@ async function ensureEventShareLink({
   const ticketing = snapshot.data.ticketing && typeof snapshot.data.ticketing === "object"
     ? snapshot.data.ticketing
     : {};
+  const webUrl = await buildEventWebUrl(safeEventId);
   const payload = {
     type: "event",
     targetId: safeEventId,
     eventId: safeEventId,
+    webUrl,
     organizationId: safeString(snapshot.data.organizationId),
     title: safeString(snapshot.data.title, "Upcoming Event"),
     description: safeString(snapshot.data.description),
@@ -219,7 +264,8 @@ async function ensureEventShareLink({
   await existingRef.set(payload, { merge: true });
   return {
     shareId: existingRef.id,
-    url: await buildShareLinkUrl(existingRef.id),
+    url: webUrl,
+    previewUrl: await buildShareLinkUrl(existingRef.id),
     data: payload,
   };
 }
@@ -246,6 +292,7 @@ exports.createShareLink = onCall(
     return {
       shareId: shareLink.shareId,
       url: shareLink.url,
+      previewUrl: shareLink.previewUrl,
     };
   },
 );
@@ -309,18 +356,34 @@ exports.shareLink = onRequest(
         ? "Free entry"
         : `From ${formatMoney(entryPrice, safeString(ticketing.currency, "GHS"))}`;
       const shareUrl = await buildShareLinkUrl(shareId);
+      const eventWebUrl = safeString(
+        shareData.webUrl,
+        buildPublicEventUrl(settings.webBaseUrl, eventId),
+      );
+      const checkoutUrl = buildPublicCheckoutUrl(settings.webBaseUrl, eventId);
+      const ticketingEnabled = ticketing.enabled !== false &&
+        Array.isArray(ticketing.tiers) &&
+        ticketing.tiers.length > 0;
       const deepLink = buildEventDeepLink(eventId);
       const venueLabel = [venue, city].filter(Boolean).join(", ");
       const safeTitle = escapeHtml(title);
       const safeDescription = escapeHtml(description);
       const safeImageUrl = escapeHtml(imageUrl);
       const safeShareUrl = escapeHtml(shareUrl);
+      const safeEventWebUrl = escapeHtml(eventWebUrl);
+      const safeCheckoutUrl = escapeHtml(checkoutUrl);
       const safeDeepLink = escapeHtml(deepLink);
       const safeEventDate = escapeHtml(eventDate);
       const safeVenue = escapeHtml(venueLabel || "Venue to be announced");
       const safePriceLabel = escapeHtml(priceLabel);
       const safeIosUrl = escapeHtml(settings.iosDownloadUrl);
       const safeAndroidUrl = escapeHtml(settings.androidDownloadUrl);
+      const primaryHref = ticketingEnabled ? safeCheckoutUrl : safeEventWebUrl;
+      const primaryLabel = ticketingEnabled ? "Buy tickets online" : "View event";
+      const hintText = ticketingEnabled
+        ? "Tickets can be purchased in the browser. The app link is optional for guests who already use Vennuzo."
+        : "Guests can RSVP in the browser. The app link is optional for guests who already use Vennuzo.";
+      const safeHintText = escapeHtml(hintText);
 
       const html = `
 <!DOCTYPE html>
@@ -457,11 +520,11 @@ exports.shareLink = onRequest(
       <span>${safePriceLabel}</span>
     </div>
     <div class="actions">
-      <a class="button primary" href="${safeDeepLink}" onclick="return openApp(event)">Open in Vennuzo</a>
-      <a class="button" href="${safeIosUrl}" target="_blank" rel="noopener">Get the iPhone app</a>
-      <a class="button" href="${safeAndroidUrl}" target="_blank" rel="noopener">Get the Android app</a>
+      <a class="button primary" href="${primaryHref}">${primaryLabel}</a>
+      <a class="button" href="${safeEventWebUrl}">View event details</a>
+      <a class="button" href="${safeDeepLink}" onclick="return openApp(event)">Open in Vennuzo app</a>
     </div>
-    <p class="hint">If the app is installed, this link opens the event directly. Otherwise, download Vennuzo and reopen the same link.</p>
+    <p class="hint">${safeHintText}</p>
   </div>
   <script>
     const deepLink = "${safeDeepLink}";

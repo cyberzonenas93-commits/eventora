@@ -35,7 +35,7 @@ export function UnsubscribePage() {
 
   return (
     <div className="dashboard-stack" style={{ maxWidth: '28rem', margin: '2rem auto', padding: '0 1rem' }}>
-      <section className="page-hero page-hero--events">
+      <section className="page-hero page-hero--events page-hero--support">
         <div className="page-hero__content">
           <p className="eyebrow">SMS opt-out</p>
           <h2>Unsubscribe from Vennuzo SMS</h2>

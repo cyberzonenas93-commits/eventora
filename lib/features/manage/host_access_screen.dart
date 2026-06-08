@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../data/services/vennuzo_organizer_application_service.dart';
 import '../../domain/models/account_models.dart';
 import '../account/sign_in_screen.dart';
@@ -41,6 +42,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _showIntro = true;
   String? _loadedUid;
   bool _isRegisteredBusiness = false;
   String _payoutMethod = 'mobile-money';
@@ -118,6 +120,10 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
 
   bool get _isBankTransfer => _payoutMethod == 'bank-transfer';
 
+  bool _isQaBypassViewer(VennuzoViewer viewer) {
+    return viewer.email?.trim().toLowerCase() == 'angelonartey@hotmail.com';
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<VennuzoSessionController>();
@@ -131,46 +137,48 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
       appBar: AppBar(title: const Text('Host access')),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                  children: [
-                    _HostAccessHero(
-                      statusLabel: viewer.organizerStatusLabel,
-                      isGuest: viewer.isGuest,
-                      canEdit: canEdit,
-                      reviewNotes: _reviewNotes,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                children: [
+                  _HostAccessHero(
+                    statusLabel: viewer.organizerStatusLabel,
+                    isGuest: viewer.isGuest,
+                    canEdit: canEdit,
+                    reviewNotes: _reviewNotes,
+                  ),
+                  const SizedBox(height: 20),
+                  _StepStrip(stepStates: stepStates),
+                  const SizedBox(height: 20),
+                  if (viewer.isGuest) ...[
+                    _GuestAccessCard(
+                      onCreateAccount: () => _openSignUp(context),
+                      onSignIn: () => _openSignIn(context),
                     ),
-                    const SizedBox(height: 20),
-                    _StepStrip(stepStates: stepStates),
-                    const SizedBox(height: 20),
-                    if (viewer.isGuest) ...[
-                      _GuestAccessCard(
-                        onCreateAccount: () => _openSignUp(context),
-                        onSignIn: () => _openSignIn(context),
+                  ] else if (canEdit) ...[
+                    if (_reviewNotes.trim().isNotEmpty &&
+                        status == OrganizerApplicationStatus.rejected) ...[
+                      _StatusNoticeCard(
+                        title: 'Updates requested',
+                        body:
+                            'Review the latest note, update your details, then resubmit your host access request.',
+                        badgeLabel: 'Needs changes',
+                        badgeColor: palette.coral,
+                        reviewNotes: _reviewNotes,
                       ),
-                    ] else if (canEdit) ...[
-                      if (_reviewNotes.trim().isNotEmpty &&
-                          status == OrganizerApplicationStatus.rejected) ...[
-                        _StatusNoticeCard(
-                          title: 'Updates requested',
-                          body:
-                              'Review the latest note, update your details, then resubmit your host access request.',
-                          badgeLabel: 'Needs changes',
-                          badgeColor: palette.coral,
-                          reviewNotes: _reviewNotes,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+                      const SizedBox(height: 16),
+                    ],
+                    if (_showIntro) ...[
+                      _HostAccessIntroCard(
+                        canUseQaDefaults: _isQaBypassViewer(viewer),
+                        onStart: () => setState(() => _showIntro = false),
+                        onUseQaDefaults: () =>
+                            _applyQaHostAccessDefaults(viewer),
+                      ),
+                    ] else ...[
                       Form(
                         key: _formKey,
                         child: Column(
@@ -524,77 +532,76 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
                           ],
                         ),
                       ),
-                    ] else ...[
-                      _StatusNoticeCard(
-                        title: viewer.hasOrganizerAccess
-                            ? 'Host access is active'
-                            : viewer.hasPendingOrganizerApplication
-                            ? 'Your request is in review'
-                            : 'Host access status',
-                        body: viewer.hasOrganizerAccess
-                            ? 'Your account is ready for hosting. Use the Host tab to manage events, tickets, and campaign placements.'
-                            : 'Your submission is already with the Vennuzo team. We will unlock publishing tools in the app as soon as review is complete.',
-                        badgeLabel: viewer.organizerStatusLabel,
-                        badgeColor:
-                            viewer.hasOrganizerAccess
-                            ? palette.teal
-                            : palette.gold,
-                        reviewNotes: _reviewNotes,
-                      ),
-                      const SizedBox(height: 16),
-                      _SummarySection(
-                        title: 'Organizer profile',
-                        rows: [
-                          _SummaryRowData(
-                            label: 'Organizer',
-                            value: _organizerNameController.text,
-                          ),
-                          _SummaryRowData(
-                            label: 'Contact',
-                            value: _contactPersonController.text,
-                          ),
-                          _SummaryRowData(
-                            label: 'Email',
-                            value: _emailController.text,
-                          ),
-                          _SummaryRowData(
-                            label: 'Phone',
-                            value: _phoneController.text,
-                          ),
-                          _SummaryRowData(
-                            label: 'Business type',
-                            value: _businessTypeController.text,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _SummarySection(
-                        title: 'Verification and payout',
-                        rows: [
-                          _SummaryRowData(
-                            label: 'Government ID',
-                            value: _governmentIdFileName,
-                          ),
-                          _SummaryRowData(
-                            label: 'Registered business',
-                            value: _isRegisteredBusiness ? 'Yes' : 'No',
-                          ),
-                          _SummaryRowData(
-                            label: 'Payout method',
-                            value: _isBankTransfer
-                                ? 'Bank transfer'
-                                : 'Mobile money',
-                          ),
-                          _SummaryRowData(
-                            label: 'Settlement preference',
-                            value: _settlementPreferenceController.text,
-                          ),
-                        ],
-                      ),
                     ],
+                  ] else ...[
+                    _StatusNoticeCard(
+                      title: viewer.hasOrganizerAccess
+                          ? 'Host access is active'
+                          : viewer.hasPendingOrganizerApplication
+                          ? 'Your request is in review'
+                          : 'Host access status',
+                      body: viewer.hasOrganizerAccess
+                          ? 'Your account is ready for hosting. Use the Host tab to manage events, tickets, and campaign placements.'
+                          : 'Your submission is already with the Vennuzo team. We will unlock publishing tools in the app as soon as review is complete.',
+                      badgeLabel: viewer.organizerStatusLabel,
+                      badgeColor: viewer.hasOrganizerAccess
+                          ? palette.teal
+                          : palette.gold,
+                      reviewNotes: _reviewNotes,
+                    ),
+                    const SizedBox(height: 16),
+                    _SummarySection(
+                      title: 'Organizer profile',
+                      rows: [
+                        _SummaryRowData(
+                          label: 'Organizer',
+                          value: _organizerNameController.text,
+                        ),
+                        _SummaryRowData(
+                          label: 'Contact',
+                          value: _contactPersonController.text,
+                        ),
+                        _SummaryRowData(
+                          label: 'Email',
+                          value: _emailController.text,
+                        ),
+                        _SummaryRowData(
+                          label: 'Phone',
+                          value: _phoneController.text,
+                        ),
+                        _SummaryRowData(
+                          label: 'Business type',
+                          value: _businessTypeController.text,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _SummarySection(
+                      title: 'Verification and payout',
+                      rows: [
+                        _SummaryRowData(
+                          label: 'Government ID',
+                          value: _governmentIdFileName,
+                        ),
+                        _SummaryRowData(
+                          label: 'Registered business',
+                          value: _isRegisteredBusiness ? 'Yes' : 'No',
+                        ),
+                        _SummaryRowData(
+                          label: 'Payout method',
+                          value: _isBankTransfer
+                              ? 'Bank transfer'
+                              : 'Mobile money',
+                        ),
+                        _SummaryRowData(
+                          label: 'Settlement preference',
+                          value: _settlementPreferenceController.text,
+                        ),
+                      ],
+                    ),
                   ],
-                ),
-        ),
+                ],
+              ),
       ),
     );
   }
@@ -606,6 +613,7 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     setState(() => _isLoading = true);
     if (viewer.isGuest || viewer.uid == null) {
       _applyDraft(VennuzoOrganizerApplicationDraft.bootstrap(viewer));
+      _showIntro = viewer.canStartOrganizerApplication;
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -613,17 +621,21 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     }
 
     try {
-      final draft = await VennuzoOrganizerApplicationService.instance
-          .loadDraft(viewer.uid!, viewer: viewer);
+      final draft = await VennuzoOrganizerApplicationService.instance.loadDraft(
+        viewer.uid!,
+        viewer: viewer,
+      );
       if (!mounted) {
         return;
       }
       _applyDraft(draft ?? VennuzoOrganizerApplicationDraft.bootstrap(viewer));
+      _showIntro = viewer.canStartOrganizerApplication;
     } catch (_) {
       if (!mounted) {
         return;
       }
       _applyDraft(VennuzoOrganizerApplicationDraft.bootstrap(viewer));
+      _showIntro = viewer.canStartOrganizerApplication;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Could not load host access details right now.'),
@@ -668,6 +680,36 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
     _logoImage = null;
     _governmentIdImage = null;
     _selfieImage = null;
+  }
+
+  void _applyQaHostAccessDefaults(VennuzoViewer viewer) {
+    setState(() {
+      _organizerNameController.text = 'Vennuzo QA Events';
+      _contactPersonController.text = viewer.displayName.trim().isEmpty
+          ? 'Angelo Nartey'
+          : viewer.displayName.trim();
+      _emailController.text = viewer.email ?? 'angelonartey@hotmail.com';
+      _phoneController.text = viewer.phone ?? '0595494113';
+      _businessTypeController.text = 'Event Organizer';
+      _businessAddressController.text = 'Accra, Ghana';
+      _cityController.text = 'Accra';
+      _instagramController.text = '@vennuzo';
+      _isRegisteredBusiness = false;
+      _registrationNumberController.clear();
+      _tinController.clear();
+      _payoutMethod = 'mobile-money';
+      _networkController.text = 'MTN Mobile Money';
+      _payoutPhoneController.text = viewer.phone ?? '0595494113';
+      _settlementPreferenceController.text = 'After event ends';
+      _governmentIdFileName = 'qa-government-id-placeholder.jpg';
+      _selfieFileName = 'qa-selfie-placeholder.jpg';
+      _agreedToPayoutTerms = true;
+      _agreesToCompliance = true;
+      _showIntro = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('QA setup details filled for testing.')),
+    );
   }
 
   VennuzoOrganizerApplicationDraft _draftFromForm() {
@@ -942,14 +984,15 @@ class _HostAccessHero extends StatelessWidget {
         borderRadius: BorderRadius.circular(32),
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.98),
-            palette.gold.withValues(alpha: 0.18),
-            palette.coral.withValues(alpha: 0.12),
+            VennuzoTheme.surfaceElevated,
+            palette.gold.withValues(alpha: 0.20),
+            VennuzoTheme.surface,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: const Color(0x1410212A)),
+        border: Border.all(color: VennuzoTheme.borderBright),
+        boxShadow: VennuzoTheme.shadowElevated,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -962,18 +1005,22 @@ class _HostAccessHero extends StatelessWidget {
                 : canEdit
                 ? 'Set up your host access without leaving Vennuzo.'
                 : 'Your host access profile is already in motion.',
-            style: context.text.headlineSmall,
+            style: context.text.headlineSmall?.copyWith(
+              color: VennuzoTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             isGuest
-                ? 'Create or sign in to an Vennuzo account, then complete your organizer profile, verification details, and payout setup in this same flow.'
+                ? 'Create or sign in to a Vennuzo account, then complete your organizer profile, verification details, and payout setup in this same flow.'
                 : canEdit
                 ? 'Finish the organizer profile, upload the verification details, and submit for review when everything looks right.'
                 : reviewNotes.trim().isNotEmpty
                 ? 'You can review the latest note here while the Vennuzo team processes your host access.'
                 : 'Your existing host access details are saved in-app so you can keep track of status without opening a browser.',
-            style: context.text.bodyLarge?.copyWith(color: palette.slate),
+            style: context.text.bodyLarge?.copyWith(
+              color: VennuzoTheme.textSecondary,
+            ),
           ),
         ],
       ),
@@ -1030,6 +1077,169 @@ class _GuestAccessCard extends StatelessWidget {
   }
 }
 
+class _HostAccessIntroCard extends StatelessWidget {
+  const _HostAccessIntroCard({
+    required this.canUseQaDefaults,
+    required this.onStart,
+    required this.onUseQaDefaults,
+  });
+
+  final bool canUseQaDefaults;
+  final VoidCallback onStart;
+  final VoidCallback onUseQaDefaults;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  colors: [
+                    palette.teal.withValues(alpha: 0.18),
+                    palette.gold.withValues(alpha: 0.18),
+                    VennuzoTheme.surfaceElevated,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: VennuzoTheme.borderBright),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: VennuzoTheme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          color: palette.teal,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Host setup, guided step by step',
+                          style: context.text.titleLarge?.copyWith(
+                            fontSize: 22,
+                            color: VennuzoTheme.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Vennuzo prepares the host profile, trust checks, and payout setup before your team starts publishing events, selling tickets, and running event operations.',
+                    style: context.text.bodyLarge?.copyWith(
+                      color: VennuzoTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            _IntroStep(
+              icon: Icons.storefront_outlined,
+              title: 'Profile',
+              body:
+                  'Brand details, contact person, logo, city, and operating address.',
+            ),
+            const SizedBox(height: 12),
+            _IntroStep(
+              icon: Icons.verified_user_outlined,
+              title: 'Verification',
+              body:
+                  'Government ID, optional selfie, and registered business details.',
+            ),
+            const SizedBox(height: 12),
+            _IntroStep(
+              icon: Icons.payments_outlined,
+              title: 'Payouts',
+              body: 'Mobile money or bank destination for ticket settlement.',
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onStart,
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: const Text('Start setup'),
+              ),
+            ),
+            if (canUseQaDefaults) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onUseQaDefaults,
+                  icon: const Icon(Icons.science_outlined),
+                  label: const Text('Fill QA details'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IntroStep extends StatelessWidget {
+  const _IntroStep({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: context.palette.canvas,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, size: 21, color: context.palette.ink),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: context.text.titleMedium),
+              const SizedBox(height: 4),
+              Text(body, style: context.text.bodyMedium),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _StepStrip extends StatelessWidget {
   const _StepStrip({required this.stepStates});
 
@@ -1048,18 +1258,20 @@ class _StepStrip extends StatelessWidget {
             decoration: BoxDecoration(
               color: step.isComplete
                   ? palette.teal.withValues(alpha: 0.16)
-                  : Colors.white,
+                  : VennuzoTheme.surfaceElevated,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: step.isComplete
                     ? palette.teal.withValues(alpha: 0.24)
-                    : const Color(0x18121E31),
+                    : VennuzoTheme.borderBright,
               ),
             ),
             child: Text(
               step.isComplete ? '${step.label} ready' : step.label,
               style: context.text.bodyMedium?.copyWith(
-                color: step.isComplete ? palette.teal : palette.ink,
+                color: step.isComplete
+                    ? palette.teal
+                    : VennuzoTheme.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1120,8 +1332,11 @@ class _LogoPickerCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 32,
-            backgroundColor: Colors.white,
-            child: Icon(Icons.storefront_outlined, color: palette.ink),
+            backgroundColor: VennuzoTheme.surfaceElevated,
+            child: Icon(
+              Icons.storefront_outlined,
+              color: VennuzoTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(

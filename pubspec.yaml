@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.0+2026060802
 
 environment:
   sdk: ^3.11.0
@@ -44,6 +44,7 @@ dependencies:
   google_sign_in: ^7.2.0
   image_picker: ^1.2.0
   intl: ^0.20.2
+  path_provider: ^2.1.5
   provider: ^6.1.5
   qr_flutter: ^4.1.0
   share_plus: ^11.1.0
@@ -51,11 +52,16 @@ dependencies:
   sign_in_with_apple: ^7.0.1
   url_launcher: ^6.3.1
   app_links: ^6.4.0
-  google_maps_flutter: ^2.15.0
+  google_maps_flutter: ^2.17.1
   geolocator: ^14.0.2
   http: ^1.6.0
   cached_network_image: ^3.3.1
   flutter_rating_bar: ^4.0.1
+  google_maps_flutter_ios_sdk10: ^2.18.4
+  archive: ^3.6.1
+  file_picker: ^11.0.2
+  spreadsheet_decoder: ^2.3.0
+  mobile_scanner: ^7.2.0
 
 dev_dependencies:
   flutter_test:
@@ -78,4 +84,8 @@ flutter:
     - Vennuzo_Icon_Pack/
     - assets/logo.png
     - assets/logo-transparent.png
+    - assets/logo-splash-opaque.png
+    - assets/event_flyers/
+    - assets/places/
     - assets/photos/
+    - assets/visuals/

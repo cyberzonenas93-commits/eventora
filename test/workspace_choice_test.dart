@@ -33,4 +33,41 @@ void main() {
     expect(viewer.hasMainAppAccess, isTrue);
     expect(viewer.canChooseWorkspace, isTrue);
   });
+
+  test('attendee organizer account can choose app or organizer portal', () {
+    const viewer = VennuzoViewer(
+      displayName: 'Host Guest',
+      isAuthenticated: true,
+      roles: ['attendee', 'organizer'],
+      hasCustomerProfile: true,
+      organizerApplicationStatus: OrganizerApplicationStatus.active,
+    );
+
+    expect(viewer.canUseAttendeeWorkspace, isTrue);
+    expect(viewer.hasOrganizerAccess, isTrue);
+    expect(viewer.hasAdminAccess, isFalse);
+    expect(viewer.canChooseWorkspace, isTrue);
+  });
+
+  test('superadmin label requires explicit owner allow-list approval', () {
+    const blocked = VennuzoViewer(
+      displayName: 'Blocked',
+      isAuthenticated: true,
+      roles: ['admin', 'superadmin'],
+      hasAdminProfile: true,
+      adminRole: 'superadmin',
+    );
+    const allowed = VennuzoViewer(
+      displayName: 'Allowed',
+      isAuthenticated: true,
+      roles: ['admin', 'superadmin'],
+      hasAdminProfile: true,
+      adminRole: 'superadmin',
+      superAdminAllowed: true,
+    );
+
+    expect(blocked.hasAdminAccess, isTrue);
+    expect(blocked.hasSuperAdminAccess, isFalse);
+    expect(allowed.hasSuperAdminAccess, isTrue);
+  });
 }

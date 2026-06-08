@@ -6,6 +6,7 @@ const admin = require("firebase-admin");
 const { notifySuperAdmins } = require("./event_notifications");
 const { checkRateLimit } = require("./rate_limiter");
 const logger = require("./logger");
+const { syncOrderToGPlusTicketing } = require("./gplus_ticket_bridge");
 
 try {
   admin.app();
@@ -14,14 +15,49 @@ try {
 }
 
 const db = admin.firestore();
-const { FieldValue } = admin.firestore;
+const { FieldValue, Timestamp } = admin.firestore;
 
 const REGION = "us-central1";
 const VENNUZO_SCHEME = "vennuzoapp";
+const HUBTEL_SEND_MONEY_BASE = "https://smp.hubtel.com";
+const HUBTEL_SEND_MONEY_STATUS_BASE = "https://smrsc.hubtel.com";
+const PAYOUT_CLIENT_REFERENCE_PREFIX = "vpo";
+const PAYOUT_CHANNELS = new Set(["mtn-gh", "vodafone-gh", "tigo-gh"]);
+let publicBaseUrlCache = null;
 
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
   return normalized || fallback;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Constant-time verification of a Hubtel HMAC-SHA256 callback signature.
+ * Returns false for a missing/mismatched signature.
+ */
+function verifyHubtelSignature(secret, payload, headerSignature) {
+  const incoming = safeString(headerSignature);
+  if (!incoming) {
+    return false;
+  }
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(JSON.stringify(payload))
+    .digest("hex");
+  const incomingBuf = Buffer.from(incoming);
+  const expectedBuf = Buffer.from(expected);
+  if (incomingBuf.length !== expectedBuf.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(incomingBuf, expectedBuf);
 }
 
 function normalizePhoneNumber(phone) {
@@ -42,6 +78,33 @@ function normalizePhoneNumber(phone) {
     return `+233${digits}`;
   }
   return digits.startsWith("+") ? digits : `+${digits}`;
+}
+
+function normalizeMsisdn(raw) {
+  let digits = String(raw || "").replace(/\D/g, "");
+  if (digits.startsWith("0") && digits.length === 10) {
+    digits = `233${digits.slice(1)}`;
+  } else if (!digits.startsWith("233") && digits.length === 9) {
+    digits = `233${digits}`;
+  }
+  return digits.length === 12 && digits.startsWith("233") ? digits : "";
+}
+
+function normalizePayoutChannel(value, msisdn = "") {
+  const raw = safeString(value).toLowerCase();
+  if (raw.includes("mtn")) return "mtn-gh";
+  if (raw.includes("telecel") || raw.includes("vodafone")) return "vodafone-gh";
+  if (raw.includes("airtel") || raw.includes("tigo")) return "tigo-gh";
+  if (PAYOUT_CHANNELS.has(raw)) return raw;
+  if (/^233(24|25|53|54|55|59)/.test(msisdn)) return "mtn-gh";
+  if (/^233(20|50)/.test(msisdn)) return "vodafone-gh";
+  if (/^233(26|27|56|57)/.test(msisdn)) return "tigo-gh";
+  return "";
+}
+
+function moneyAmount(value) {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : 0;
 }
 
 function projectId() {
@@ -68,7 +131,11 @@ async function getHubtelConfig() {
   const merchantAccount = safeString(
     data.merchantAccountNumber || data.merchantAccount,
   );
-  const callbackSecret = safeString(data.callbackSecret);
+  // Source order matches the Gplus reference: HUBTEL_CALLBACK_SECRET env var
+  // first, then app_config/hubtel.callbackSecret. Empty = fail-open (verification
+  // off) until the secret is set here + in the Hubtel merchant dashboard.
+  const callbackSecret =
+    safeString(process.env.HUBTEL_CALLBACK_SECRET) || safeString(data.callbackSecret);
 
   if (!apiKey || !apiSecret || !merchantAccount) {
     throw new HttpsError(
@@ -85,11 +152,125 @@ async function getHubtelConfig() {
   };
 }
 
+async function getHubtelSendMoneyConfig() {
+  const snap = await db.collection("app_config").doc("hubtel").get();
+  if (!snap.exists) {
+    throw new HttpsError("failed-precondition", "Hubtel config not found.");
+  }
+  const data = snap.data() || {};
+  const prepaidDepositId = safeString(
+    data.sendMoneyPrepaidDepositId ||
+      data.prepaidDepositId ||
+      data.prepaidDepositAccount,
+  );
+  const apiKey = safeString(data.apiKey);
+  const apiSecret = safeString(data.apiSecret);
+  if (!prepaidDepositId || !apiKey || !apiSecret) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Hubtel Send Money is not configured. Add sendMoneyPrepaidDepositId to app_config/hubtel.",
+    );
+  }
+  return { prepaidDepositId, apiKey, apiSecret };
+}
+
 function hubtelAuthHeader(config) {
   return `Basic ${Buffer.from(`${config.apiKey}:${config.apiSecret}`).toString("base64")}`;
 }
 
-const WALLET_RETURN_BASE = process.env.VENNUZO_STUDIO_URL || "https://vennuzo.web.app";
+/**
+ * Server-to-server confirmation of a Hubtel transaction status.
+ *
+ * SECURITY: callback webhooks are forgeable — never fulfil a "paid" outcome
+ * (issue tickets, credit wallets, mark settlementEligible) based on the
+ * callback body alone. This re-queries Hubtel's authoritative transaction
+ * status endpoint and is the trust anchor for all callback handlers.
+ *
+ * Returns { ok, status, data, reason }. `ok` is only true when Hubtel
+ * positively confirmed the transaction (responseCode "0000" with data).
+ * On any uncertainty (network error, IP not whitelisted, malformed body)
+ * `ok` is false and callers MUST NOT treat the payment as completed.
+ */
+async function confirmHubtelStatusFromProvider(clientReference, config) {
+  const reference = safeString(clientReference);
+  if (!reference) {
+    return { ok: false, status: "unknown", reason: "missing_reference" };
+  }
+  let resolvedConfig = config;
+  if (!resolvedConfig || !resolvedConfig.merchantAccount) {
+    resolvedConfig = await getHubtelConfig();
+  }
+  const url =
+    `https://api-txnstatus.hubtel.com/transactions/${resolvedConfig.merchantAccount}` +
+    `/status?clientReference=${encodeURIComponent(reference)}`;
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: hubtelAuthHeader(resolvedConfig) },
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: "unknown",
+      reason: `fetch_failed:${safeString(error && error.message, "network error")}`,
+    };
+  }
+  if (response.status === 403) {
+    return { ok: false, status: "unknown", reason: "ip_not_whitelisted" };
+  }
+  const result = await response.json().catch(() => ({}));
+  if (result.responseCode !== "0000" || !result.data) {
+    return { ok: false, status: "unknown", reason: "unconfirmed", raw: result };
+  }
+  return {
+    ok: true,
+    status: normalizeHubtelStatus(result.data.status),
+    data: result.data,
+  };
+}
+
+const DEFAULT_STUDIO_BASE = "https://vennuzo.com/studio";
+
+function studioReturnBaseUrl() {
+  const configured = safeString(process.env.VENNUZO_STUDIO_URL, DEFAULT_STUDIO_BASE)
+    .replace(/\/+$/, "");
+  return configured.endsWith("/studio") ? configured : `${configured}/studio`;
+}
+
+const STUDIO_RETURN_BASE = studioReturnBaseUrl();
+
+async function getPublicBaseUrl() {
+  if (publicBaseUrlCache) {
+    return publicBaseUrlCache;
+  }
+
+  const envUrl = safeString(
+    process.env.VENNUZO_PUBLIC_URL ||
+      process.env.VENNUZO_PUBLIC_BASE_URL ||
+      process.env.VENNUZO_SITE_URL,
+  );
+  if (envUrl) {
+    publicBaseUrlCache = envUrl.replace(/\/+$/, "");
+    return publicBaseUrlCache;
+  }
+
+  try {
+    const siteSnap = await db.collection("app_config").doc("site").get();
+    const site = siteSnap.exists ? siteSnap.data() || {} : {};
+    const configured = safeString(
+      site.publicUrl ||
+        site.publicBaseUrl ||
+        site.vennuzoPublicUrl ||
+        site.webUrl,
+    );
+    publicBaseUrlCache = (configured || "https://vennuzo.com").replace(/\/+$/, "");
+  } catch (error) {
+    publicBaseUrlCache = "https://vennuzo.com";
+  }
+
+  return publicBaseUrlCache;
+}
 
 function buildEventTicketReturnUrl(orderId, status) {
   const params = new URLSearchParams({
@@ -100,8 +281,45 @@ function buildEventTicketReturnUrl(orderId, status) {
   return `${functionsBaseUrl()}/hubtelReturn?${params.toString()}`;
 }
 
+async function buildWebCheckoutConfirmationUrl(orderId, status) {
+  const publicBaseUrl = await getPublicBaseUrl();
+  return `${publicBaseUrl}/tickets/${encodeURIComponent(orderId)}` +
+    `?status=${encodeURIComponent(status)}`;
+}
+
+async function resolvePartnerReferralForEvent(eventId, refValue) {
+  const raw = safeString(refValue);
+  if (!raw) {
+    return {};
+  }
+
+  const directSnap = await db.collection("partner_event_links").doc(raw).get();
+  let linkSnap = directSnap.exists ? directSnap : null;
+  if (!linkSnap) {
+    const querySnap = await db
+      .collection("partner_event_links")
+      .where("refCode", "==", raw)
+      .limit(1)
+      .get();
+    linkSnap = querySnap.empty ? null : querySnap.docs[0];
+  }
+  if (!linkSnap || !linkSnap.exists) {
+    return { partnerRefCode: raw };
+  }
+
+  const link = linkSnap.data() || {};
+  if (safeString(link.eventId) !== safeString(eventId)) {
+    return { partnerRefCode: raw };
+  }
+  return {
+    partnerLinkId: linkSnap.id,
+    partnerProfileId: safeString(link.partnerProfileId),
+    partnerRefCode: safeString(link.refCode, raw),
+  };
+}
+
 function buildWalletReturnUrl(status) {
-  return `${WALLET_RETURN_BASE}/payments?topup=${encodeURIComponent(status)}`;
+  return `${STUDIO_RETURN_BASE}/payments?topup=${encodeURIComponent(status)}`;
 }
 
 function normalizeHubtelStatus(value) {
@@ -324,7 +542,9 @@ async function initiateHubtelCheckout({
 }
 
 function hasAdminAccess(adminData) {
-  return Boolean(adminData && Object.keys(adminData).length > 0);
+  if (!adminData || Object.keys(adminData).length === 0) return false;
+  // Read-only admins do not get management/write access via this gate.
+  return safeString(adminData.role).toLowerCase().replace(/[\s-]+/g, "_") !== "read_only";
 }
 
 async function notifyPaymentWebhookAlert(body) {
@@ -353,6 +573,174 @@ async function assertOrganizerCanRequestPayout(uid, organizationId) {
     return;
   }
   throw new HttpsError("permission-denied", "You cannot request a payout for this organization.");
+}
+
+function isWithdrawableTicketOrder(order) {
+  const status = safeString(order.paymentStatus || order.status).toLowerCase();
+  const provider = safeString(order.paymentProvider).toLowerCase();
+  // `settlementEligible` is a server-only flag set exclusively by the Hubtel
+  // ticket callback / server-to-server status confirmation. Firestore rules
+  // forbid clients from writing it, so forged "paid" order documents can never
+  // count toward an organizer's withdrawable balance.
+  return (
+    order.settlementEligible === true &&
+    status === "paid" &&
+    provider === "hubtel" &&
+    moneyAmount(order.totalAmount) > 0
+  );
+}
+
+function isReservedPayoutStatus(status) {
+  return ["pending", "processing", "success", "paid", "completed"].includes(
+    safeString(status).toLowerCase(),
+  );
+}
+
+async function calculateOrganizerPayoutSummary(organizationId, transaction = null) {
+  const orderQuery = db
+    .collection("event_ticket_orders")
+    .where("organizationId", "==", organizationId);
+  const payoutQuery = db
+    .collection("payout_requests")
+    .where("organizationId", "==", organizationId);
+  const [ordersSnap, payoutsSnap] = transaction
+    ? await Promise.all([transaction.get(orderQuery), transaction.get(payoutQuery)])
+    : await Promise.all([orderQuery.get(), payoutQuery.get()]);
+
+  const grossTicketSalesGhs = ordersSnap.docs.reduce((sum, docSnap) => {
+    const order = docSnap.data() || {};
+    return isWithdrawableTicketOrder(order) ? sum + moneyAmount(order.totalAmount) : sum;
+  }, 0);
+  const reservedPayoutsGhs = payoutsSnap.docs.reduce((sum, docSnap) => {
+    const payout = docSnap.data() || {};
+    return isReservedPayoutStatus(payout.status) ? sum + moneyAmount(payout.amountGhs) : sum;
+  }, 0);
+  const availableGhs = Math.max(
+    0,
+    moneyAmount(grossTicketSalesGhs - reservedPayoutsGhs),
+  );
+  const recentRequests = payoutsSnap.docs
+    .map((docSnap) => {
+      const data = docSnap.data() || {};
+      const createdAt = data.createdAt && typeof data.createdAt.toDate === "function"
+        ? data.createdAt.toDate().toISOString()
+        : safeString(data.createdAt);
+      const completedAt = data.completedAt && typeof data.completedAt.toDate === "function"
+        ? data.completedAt.toDate().toISOString()
+        : safeString(data.completedAt);
+      return {
+        id: docSnap.id,
+        amountGhs: moneyAmount(data.amountGhs),
+        status: safeString(data.status, "pending"),
+        recipientName: safeString(data.recipientName),
+        recipientMsisdn: safeString(data.recipientMsisdn),
+        channel: safeString(data.channel),
+        clientReference: safeString(data.clientReference),
+        errorDescription: safeString(data.errorDescription),
+        createdAt,
+        completedAt,
+      };
+    })
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, 20);
+
+  return {
+    grossTicketSalesGhs: moneyAmount(grossTicketSalesGhs),
+    reservedPayoutsGhs: moneyAmount(reservedPayoutsGhs),
+    availableGhs,
+    currency: "GHS",
+    recentRequests,
+  };
+}
+
+function isSuccessfulHubtelSendMoneyResponse(payload) {
+  const responseCode = safeString(payload.ResponseCode || payload.responseCode).toLowerCase();
+  const data = payload.Data || payload.data || {};
+  const status = safeString(
+    data.TransactionStatus ||
+      data.transactionStatus ||
+      data.Status ||
+      data.status,
+  ).toLowerCase();
+  return responseCode === "0000" || status === "success" || status === "paid";
+}
+
+function isFailedHubtelSendMoneyStatus(value) {
+  return ["failed", "reversed", "cancelled", "canceled", "declined"].includes(
+    safeString(value).toLowerCase(),
+  );
+}
+
+async function finalizeOrganizerPayout({ payoutDoc, success, payload, source }) {
+  const data = payload.Data || payload.data || {};
+  const patch = success
+    ? {
+        status: "success",
+        completedAt: FieldValue.serverTimestamp(),
+        hubtelTransactionId: safeString(data.TransactionId || data.transactionId),
+        externalTransactionId: safeString(data.ExternalTransactionId || data.externalTransactionId || data.networkTransactionId),
+        providerPayload: payload,
+        updatedAt: FieldValue.serverTimestamp(),
+      }
+    : {
+        status: "failed",
+        completedAt: FieldValue.serverTimestamp(),
+        errorCode: safeString(payload.ResponseCode || payload.responseCode || data.TransactionStatus || data.transactionStatus),
+        errorDescription: safeString(data.Description || data.description || payload.Description || payload.message, "Hubtel Send Money failed."),
+        providerPayload: payload,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+  await payoutDoc.ref.set(patch, { merge: true });
+  const payout = payoutDoc.data() || {};
+  await notifySuperAdmins({
+    title: success ? "Payout sent" : "Payout failed",
+    body: success
+      ? `Organizer payout of GHS ${moneyAmount(payout.amountGhs).toFixed(2)} was sent to ${safeString(payout.recipientMsisdn)}.`
+      : `Organizer payout of GHS ${moneyAmount(payout.amountGhs).toFixed(2)} failed via ${source}.`,
+    route: "/admin/settings",
+    kind: success ? "superadmin_payout_sent" : "superadmin_payout_failed",
+  }).catch(() => {});
+}
+
+/**
+ * Confirms a payout's real outcome directly with Hubtel (server-to-server) and
+ * finalises it. Used by both the status-check callable and the callback webhook
+ * so neither relies on a (forgeable) callback body.
+ * Returns "success" | "failed" | "processing".
+ */
+async function reconcilePayoutStatusFromProvider(payoutDoc) {
+  const payout = payoutDoc.data() || {};
+  const clientReference = safeString(payout.clientReference);
+  if (!clientReference) {
+    return safeString(payout.status, "processing");
+  }
+  const config = await getHubtelSendMoneyConfig();
+  const resp = await fetch(
+    `${HUBTEL_SEND_MONEY_STATUS_BASE}/api/merchants/${config.prepaidDepositId}` +
+      `/transactions/status?clientReference=${encodeURIComponent(clientReference)}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: hubtelAuthHeader(config),
+      },
+    },
+  );
+  const result = await resp.json().catch(() => ({}));
+  const data = result.Data || result.data || {};
+  const transactionStatus = safeString(
+    data.TransactionStatus || data.transactionStatus || data.Status || data.status,
+  ).toLowerCase();
+  if (transactionStatus === "success" || transactionStatus === "paid") {
+    await finalizeOrganizerPayout({ payoutDoc, success: true, payload: result, source: "provider_verified" });
+    return "success";
+  }
+  if (isFailedHubtelSendMoneyStatus(transactionStatus)) {
+    await finalizeOrganizerPayout({ payoutDoc, success: false, payload: result, source: "provider_verified" });
+    return "failed";
+  }
+  return "processing";
 }
 
 async function authorizeOrderAccess(orderData, uid, action) {
@@ -442,8 +830,8 @@ function browserRedirectHtml({ orderId, status, deepLink }) {
     <p>${status === "success"
       ? "Open Vennuzo to watch your ticket status. Tickets will appear automatically once Hubtel confirms the payment callback."
       : "Reopen Vennuzo to review the order or try the payment again."}</p>
-    <a class="button" href="${deepLink}">Open Vennuzo</a>
-    <div class="meta">Order ID: ${orderId}</div>
+    <a class="button" href="${escapeHtml(deepLink)}">Open Vennuzo</a>
+    <div class="meta">Order ID: ${escapeHtml(orderId)}</div>
   </div>
   <script>
     setTimeout(function() { window.location = ${JSON.stringify(deepLink)}; }, 300);
@@ -481,7 +869,7 @@ function buildBuyerPatch(orderData, callbackData) {
   return patch;
 }
 
-async function handleEventTicketCallback(clientReference, data, response) {
+async function handleEventTicketCallback(clientReference, data, response, config) {
   const orderId = safeString(clientReference).replace(/^evt_/, "");
   if (!orderId) {
     return response.status(400).json({ error: "Invalid client reference." });
@@ -508,7 +896,24 @@ async function handleEventTicketCallback(clientReference, data, response) {
   }
 
   const orderData = orderSnap.data() || {};
-  const normalizedStatus = normalizeHubtelStatus(data.Status);
+  let normalizedStatus = normalizeHubtelStatus(data.Status);
+
+  // SECURITY: the callback body is forgeable. Before honouring any "paid"
+  // outcome, re-confirm the transaction server-to-server with Hubtel. If we
+  // cannot positively confirm payment, downgrade the status so the order is
+  // NOT fulfilled and is NOT marked settlement-eligible.
+  if (isPaidStatus(normalizedStatus)) {
+    const confirmation = await confirmHubtelStatusFromProvider(clientReference, config);
+    if (!confirmation.ok || !isPaidStatus(confirmation.status)) {
+      await notifyPaymentWebhookAlert(
+        `Hubtel ticket callback claimed paid but server-side confirmation failed ` +
+          `for ${clientReference} (reason: ${safeString(confirmation.reason, "n/a")}, ` +
+          `confirmedStatus: ${safeString(confirmation.status, "unknown")}).`,
+      );
+      normalizedStatus = confirmation.ok ? confirmation.status : "pending";
+    }
+  }
+
   const paymentStatus = paymentStatusForOrderStatus(normalizedStatus);
   const buyerPatch = buildBuyerPatch(orderData, data);
 
@@ -553,6 +958,7 @@ async function handleEventTicketCallback(clientReference, data, response) {
         ...buyerPatch,
         paymentStatus: "paid",
         paymentProvider: "hubtel",
+        settlementEligible: true,
         paymentDetails: {
           checkoutId: safeString(data.CheckoutId),
           salesInvoiceId: safeString(data.SalesInvoiceId),
@@ -569,6 +975,14 @@ async function handleEventTicketCallback(clientReference, data, response) {
       },
       { merge: true },
     );
+
+    try {
+      await syncOrderToGPlusTicketing(orderSnap.id, { source: "hubtel_callback_duplicate" });
+    } catch (error) {
+      logger.warn(
+        `[gplus-ticket-bridge] Duplicate callback sync failed for order ${orderSnap.id}: ${safeString(error && error.message, "unknown error")}`,
+      );
+    }
 
     return response.status(200).json({
       success: true,
@@ -690,6 +1104,7 @@ async function handleEventTicketCallback(clientReference, data, response) {
         status: "paid",
         paymentStatus: "paid",
         paymentProvider: "hubtel",
+        settlementEligible: true,
         ticketCount,
         tickets: issuedTickets,
         paidAt: now,
@@ -740,6 +1155,14 @@ async function handleEventTicketCallback(clientReference, data, response) {
       );
     }
   });
+
+  try {
+    await syncOrderToGPlusTicketing(orderSnap.id, { source: "hubtel_callback" });
+  } catch (error) {
+    logger.warn(
+      `[gplus-ticket-bridge] Sync failed for order ${orderSnap.id}: ${safeString(error && error.message, "unknown error")}`,
+    );
+  }
 
   return response.status(200).json({
     success: true,
@@ -908,6 +1331,8 @@ exports.checkHubtelTicketStatus = onCall(
             : safeString(orderData.status, "pending"),
         paymentStatus: paymentStatusForOrderStatus(normalizedStatus),
         paymentProvider: "hubtel",
+        // Server-to-server Hubtel confirmation: safe to mark settlement-eligible.
+        ...(normalizedStatus === "paid" ? { settlementEligible: true } : {}),
         paymentDetails: {
           transactionId: safeString(result.data.transactionId),
           externalTransactionId: safeString(result.data.externalTransactionId),
@@ -950,8 +1375,8 @@ async function ensureWallet(organizationId, ownerId) {
   return walletRef;
 }
 
-async function handleWalletTopUpCallback(clientReference, data, response) {
-  const normalizedStatus = normalizeHubtelStatus(data.Status);
+async function handleWalletTopUpCallback(clientReference, data, response, config) {
+  let normalizedStatus = normalizeHubtelStatus(data.Status);
   const txnRef = db.collection("wallet_transactions").doc(clientReference);
   const txnSnap = await txnRef.get();
 
@@ -975,10 +1400,30 @@ async function handleWalletTopUpCallback(clientReference, data, response) {
     });
   }
 
+  // SECURITY: re-confirm "paid" with Hubtel before crediting the wallet.
+  if (isPaidStatus(normalizedStatus)) {
+    const confirmation = await confirmHubtelStatusFromProvider(clientReference, config);
+    if (!confirmation.ok || !isPaidStatus(confirmation.status)) {
+      await notifyPaymentWebhookAlert(
+        `Hubtel wallet callback claimed paid but server-side confirmation failed ` +
+          `for ${clientReference} (reason: ${safeString(confirmation.reason, "n/a")}).`,
+      );
+      normalizedStatus = confirmation.ok ? confirmation.status : "pending";
+    }
+  }
+
   if (!isPaidStatus(normalizedStatus)) {
+    // Keep unconfirmed transactions "pending" (a later confirmation can still
+    // complete them); only cancelled/failed states are terminal.
+    const terminalStatus =
+      normalizedStatus === "cancelled"
+        ? "cancelled"
+        : normalizedStatus === "pending"
+          ? "pending"
+          : "failed";
     await txnRef.set(
       {
-        status: normalizedStatus === "cancelled" ? "cancelled" : "failed",
+        status: terminalStatus,
         hubtelResponse: data,
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -1140,10 +1585,26 @@ exports.getWalletBalance = onCall(
   },
 );
 
-exports.submitOrganizerPayoutRequest = onCall(
+exports.getOrganizerPayoutSummary = onCall(
   {
     region: REGION,
     timeoutSeconds: 60,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to view payout balance.");
+    }
+    const uid = request.auth.uid;
+    const organizationId = safeString(request.data && request.data.organizationId);
+    await assertOrganizerCanRequestPayout(uid, organizationId);
+    return calculateOrganizerPayoutSummary(organizationId);
+  },
+);
+
+exports.submitOrganizerPayoutRequest = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 180,
   },
   async (request) => {
     if (!request.auth) {
@@ -1151,28 +1612,195 @@ exports.submitOrganizerPayoutRequest = onCall(
     }
     const uid = request.auth.uid;
     const organizationId = safeString(request.data && request.data.organizationId);
-    const amountGhs = Number(request.data && request.data.amountGhs);
+    const amountGhs = moneyAmount(request.data && request.data.amountGhs);
     const notes = safeString(request.data && request.data.notes);
+    const recipientName = safeString(request.data && request.data.recipientName, "Vennuzo organizer");
+    const recipientMsisdn = normalizeMsisdn(request.data && request.data.recipientMsisdn);
+    const channel = normalizePayoutChannel(request.data && request.data.channel, recipientMsisdn);
     if (!organizationId) {
       throw new HttpsError("invalid-argument", "organizationId is required.");
     }
     if (!Number.isFinite(amountGhs) || amountGhs <= 0) {
       throw new HttpsError("invalid-argument", "amountGhs must be a positive number.");
     }
+    if (!recipientMsisdn) {
+      throw new HttpsError("invalid-argument", "Enter a valid mobile money number.");
+    }
+    if (!PAYOUT_CHANNELS.has(channel)) {
+      throw new HttpsError("invalid-argument", "Choose MTN, Telecel/Vodafone, or AirtelTigo Money.");
+    }
     await assertOrganizerCanRequestPayout(uid, organizationId);
     // Rate limit: max 3 payout requests per user per hour
     await checkRateLimit(db, uid, "submitPayoutRequest", { maxCalls: 3, windowSeconds: 3600 });
+    const config = await getHubtelSendMoneyConfig();
     const requestRef = db.collection("payout_requests").doc();
-    await requestRef.set({
-      organizationId,
-      amountGhs: Math.round(amountGhs * 100) / 100,
-      notes: notes.slice(0, 2000),
-      requestedBy: uid,
-      status: "pending",
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+    const clientReference = `${PAYOUT_CLIENT_REFERENCE_PREFIX}_${requestRef.id}`.slice(0, 36);
+    let availableBefore = 0;
+
+    await db.runTransaction(async (transaction) => {
+      const summary = await calculateOrganizerPayoutSummary(organizationId, transaction);
+      availableBefore = summary.availableGhs;
+      if (availableBefore < amountGhs) {
+        throw new HttpsError(
+          "failed-precondition",
+          `Insufficient ticket-sales balance. Available ${availableBefore.toFixed(2)} GHS.`,
+        );
+      }
+      transaction.set(requestRef, {
+        organizationId,
+        amountGhs,
+        notes: notes.slice(0, 2000),
+        requestedBy: uid,
+        status: "pending",
+        payoutMethod: "mobile-money",
+        recipientName,
+        recipientMsisdn,
+        channel,
+        clientReference,
+        provider: "hubtel_send_money",
+        availableBeforeGhs: availableBefore,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     });
-    return { success: true, requestId: requestRef.id };
+
+    const body = {
+      RecipientName: recipientName,
+      RecipientMsisdn: recipientMsisdn,
+      Channel: channel,
+      Amount: amountGhs,
+      PrimaryCallbackURL: `${functionsBaseUrl()}/hubtelSendMoneyCallback`,
+      Description: `Vennuzo payout ${clientReference}`,
+      ClientReference: clientReference,
+    };
+    const resp = await fetch(
+      `${HUBTEL_SEND_MONEY_BASE}/api/merchants/${config.prepaidDepositId}/send/mobilemoney`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: hubtelAuthHeader(config),
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    const result = await resp.json().catch(() => ({}));
+    const responseCode = safeString(result.ResponseCode || result.responseCode);
+    if (responseCode === "0001" || responseCode === "0000") {
+      const resultData = result.Data || result.data || {};
+      await requestRef.set({
+        status: "processing",
+        hubtelTransactionId: safeString(resultData.TransactionId || resultData.transactionId) || null,
+        providerPayload: result,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return {
+        success: true,
+        requestId: requestRef.id,
+        clientReference,
+        status: "processing",
+        availableBeforeGhs: availableBefore,
+      };
+    }
+
+    await requestRef.set({
+      status: "failed",
+      completedAt: FieldValue.serverTimestamp(),
+      errorCode: responseCode,
+      errorDescription: safeString(
+        (result.Data || result.data || {}).Description ||
+          result.Description ||
+          result.ResponseMessage ||
+          result.message,
+        "Hubtel Send Money failed.",
+      ),
+      providerPayload: result,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    throw new HttpsError("internal", safeString(
+      (result.Data || result.data || {}).Description ||
+        result.Description ||
+        result.ResponseMessage ||
+        result.message,
+      "Hubtel Send Money failed.",
+    ));
+  },
+);
+
+exports.checkOrganizerPayoutStatus = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 120,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sign in to check payout status.");
+    }
+    const clientReference = safeString(request.data && request.data.clientReference);
+    if (!clientReference.startsWith(`${PAYOUT_CLIENT_REFERENCE_PREFIX}_`)) {
+      throw new HttpsError("invalid-argument", "Invalid payout reference.");
+    }
+    const snap = await db
+      .collection("payout_requests")
+      .where("clientReference", "==", clientReference)
+      .limit(1)
+      .get();
+    if (snap.empty) throw new HttpsError("not-found", "Payout request not found.");
+    const payoutDoc = snap.docs[0];
+    const payout = payoutDoc.data() || {};
+    await assertOrganizerCanRequestPayout(request.auth.uid, safeString(payout.organizationId));
+    if (safeString(payout.status) !== "processing" && safeString(payout.status) !== "pending") {
+      return {
+        status: safeString(payout.status),
+        requestId: payoutDoc.id,
+        alreadyFinalized: true,
+      };
+    }
+
+    const resolvedStatus = await reconcilePayoutStatusFromProvider(payoutDoc);
+    return { status: resolvedStatus, requestId: payoutDoc.id, fromStatusCheck: true };
+  },
+);
+
+exports.hubtelSendMoneyCallback = onRequest(
+  {
+    cors: true,
+    region: REGION,
+    timeoutSeconds: 120,
+  },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      return response.status(405).json({ error: "Method not allowed." });
+    }
+    const payload = request.body || {};
+    const data = payload.Data || payload.data || {};
+    const clientReference = safeString(data.ClientReference || data.clientReference);
+    if (!clientReference.startsWith(`${PAYOUT_CLIENT_REFERENCE_PREFIX}_`)) {
+      return response.status(200).json({ success: true, ignored: true });
+    }
+    const snap = await db
+      .collection("payout_requests")
+      .where("clientReference", "==", clientReference)
+      .limit(1)
+      .get();
+    if (snap.empty) {
+      return response.status(200).json({ success: true, processed: false, reason: "payout_not_found" });
+    }
+    const payoutDoc = snap.docs[0];
+    const payout = payoutDoc.data() || {};
+    if (!["pending", "processing"].includes(safeString(payout.status))) {
+      return response.status(200).json({ success: true, processed: false, reason: "already_finalized" });
+    }
+    // The Send Money callback is unauthenticated and its body is forgeable, so
+    // we do NOT trust it. Independently confirm the real transfer outcome with a
+    // server-to-server status check before finalising the payout.
+    const resolvedStatus = await reconcilePayoutStatusFromProvider(payoutDoc);
+    return response.status(200).json({
+      success: true,
+      processed: resolvedStatus !== "processing",
+      status: resolvedStatus,
+    });
   },
 );
 
@@ -1182,11 +1810,29 @@ exports.createWebEventTicketOrder = onCall(
     timeoutSeconds: 180,
   },
   async (request) => {
+    // Unauthenticated public web checkout — throttle by IP to prevent
+    // unbounded pending-order creation and Hubtel initiate abuse.
+    const ipKey = safeString(
+      (request.rawRequest &&
+        (request.rawRequest.ip ||
+          request.rawRequest.headers["x-forwarded-for"] ||
+          request.rawRequest.headers["fastly-client-ip"])) ||
+        "unknown",
+    );
+    await checkRateLimit(db, `ip:${ipKey}`, "createWebEventTicketOrder", {
+      maxCalls: 20,
+      windowSeconds: 300,
+    });
+
     const eventId = safeString(request.data && request.data.eventId);
     const selections = request.data && request.data.selections;
     const buyerName = safeString(request.data && request.data.buyerName);
     const buyerPhone = normalizePhoneNumber(request.data && request.data.buyerPhone);
     const buyerEmail = safeString(request.data && request.data.buyerEmail);
+    const partnerRef = safeString(
+      request.data &&
+        (request.data.partnerRef || request.data.ref || request.data.partnerReferralCode),
+    );
 
     if (!eventId) {
       throw new HttpsError("invalid-argument", "eventId is required.");
@@ -1252,6 +1898,7 @@ exports.createWebEventTicketOrder = onCall(
       );
     }
 
+    const referral = await resolvePartnerReferralForEvent(eventId, partnerRef);
     const orderRef = db.collection("event_ticket_orders").doc();
     await orderRef.set({
       eventId,
@@ -1269,6 +1916,7 @@ exports.createWebEventTicketOrder = onCall(
       paymentStatus: "initiated",
       source: "web",
       eventSnapshot: buildEventSnapshotForFirestore(eventId, eventData),
+      ...referral,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -1309,7 +1957,8 @@ exports.createWebEventTicketOrder = onCall(
 
 exports.hubtelCallback = onRequest(
   {
-    cors: true,
+    // Server-to-server webhook — no browser origin, so CORS is unnecessary
+    // attack surface.
     region: REGION,
     timeoutSeconds: 180,
   },
@@ -1327,23 +1976,28 @@ exports.hubtelCallback = onRequest(
       }
 
       const config = await getHubtelConfig();
+      // Optional callback signature verification (matches the Gplus reference):
+      // when app_config/hubtel.callbackSecret is set we verify constant-time and
+      // reject mismatches; when it is absent we log and proceed so payment
+      // fulfilment keeps working. Set callbackSecret (here + in the Hubtel
+      // dashboard) to enable enforcement.
       if (config.callbackSecret) {
-        const incomingSignature = safeString(request.headers["x-hubtel-signature"]);
-        const expectedSignature = crypto
-          .createHmac("sha256", config.callbackSecret)
-          .update(JSON.stringify(payload))
-          .digest("hex");
-        if (!incomingSignature || incomingSignature !== expectedSignature) {
+        if (!verifyHubtelSignature(config.callbackSecret, payload, request.headers["x-hubtel-signature"])) {
           await notifyPaymentWebhookAlert("Hubtel callback rejected: invalid or missing x-hubtel-signature.");
           return response.status(401).json({ error: "Invalid callback signature." });
         }
+      } else {
+        logger.warn(
+          "[hubtelCallback] callbackSecret not configured — signature not verified. " +
+            "Set app_config/hubtel.callbackSecret to enable verification.",
+        );
       }
 
       if (clientReference.startsWith("evt_")) {
-        return handleEventTicketCallback(clientReference, data, response);
+        return handleEventTicketCallback(clientReference, data, response, config);
       }
       if (clientReference.startsWith("wallet_")) {
-        return handleWalletTopUpCallback(clientReference, data, response);
+        return handleWalletTopUpCallback(clientReference, data, response, config);
       }
 
       return response.status(400).json({
@@ -1355,9 +2009,8 @@ exports.hubtelCallback = onRequest(
       await notifyPaymentWebhookAlert(
         `Hubtel callback error: ${safeString(error && error.message, "unknown error")}`,
       );
-      return response.status(500).json({
-        error: safeString(error && error.message, "Hubtel callback failed."),
-      });
+      // Do not leak internal error details to the caller.
+      return response.status(500).json({ error: "Hubtel callback failed." });
     }
   },
 );
@@ -1382,9 +2035,7 @@ exports.hubtelReturn = onRequest(
     try {
       const orderSnap = await db.collection("event_ticket_orders").doc(orderId).get();
       if (orderSnap.exists && orderSnap.data().source === "web") {
-        const webUrl =
-          `https://vennuzo.com/checkout/${encodeURIComponent(orderId)}/confirmation` +
-          `?status=${encodeURIComponent(status)}`;
+        const webUrl = await buildWebCheckoutConfirmationUrl(orderId, status);
         return response.redirect(302, webUrl);
       }
     } catch (_err) {
@@ -1401,3 +2052,16 @@ exports.hubtelReturn = onRequest(
       .send(browserRedirectHtml({ orderId, status, deepLink }));
   },
 );
+
+// Test-only exports of pure helpers so unit tests exercise the REAL code (not a
+// copy). This block is a no-op at deploy/runtime — Firebase's function discovery
+// and the deployed runtime never run with NODE_ENV==="test", so no extra exports
+// are registered there. jest sets NODE_ENV="test".
+if (process.env.NODE_ENV === "test") {
+  module.exports.buildOrderSelections = buildOrderSelections;
+  module.exports.isWithdrawableTicketOrder = isWithdrawableTicketOrder;
+  module.exports.verifyHubtelSignature = verifyHubtelSignature;
+  module.exports.confirmHubtelStatusFromProvider = confirmHubtelStatusFromProvider;
+  module.exports.escapeHtml = escapeHtml;
+  module.exports.safeString = safeString;
+}

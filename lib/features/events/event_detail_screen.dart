@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -16,13 +17,14 @@ import '../../core/utils/formatters.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import '../../data/services/vennuzo_payment_service.dart';
 import '../../data/services/event_safety_service.dart';
+import '../../domain/models/creator_models.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../domain/models/ticket_models.dart';
 import '../../widgets/empty_state_card.dart';
-import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
+import '../creators/creator_profile_screen.dart';
 import 'event_share_sheet.dart';
 import '../tickets/vennuzo_ticket_payment_status_screen.dart';
 import '../social/event_posts_grid.dart';
@@ -56,6 +58,7 @@ class EventDetailScreen extends StatelessWidget {
 
     final reminder = repository.reminderFor(event.id);
     final hasRsvp = repository.hasRsvp(event.id);
+    final creatorProfile = repository.creatorProfileFor(event.createdBy);
     final campaigns = repository.campaignsForEvent(event.id);
     PromotionCampaign? premiumCampaign;
     for (final campaign in campaigns) {
@@ -67,8 +70,18 @@ class EventDetailScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Theme.of(
+          context,
+        ).scaffoldBackgroundColor.withValues(alpha: 0.96),
+        foregroundColor: VennuzoTheme.textPrimary,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        titleTextStyle: context.text.titleLarge?.copyWith(
+          color: VennuzoTheme.textPrimary,
+          fontWeight: FontWeight.w800,
+        ),
+        iconTheme: const IconThemeData(color: VennuzoTheme.textPrimary),
         title: Text(event.title),
         actions: [
           if (!session.isGuest)
@@ -92,9 +105,7 @@ class EventDetailScreen extends StatelessWidget {
                     }
                   },
                   icon: Icon(
-                    saved
-                        ? Icons.bookmark
-                        : Icons.bookmark_border_outlined,
+                    saved ? Icons.bookmark : Icons.bookmark_border_outlined,
                   ),
                   tooltip: saved ? 'Unsave event' : 'Save event',
                 );
@@ -103,6 +114,7 @@ class EventDetailScreen extends StatelessWidget {
           IconButton(
             onPressed: () => _showShareSheet(context, event),
             icon: const Icon(Icons.ios_share_outlined),
+            tooltip: 'Share event',
           ),
           IconButton(
             onPressed: () => _showReportSheet(context, event, session),
@@ -111,139 +123,30 @@ class EventDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF0C0C1A).withValues(alpha: 0.94),
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.07),
-                ),
-              ),
-              boxShadow: VennuzoTheme.shadowFloating,
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                child: Row(
-                  children: [
-                    // Price column
-                    if (event.ticketing.minimumPrice != null) ...[
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'From',
-                            style: context.text.labelSmall?.copyWith(
-                              color: VennuzoTheme.textTertiary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          Text(
-                            formatMoney(event.ticketing.minimumPrice!),
-                            style: context.text.titleMedium?.copyWith(
-                              color: VennuzoTheme.textPrimary,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 16),
-                    ],
-                    // RSVP button (secondary)
-                    if (!event.ticketing.requireTicket &&
-                        event.ticketing.enabled) ...[
-                      Expanded(
-                        flex: 2,
-                        child: OutlinedButton(
-                          onPressed: hasRsvp
-                              ? null
-                              : () => _openRsvpFlow(context, event),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(VennuzoTheme.radiusMd),
-                            ),
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.12),
-                            ),
-                            foregroundColor: VennuzoTheme.textPrimary,
-                          ),
-                          child: Text(hasRsvp ? 'Reserved ✓' : 'RSVP'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                    ],
-                    // Primary CTA — gradient button
-                    Expanded(
-                      flex: 3,
-                      child: _GradientCTAButton(
-                        label: () {
-                          if (event.ticketing.enabled) {
-                            return event.ticketing.requireTicket
-                                ? 'Get tickets'
-                                : 'Buy support ticket';
-                          }
-                          return hasRsvp ? 'Spot reserved ✓' : 'Reserve spot';
-                        }(),
-                        onPressed: event.ticketing.enabled
-                            ? () => _openCheckoutFlow(context, event)
-                            : hasRsvp
-                                ? null
-                                : () => _openRsvpFlow(context, event),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+      bottomNavigationBar: _EventBottomBar(
+        event: event,
+        hasRsvp: hasRsvp,
+        onReserve: hasRsvp ? null : () => _openRsvpFlow(context, event),
+        onCheckout: event.ticketing.enabled
+            ? () => _openCheckoutFlow(context, event)
+            : null,
       ),
       body: ListView(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          MediaQuery.of(context).padding.top + kToolbarHeight + 8,
-          20,
-          28,
-        ),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 108),
         children: [
           _HeroBanner(event: event, campaign: premiumCampaign),
           const SizedBox(height: 28),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: [
-              MetricTile(
-                label: 'Likes',
-                value: '${event.likesCount}',
-                icon: Icons.favorite_outline,
-                highlight: context.palette.coral,
-              ),
-              MetricTile(
-                label: 'RSVPs',
-                value: '${event.rsvpCount}',
-                icon: Icons.people_outline,
-                highlight: context.palette.teal,
-              ),
-              MetricTile(
-                label: 'Tickets sold',
-                value: '${repository.soldForEvent(event.id)}',
-                icon: Icons.confirmation_num_outlined,
-                highlight: context.palette.gold,
-              ),
-            ],
+          _AboutEventCard(event: event),
+          const SizedBox(height: 18),
+          _CreatorProfileCard(
+            profile: creatorProfile,
+            isOwnProfile: session.viewer.uid == event.createdBy,
+            isFollowing: repository.isFollowingCreator(event.createdBy),
+            onOpen: () => _openCreatorProfile(context, event.createdBy),
+            onFollow: () => _toggleFollowCreator(context, creatorProfile),
           ),
           const SizedBox(height: 18),
-          _RatingRow(
-            eventId: eventId,
-            socialService: _socialService,
-          ),
+          _RatingRow(eventId: eventId, socialService: _socialService),
           if (premiumCampaign != null) ...[
             const SizedBox(height: 28),
             _PremiumPlacementPanel(event: event, campaign: premiumCampaign),
@@ -254,14 +157,24 @@ class EventDetailScreen extends StatelessWidget {
             runSpacing: 10,
             children: [
               _ActionPillButton(
-                onPressed: () {
+                onPressed: () async {
+                  if (session.isGuest) {
+                    final authenticated = await showAuthPromptSheet(
+                      context,
+                      title: 'Sign in to like events',
+                      body: 'Likes sync to your account.',
+                    );
+                    if (!context.mounted || !authenticated) {
+                      return;
+                    }
+                  }
                   context.read<VennuzoRepository>().toggleLike(event.id);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Saved to your events.')),
+                    const SnackBar(content: Text('Added to your likes.')),
                   );
                 },
                 icon: Icons.favorite_border,
-                label: 'Save',
+                label: 'Like',
               ),
               _ActionPillButton(
                 onPressed: () async {
@@ -288,21 +201,6 @@ class EventDetailScreen extends StatelessWidget {
                 label: event.allowSharing ? 'Share' : 'Sharing off',
               ),
             ],
-          ),
-          const SizedBox(height: 28),
-          SectionHeading(title: 'Why people are showing up', subtitle: null),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: context.palette.card,
-              borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
-              border: Border.all(
-                color: context.palette.border.withValues(alpha: 0.6),
-              ),
-              boxShadow: VennuzoTheme.shadowResting,
-            ),
-            child: Text(event.description, style: context.text.bodyLarge),
           ),
           const SizedBox(height: 28),
           SectionHeading(title: 'Plan the night', subtitle: null),
@@ -459,13 +357,51 @@ class EventDetailScreen extends StatelessWidget {
           const SizedBox(height: 28),
           SectionHeading(title: 'Photos from this event', subtitle: null),
           const SizedBox(height: 14),
-          EventPostsGrid(
-            eventId: eventId,
-            socialService: _socialService,
-          ),
+          EventPostsGrid(eventId: eventId, socialService: _socialService),
         ],
       ),
     );
+  }
+
+  void _openCreatorProfile(BuildContext context, String creatorId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CreatorProfileScreen(creatorId: creatorId),
+      ),
+    );
+  }
+
+  Future<void> _toggleFollowCreator(
+    BuildContext context,
+    CreatorProfile profile,
+  ) async {
+    final session = context.read<VennuzoSessionController>();
+    if (session.viewer.uid == profile.creatorId) {
+      _openCreatorProfile(context, profile.creatorId);
+      return;
+    }
+    if (session.isGuest) {
+      final authenticated = await showAuthPromptSheet(
+        context,
+        title: 'Sign in to follow creators',
+        body: 'Follow creators to see their new events on Explore.',
+      );
+      if (!context.mounted || !authenticated) {
+        return;
+      }
+    }
+    final repository = context.read<VennuzoRepository>();
+    if (repository.isFollowingCreator(profile.creatorId)) {
+      repository.unfollowCreator(profile.creatorId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unfollowed ${profile.displayName}.')),
+      );
+    } else {
+      repository.followCreator(profile.creatorId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Following ${profile.displayName}.')),
+      );
+    }
   }
 
   Future<void> _showReminderSheet(
@@ -640,20 +576,26 @@ class EventDetailScreen extends StatelessWidget {
     final link = context.read<VennuzoRepository>().buildPublicTicketLink(
       order.id,
     );
+    final isComplimentary =
+        order.paymentStatus == TicketPaymentStatus.complimentary;
     await showDialog<void>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text(
-            order.totalAmount == 0 ? 'Reservation created' : 'Tickets issued',
+            order.totalAmount == 0 && !isComplimentary
+                ? 'Reservation created'
+                : 'Tickets issued',
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                order.totalAmount == 0
+                order.totalAmount == 0 && !isComplimentary
                     ? 'Your reservation is saved and waiting for payment at the door.'
+                    : isComplimentary
+                    ? 'Your voucher covered the order and your tickets are ready to use at entry.'
                     : 'Your order is paid and ready to use at entry.',
               ),
               const SizedBox(height: 12),
@@ -740,6 +682,398 @@ class EventDetailScreen extends StatelessWidget {
   }
 }
 
+// ─── Floating Event CTA ──────────────────────────────────────────────────────
+
+class _EventBottomBar extends StatelessWidget {
+  const _EventBottomBar({
+    required this.event,
+    required this.hasRsvp,
+    required this.onReserve,
+    required this.onCheckout,
+  });
+
+  final EventModel event;
+  final bool hasRsvp;
+  final VoidCallback? onReserve;
+  final VoidCallback? onCheckout;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasOptionalTickets =
+        event.ticketing.enabled && !event.ticketing.requireTicket;
+    final priceLabel = _priceLabel(event);
+    final primaryLabel = event.ticketing.enabled
+        ? event.ticketing.requireTicket
+              ? 'Get tickets'
+              : 'Buy ticket'
+        : hasRsvp
+        ? 'Reserved'
+        : 'Reserve spot';
+    final primaryAction = event.ticketing.enabled ? onCheckout : onReserve;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        MediaQuery.viewPaddingOf(context).bottom + 12,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+              border: Border.all(color: VennuzoTheme.borderBright),
+              boxShadow: VennuzoTheme.shadowFloating,
+            ),
+            padding: const EdgeInsets.all(6),
+            child: hasOptionalTickets
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: onReserve,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(54),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                VennuzoTheme.radiusFull,
+                              ),
+                            ),
+                          ),
+                          child: Text(hasRsvp ? 'Reserved' : 'RSVP'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _FloatingCtaPill(
+                          priceLabel: priceLabel,
+                          actionLabel: primaryLabel,
+                          compact: true,
+                          onPressed: primaryAction,
+                        ),
+                      ),
+                    ],
+                  )
+                : _FloatingCtaPill(
+                    priceLabel: priceLabel,
+                    actionLabel: primaryLabel,
+                    onPressed: primaryAction,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _priceLabel(EventModel event) {
+    final minimumPrice = event.ticketing.minimumPrice;
+    if (minimumPrice != null) {
+      return 'From ${formatMoney(minimumPrice)}';
+    }
+    return event.ticketing.enabled ? 'Free entry' : 'Free RSVP';
+  }
+}
+
+class _FloatingCtaPill extends StatelessWidget {
+  const _FloatingCtaPill({
+    required this.priceLabel,
+    required this.actionLabel,
+    required this.onPressed,
+    this.compact = false,
+  });
+
+  final String priceLabel;
+  final String actionLabel;
+  final VoidCallback? onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onPressed == null;
+    const activeForeground = Color(0xFF031018);
+    final foreground = disabled ? VennuzoTheme.textTertiary : activeForeground;
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      label: '$priceLabel, $actionLabel',
+      child: GestureDetector(
+        onTap: onPressed,
+        child: ExcludeSemantics(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            height: 56,
+            padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+              color: disabled
+                  ? VennuzoTheme.surfaceElevated
+                  : VennuzoTheme.primaryStart,
+              boxShadow: disabled
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: VennuzoTheme.primaryStart.withValues(
+                          alpha: 0.18,
+                        ),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (!compact) ...[
+                  Flexible(
+                    child: Text(
+                      priceLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.text.labelMedium?.copyWith(
+                        color: foreground.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 22,
+                    margin: const EdgeInsets.symmetric(horizontal: 14),
+                    color: foreground.withValues(alpha: disabled ? 0.2 : 0.28),
+                  ),
+                ],
+                Flexible(
+                  child: Text(
+                    actionLabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.text.labelLarge?.copyWith(
+                      color: foreground,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (!compact) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: foreground,
+                    size: 18,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── About Event Card ────────────────────────────────────────────────────────
+
+class _AboutEventCard extends StatefulWidget {
+  const _AboutEventCard({required this.event});
+
+  final EventModel event;
+
+  @override
+  State<_AboutEventCard> createState() => _AboutEventCardState();
+}
+
+class _AboutEventCardState extends State<_AboutEventCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final event = widget.event;
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.6),
+        ),
+        boxShadow: VennuzoTheme.shadowResting,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('About this event', style: context.text.titleLarge),
+          const SizedBox(height: 10),
+          Text(
+            event.description,
+            maxLines: _expanded ? null : 4,
+            overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            style: context.text.bodyLarge,
+          ),
+          TextButton(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(_expanded ? 'Show less' : 'Read more'),
+          ),
+          const Divider(height: 24),
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: VennuzoTheme.primaryStart,
+                  boxShadow: VennuzoTheme.shadowResting,
+                ),
+                child: const Icon(
+                  Icons.verified_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Verified organizer',
+                      style: context.text.titleSmall?.copyWith(
+                        color: VennuzoTheme.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Hosted on Vennuzo',
+                      style: context.text.bodySmall?.copyWith(
+                        color: VennuzoTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreatorProfileCard extends StatelessWidget {
+  const _CreatorProfileCard({
+    required this.profile,
+    required this.isOwnProfile,
+    required this.isFollowing,
+    required this.onOpen,
+    required this.onFollow,
+  });
+
+  final CreatorProfile profile;
+  final bool isOwnProfile;
+  final bool isFollowing;
+  final VoidCallback onOpen;
+  final VoidCallback onFollow;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: context.palette.card,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.6),
+        ),
+        boxShadow: VennuzoTheme.shadowResting,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 27,
+                backgroundColor: VennuzoTheme.primaryStart.withValues(
+                  alpha: 0.12,
+                ),
+                foregroundImage:
+                    profile.avatarUrl != null &&
+                        profile.avatarUrl!.startsWith('http')
+                    ? CachedNetworkImageProvider(profile.avatarUrl!)
+                    : null,
+                child:
+                    profile.avatarUrl != null &&
+                        !profile.avatarUrl!.startsWith('http')
+                    ? null
+                    : Text(
+                        profile.displayName.isNotEmpty
+                            ? profile.displayName.characters.first.toUpperCase()
+                            : 'V',
+                        style: context.text.titleLarge?.copyWith(
+                          color: VennuzoTheme.primaryStart,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile.displayName,
+                      style: context.text.titleMedium?.copyWith(
+                        color: VennuzoTheme.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      '${profile.followerCount} followers · ${profile.eventCount} events',
+                      style: context.text.bodySmall?.copyWith(
+                        color: VennuzoTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (profile.bio.trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(profile.bio, style: context.text.bodyMedium),
+          ],
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.person_outline_rounded),
+                label: const Text('View creator'),
+              ),
+              if (!isOwnProfile)
+                ElevatedButton.icon(
+                  onPressed: onFollow,
+                  icon: Icon(
+                    isFollowing
+                        ? Icons.check_circle_rounded
+                        : Icons.person_add_alt_1_outlined,
+                  ),
+                  label: Text(isFollowing ? 'Following' : 'Follow'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Action Pill Button ──────────────────────────────────────────────────────
 
 class _ActionPillButton extends StatelessWidget {
@@ -818,18 +1152,8 @@ class _HeroBanner extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
-        boxShadow: [
-          BoxShadow(
-            color: event.mood.colors.first.withValues(alpha: 0.28),
-            blurRadius: 40,
-            offset: const Offset(0, 20),
-          ),
-          BoxShadow(
-            color: event.mood.colors.first.withValues(alpha: 0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        border: Border.all(color: VennuzoTheme.borderSubtle),
+        boxShadow: VennuzoTheme.shadowResting,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
@@ -839,10 +1163,7 @@ class _HeroBanner extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               // Generative art background
-              EventArtwork(
-                event: event,
-                height: 280,
-              ),
+              EventArtwork(event: event, height: 280),
               // Deep cinematic scrim for text legibility
               Positioned.fill(
                 child: DecoratedBox(
@@ -862,8 +1183,7 @@ class _HeroBanner extends StatelessWidget {
                 ),
               ),
               // Campaign badge overlay with glass-morphism
-              if (campaign?.channels
-                      .contains(PromotionChannel.announcement) ??
+              if (campaign?.channels.contains(PromotionChannel.announcement) ??
                   false)
                 Positioned(
                   top: 16,
@@ -879,8 +1199,9 @@ class _HeroBanner extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius:
-                              BorderRadius.circular(VennuzoTheme.radiusMd),
+                          borderRadius: BorderRadius.circular(
+                            VennuzoTheme.radiusMd,
+                          ),
                           border: Border.all(
                             color: Colors.white.withValues(alpha: 0.25),
                           ),
@@ -899,7 +1220,6 @@ class _HeroBanner extends StatelessWidget {
                               style: context.text.labelSmall?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
-                                letterSpacing: 0.6,
                               ),
                             ),
                           ],
@@ -987,16 +1307,13 @@ class _HeroPill extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.22),
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
           ),
           child: Text(
             label,
             style: context.text.labelSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
             ),
           ),
         ),
@@ -1013,6 +1330,9 @@ class _HeroMeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width - 84,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
@@ -1020,6 +1340,8 @@ class _HeroMeta extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: context.text.labelSmall?.copyWith(
           color: Colors.white.withValues(alpha: 0.92),
           fontWeight: FontWeight.w600,
@@ -1070,8 +1392,7 @@ class _PremiumPlacementPanel extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: VennuzoTheme.primaryMid.withValues(alpha: 0.18),
-                  borderRadius:
-                      BorderRadius.circular(VennuzoTheme.radiusSm),
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
                 ),
                 child: Icon(
                   Icons.auto_awesome,
@@ -1098,12 +1419,15 @@ class _PremiumPlacementPanel extends StatelessWidget {
             children: placementLabels
                 .map(
                   (label) => Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius:
-                          BorderRadius.circular(VennuzoTheme.radiusFull),
+                      borderRadius: BorderRadius.circular(
+                        VennuzoTheme.radiusFull,
+                      ),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.12),
                       ),
@@ -1162,9 +1486,7 @@ class _DarkPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.10),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Text(
         label,
@@ -1203,11 +1525,7 @@ class _DetailRow extends StatelessWidget {
             color: context.palette.teal.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
           ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: context.palette.teal,
-          ),
+          child: Icon(icon, size: 20, color: context.palette.teal),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -1263,21 +1581,29 @@ class _TierCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: context.palette.teal.withValues(alpha: 0.08),
-                  borderRadius:
-                      BorderRadius.circular(VennuzoTheme.radiusFull),
-                ),
-                child: Text(
-                  tier.price == 0
-                      ? 'Free'
-                      : '$currency ${tier.price.toStringAsFixed(2)}',
-                  style: context.text.titleSmall?.copyWith(
-                    color: context.palette.teal,
-                    fontWeight: FontWeight.w700,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 132),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.palette.teal.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(
+                      VennuzoTheme.radiusFull,
+                    ),
+                  ),
+                  child: Text(
+                    tier.price == 0
+                        ? 'Free'
+                        : '$currency ${tier.price.toStringAsFixed(2)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.text.titleSmall?.copyWith(
+                      color: context.palette.teal,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -1370,10 +1696,7 @@ class _PromotionCard extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  context.palette.teal,
-                  context.palette.coral,
-                ],
+                colors: [context.palette.teal, context.palette.coral],
               ),
             ),
           ),
@@ -1399,7 +1722,8 @@ class _PromotionCard extends StatelessWidget {
                       _SettingPill(label: '${campaign.pushAudience} push'),
                       _SettingPill(label: '${campaign.smsAudience} SMS'),
                       _SettingPill(
-                          label: formatPromoTime(campaign.scheduledAt)),
+                        label: formatPromoTime(campaign.scheduledAt),
+                      ),
                     ],
                   ),
                 ],
@@ -1449,8 +1773,7 @@ class _EventMapCard extends StatelessWidget {
               width: double.infinity,
               child: gmaps.GoogleMap(
                 initialCameraPosition: gmaps.CameraPosition(
-                  target:
-                      gmaps.LatLng(location.latitude, location.longitude),
+                  target: gmaps.LatLng(location.latitude, location.longitude),
                   zoom: 15,
                 ),
                 markers: {
@@ -1500,8 +1823,9 @@ class _EventMapCard extends StatelessWidget {
                     label: const Text('Open directions'),
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(VennuzoTheme.radiusMd),
+                        borderRadius: BorderRadius.circular(
+                          VennuzoTheme.radiusMd,
+                        ),
                       ),
                     ),
                   ),
@@ -1550,6 +1874,9 @@ class _RsvpSheetState extends State<_RsvpSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.90,
+      ),
       decoration: BoxDecoration(
         color: context.palette.card,
         borderRadius: const BorderRadius.vertical(
@@ -1677,11 +2004,14 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
   late final Map<String, int> _selections;
   _CheckoutStep _step = _CheckoutStep.tierSelect;
   bool _submitting = false;
+  String? _checkoutError;
+  String? _appliedVoucherCode;
 
   // Buyer-details controllers — pre-filled in _initBuyerControllers()
-  final _nameCtrl  = TextEditingController();
+  final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _voucherCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -1689,6 +2019,9 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
     _selections = {
       for (final tier in widget.event.ticketing.tiers) tier.tierId: 0,
     };
+    _nameCtrl.addListener(_rebuildBuyerFooter);
+    _emailCtrl.addListener(_rebuildBuyerFooter);
+    _phoneCtrl.addListener(_rebuildBuyerFooter);
   }
 
   @override
@@ -1697,9 +2030,11 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
     // Pre-fill buyer fields from the signed-in viewer profile (once only).
     if (_nameCtrl.text.isEmpty) {
       final viewer = context.read<VennuzoSessionController>().viewer;
-      final user   = FirebaseAuth.instance.currentUser;
-      _nameCtrl.text  = (viewer.displayName.isNotEmpty ? viewer.displayName : null)
-          ?? user?.displayName ?? '';
+      final user = FirebaseAuth.instance.currentUser;
+      _nameCtrl.text =
+          (viewer.displayName.isNotEmpty ? viewer.displayName : null) ??
+          user?.displayName ??
+          '';
       _emailCtrl.text = viewer.email ?? user?.email ?? '';
       _phoneCtrl.text = viewer.phone ?? user?.phoneNumber ?? '';
     }
@@ -1707,21 +2042,78 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
 
   @override
   void dispose() {
+    _nameCtrl.removeListener(_rebuildBuyerFooter);
+    _emailCtrl.removeListener(_rebuildBuyerFooter);
+    _phoneCtrl.removeListener(_rebuildBuyerFooter);
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
+    _voucherCtrl.dispose();
     super.dispose();
+  }
+
+  void _rebuildBuyerFooter() {
+    if (mounted && _step == _CheckoutStep.buyerDetails) {
+      setState(() => _checkoutError = null);
+    }
   }
 
   int get _ticketCount =>
       _selections.values.fold(0, (sum, value) => sum + value);
 
-  double get _total {
+  double get _subtotal {
     var total = 0.0;
     for (final tier in widget.event.ticketing.tiers) {
       total += (_selections[tier.tierId] ?? 0) * tier.price;
     }
     return total;
+  }
+
+  EventDiscountVoucher? get _appliedVoucher {
+    return widget.event.ticketing.voucherByCode(_appliedVoucherCode);
+  }
+
+  double get _discountAmount => _appliedVoucher?.discountFor(_subtotal) ?? 0;
+
+  double get _total {
+    return (_subtotal - _discountAmount).clamp(0, _subtotal).toDouble();
+  }
+
+  String? get _checkoutDiscountCode =>
+      _discountAmount > 0 ? _appliedVoucher?.normalizedCode : null;
+
+  void _applyVoucher() {
+    final code = EventDiscountVoucher.normalizeCode(_voucherCtrl.text);
+    if (code.isEmpty) {
+      setState(() => _checkoutError = 'Enter a voucher code first.');
+      return;
+    }
+    final voucher = widget.event.ticketing.voucherByCode(code);
+    if (voucher == null) {
+      setState(() => _checkoutError = 'That voucher code was not found.');
+      return;
+    }
+    final discount = voucher.discountFor(_subtotal);
+    if (discount <= 0) {
+      setState(() {
+        _appliedVoucherCode = null;
+        _checkoutError = 'That voucher is not available for this order.';
+      });
+      return;
+    }
+    setState(() {
+      _appliedVoucherCode = voucher.normalizedCode;
+      _voucherCtrl.text = voucher.normalizedCode;
+      _checkoutError = null;
+    });
+  }
+
+  void _clearVoucher() {
+    setState(() {
+      _appliedVoucherCode = null;
+      _voucherCtrl.clear();
+      _checkoutError = null;
+    });
   }
 
   void _advanceToBuyerDetails() {
@@ -1731,18 +2123,31 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
       );
       return;
     }
-    setState(() => _step = _CheckoutStep.buyerDetails);
+    setState(() {
+      _checkoutError = null;
+      _step = _CheckoutStep.buyerDetails;
+    });
   }
 
   Future<void> _submitPayment() async {
     if (_submitting) return;
-    setState(() => _submitting = true);
+    if (_step == _CheckoutStep.buyerDetails) {
+      final validationError = _buyerDetailsError();
+      if (validationError != null) {
+        setState(() => _checkoutError = validationError);
+        return;
+      }
+    }
+    setState(() {
+      _checkoutError = null;
+      _submitting = true;
+    });
 
     // Capture context-dependent objects before any await.
     final repository = context.read<VennuzoRepository>();
-    final session    = context.read<VennuzoSessionController>();
-    final navigator  = Navigator.of(context);
-    final messenger  = ScaffoldMessenger.of(context);
+    final session = context.read<VennuzoSessionController>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
       // Free / offline path — no Hubtel
@@ -1750,6 +2155,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
         final order = repository.checkout(
           event: widget.event,
           selections: _selections,
+          discountCode: _checkoutDiscountCode,
         );
         navigator.pop(_CheckoutResult.reservation(order));
         return;
@@ -1759,12 +2165,16 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
         event: widget.event,
         selections: _selections,
         viewer: session.viewer,
-        buyerNameOverride:
-            _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : null,
-        buyerEmailOverride:
-            _emailCtrl.text.trim().isNotEmpty ? _emailCtrl.text.trim() : null,
-        buyerPhoneOverride:
-            _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+        buyerNameOverride: _nameCtrl.text.trim().isNotEmpty
+            ? _nameCtrl.text.trim()
+            : null,
+        buyerEmailOverride: _emailCtrl.text.trim().isNotEmpty
+            ? _emailCtrl.text.trim()
+            : null,
+        buyerPhoneOverride: _phoneCtrl.text.trim().isNotEmpty
+            ? _phoneCtrl.text.trim()
+            : null,
+        discountCode: _checkoutDiscountCode,
       );
       repository.upsertOrder(checkoutSession.order);
       if (!mounted) return;
@@ -1777,42 +2187,101 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
       );
     } on VennuzoPaymentException catch (error) {
       if (!mounted) return;
+      setState(() => _checkoutError = error.message);
       messenger.showSnackBar(SnackBar(content: Text(error.message)));
     } on FirebaseFunctionsException catch (error) {
       if (!mounted) return;
+      setState(
+        () => _checkoutError =
+            error.message ?? 'Could not start Hubtel checkout.',
+      );
       messenger.showSnackBar(
         SnackBar(
           content: Text(error.message ?? 'Could not start Hubtel checkout.'),
         ),
       );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _checkoutError = 'Could not start checkout: $error');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
+  String? _buyerDetailsError() {
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    if (name.length < 2) {
+      return 'Add the full name for this order.';
+    }
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      return 'Enter a valid email address.';
+    }
+    if (!_isValidGhanaPhone(phone)) {
+      return 'Enter a valid Ghana mobile money number.';
+    }
+    return null;
+  }
+
+  bool _isValidGhanaPhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('0')) {
+      return digits.length == 10;
+    }
+    if (digits.startsWith('233')) {
+      return digits.length == 12;
+    }
+    return digits.length == 9;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.palette.card,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(VennuzoTheme.radiusXl),
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
+
+    return SizedBox(
+      height: maxHeight,
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.palette.card,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(VennuzoTheme.radiusXl),
+          ),
         ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20, 20, 20,
-          MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: _step == _CheckoutStep.tierSelect
-                  ? _buildTierSelectStep(context)
-                  : _buildBuyerDetailsStep(context),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, viewInsets.bottom + 24),
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton.filledTonal(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                    tooltip: 'Close checkout',
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => FocusScope.of(context).unfocus(),
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        child: _step == _CheckoutStep.tierSelect
+                            ? _buildTierSelectStep(context)
+                            : _buildBuyerDetailsStep(context),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildCheckoutFooter(context),
+              ],
             ),
           ),
         ),
@@ -1829,7 +2298,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Step indicator
-        _StepIndicator(current: 1, total: 3, label: 'Select tickets'),
+        _StepIndicator(current: 1, total: 2, label: 'Select tickets'),
         const SizedBox(height: 16),
         Text(
           'Pick the ticket types you want. Free options become pay-at-door reservations.',
@@ -1860,8 +2329,9 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                           children: [
                             Text(
                               tier.name,
-                              style: context.text.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+                              style: context.text.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Text(
@@ -1876,10 +2346,12 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                       Row(
                         children: [
                           IconButton(
+                            tooltip: 'Decrease ${tier.name} quantity',
                             onPressed: (_selections[tier.tierId] ?? 0) > 0
-                                ? () => setState(() =>
-                                    _selections[tier.tierId] =
-                                        (_selections[tier.tierId] ?? 0) - 1)
+                                ? () => setState(
+                                    () => _selections[tier.tierId] =
+                                        (_selections[tier.tierId] ?? 0) - 1,
+                                  )
                                 : null,
                             icon: const Icon(Icons.remove_circle_outline),
                           ),
@@ -1888,13 +2360,16 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                             style: context.text.titleLarge,
                           ),
                           IconButton(
-                            onPressed: tier.soldOut ||
+                            tooltip: 'Increase ${tier.name} quantity',
+                            onPressed:
+                                tier.soldOut ||
                                     (_selections[tier.tierId] ?? 0) >=
                                         tier.remaining
                                 ? null
-                                : () => setState(() =>
-                                    _selections[tier.tierId] =
-                                        (_selections[tier.tierId] ?? 0) + 1),
+                                : () => setState(
+                                    () => _selections[tier.tierId] =
+                                        (_selections[tier.tierId] ?? 0) + 1,
+                                  ),
                             icon: const Icon(Icons.add_circle_outline),
                           ),
                         ],
@@ -1917,6 +2392,16 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
           ),
         ),
         const SizedBox(height: 12),
+        if (widget.event.ticketing.discountVouchers.isNotEmpty) ...[
+          _VoucherCodeBox(
+            controller: _voucherCtrl,
+            appliedCode: _appliedVoucher?.normalizedCode,
+            discountAmount: _discountAmount,
+            onApply: _applyVoucher,
+            onClear: _clearVoucher,
+          ),
+          const SizedBox(height: 12),
+        ],
         // Summary
         Container(
           width: double.infinity,
@@ -1930,11 +2415,27 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
             children: [
               Text(
                 'Summary',
-                style: context.text.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: context.text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 10),
               Text('Tickets: $_ticketCount', style: context.text.bodyLarge),
+              const SizedBox(height: 4),
+              Text(
+                'Subtotal: ${formatMoney(_subtotal)}',
+                style: context.text.bodyLarge,
+              ),
+              if (_discountAmount > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Voucher: -${formatMoney(_discountAmount)}',
+                  style: context.text.bodyLarge?.copyWith(
+                    color: VennuzoTheme.primaryStart,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
               const SizedBox(height: 4),
               Text(
                 'Total: ${formatMoney(_total)}',
@@ -1943,39 +2444,6 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
             ],
           ),
         ),
-        const SizedBox(height: 18),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _total <= 0 ? null : _advanceToBuyerDetails,
-            child: Text(
-              _total == 0 ? 'Reserve now' : 'Continue →',
-            ),
-          ),
-        ),
-        // Free-ticket path goes straight to reservation
-        if (_total <= 0 && _ticketCount > 0) ...[
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () async {
-                setState(() => _submitting = true);
-                try {
-                  final order = context.read<VennuzoRepository>().checkout(
-                    event: widget.event,
-                    selections: _selections,
-                  );
-                  if (!context.mounted) return;
-                  Navigator.of(context).pop(_CheckoutResult.reservation(order));
-                } finally {
-                  if (mounted) setState(() => _submitting = false);
-                }
-              },
-              child: const Text('Reserve (free / pay at door)'),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -1989,7 +2457,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _StepIndicator(current: 2, total: 3, label: 'Your details'),
+        _StepIndicator(current: 2, total: 2, label: 'Your details'),
         const SizedBox(height: 16),
         // Order summary pill row
         Container(
@@ -2004,31 +2472,62 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
             children: [
               ...widget.event.ticketing.tiers
                   .where((t) => (_selections[t.tierId] ?? 0) > 0)
-                  .map((t) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('${t.name} × ${_selections[t.tierId]}',
-                                style: context.text.bodyMedium),
-                            Text(
-                              formatMoney(
-                                  t.price * (_selections[t.tierId] ?? 0)),
-                              style: context.text.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      )),
+                  .map(
+                    (t) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${t.name} × ${_selections[t.tierId]}',
+                            style: context.text.bodyMedium,
+                          ),
+                          Text(
+                            formatMoney(t.price * (_selections[t.tierId] ?? 0)),
+                            style: context.text.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               const Divider(height: 16),
+              if (_discountAmount > 0) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _appliedVoucher?.normalizedCode ?? 'Voucher',
+                      style: context.text.bodyMedium?.copyWith(
+                        color: VennuzoTheme.primaryStart,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '-${formatMoney(_discountAmount)}',
+                      style: context.text.bodyMedium?.copyWith(
+                        color: VennuzoTheme.primaryStart,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 16),
+              ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Total',
-                      style: context.text.bodyLarge
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  Text(formatMoney(_total),
-                      style: context.text.bodyLarge
-                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  Text(
+                    'Total',
+                    style: context.text.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    formatMoney(_total),
+                    style: context.text.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -2063,35 +2562,174 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
           helperText: 'Used for mobile money and ticket delivery',
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _submitting
-                    ? null
-                    : () => setState(() => _step = _CheckoutStep.tierSelect),
-                child: const Text('← Back'),
+      ],
+    );
+  }
+
+  Widget _buildCheckoutFooter(BuildContext context) {
+    if (_step == _CheckoutStep.tierSelect) {
+      final canContinue = _ticketCount > 0 && !_submitting;
+      final isPaid = _total > 0;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_checkoutError != null) ...[
+            _CheckoutErrorBanner(message: _checkoutError!),
+            const SizedBox(height: 10),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: !canContinue
+                  ? null
+                  : isPaid
+                  ? _advanceToBuyerDetails
+                  : _submitPayment,
+              child: Text(
+                _ticketCount == 0
+                    ? 'Select tickets'
+                    : isPaid
+                    ? 'Continue'
+                    : _subtotal > 0
+                    ? 'Claim discounted tickets'
+                    : _submitting
+                    ? 'Saving reservation...'
+                    : 'Reserve (free / pay at door)',
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: _submitting ||
-                        _nameCtrl.text.trim().isEmpty ||
-                        _phoneCtrl.text.trim().isEmpty
-                    ? null
-                    : _submitPayment,
-                child: Text(
-                  _submitting
-                      ? 'Opening payment…'
-                      : 'Pay ${formatMoney(_total)}',
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_checkoutError != null) ...[
+          _CheckoutErrorBanner(message: _checkoutError!),
+          const SizedBox(height: 10),
+        ],
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _submitting ? null : _submitPayment,
+            child: Text(
+              _submitting ? 'Opening payment...' : 'Pay ${formatMoney(_total)}',
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: TextButton(
+            onPressed: _submitting
+                ? null
+                : () => setState(() => _step = _CheckoutStep.tierSelect),
+            child: const Text('Back'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CheckoutErrorBanner extends StatelessWidget {
+  const _CheckoutErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: context.palette.coral.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+        border: Border.all(color: context.palette.coral.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        message,
+        style: context.text.bodySmall?.copyWith(
+          color: context.palette.coral,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _VoucherCodeBox extends StatelessWidget {
+  const _VoucherCodeBox({
+    required this.controller,
+    required this.appliedCode,
+    required this.discountAmount,
+    required this.onApply,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final String? appliedCode;
+  final double discountAmount;
+  final VoidCallback onApply;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAppliedCode = appliedCode != null && discountAmount > 0;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.palette.canvas,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(
+          color: hasAppliedCode
+              ? VennuzoTheme.primaryStart.withValues(alpha: 0.28)
+              : context.palette.border.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Voucher code',
+            style: context.text.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter code',
+                    isDense: true,
+                  ),
                 ),
+              ),
+              const SizedBox(width: 10),
+              if (hasAppliedCode)
+                TextButton(onPressed: onClear, child: const Text('Clear'))
+              else
+                ElevatedButton(onPressed: onApply, child: const Text('Apply')),
+            ],
+          ),
+          if (hasAppliedCode) ...[
+            const SizedBox(height: 10),
+            Text(
+              '$appliedCode applied: -${formatMoney(discountAmount)}',
+              style: context.text.bodyMedium?.copyWith(
+                color: VennuzoTheme.primaryStart,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -2132,16 +2770,8 @@ class _StepIndicator extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: context.text.titleLarge,
-          ),
-        ),
-        Text(
-          'Step $current of $total',
-          style: context.text.bodySmall,
-        ),
+        Expanded(child: Text(label, style: context.text.titleLarge)),
+        Text('Step $current of $total', style: context.text.bodySmall),
       ],
     );
   }
@@ -2171,8 +2801,7 @@ class _LabeledField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: context.text.bodyMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: context.text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
         TextField(
@@ -2268,18 +2897,26 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
   late final TextEditingController _emailController;
   String _selectedReason = _reasons.first;
 
+  bool get _hasReportDetails => _detailsController.text.trim().length >= 8;
+
   @override
   void initState() {
     super.initState();
     _detailsController = TextEditingController();
+    _detailsController.addListener(_refreshDetailsState);
     _emailController = TextEditingController(text: widget.email ?? '');
   }
 
   @override
   void dispose() {
+    _detailsController.removeListener(_refreshDetailsState);
     _detailsController.dispose();
     _emailController.dispose();
     super.dispose();
+  }
+
+  void _refreshDetailsState() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -2306,10 +2943,24 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Report event', style: context.text.titleLarge),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Report event',
+                        style: context.text.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: 'Close report sheet',
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tell us what feels wrong about "${widget.eventTitle}".',
+                  'Tell us what feels wrong about "${widget.eventTitle}". Add a short detail so the safety team has something to review.',
                   style: context.text.bodyMedium,
                 ),
                 const SizedBox(height: 18),
@@ -2337,6 +2988,7 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
                     labelText: 'Details',
                     hintText:
                         'Share any details that would help our team review this event.',
+                    helperText: 'Minimum 8 characters',
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -2351,15 +3003,17 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(
-                        _EventReportPayload(
-                          reason: _selectedReason,
-                          details: _detailsController.text.trim(),
-                          email: _emailController.text.trim(),
-                        ),
-                      );
-                    },
+                    onPressed: _hasReportDetails
+                        ? () {
+                            Navigator.of(context).pop(
+                              _EventReportPayload(
+                                reason: _selectedReason,
+                                details: _detailsController.text.trim(),
+                                email: _emailController.text.trim(),
+                              ),
+                            );
+                          }
+                        : null,
                     child: const Text('Submit report'),
                   ),
                 ),
@@ -2375,10 +3029,7 @@ class _ReportEventSheetState extends State<_ReportEventSheet> {
 // ─── Rating Row ──────────────────────────────────────────────────────────────
 
 class _RatingRow extends StatelessWidget {
-  const _RatingRow({
-    required this.eventId,
-    required this.socialService,
-  });
+  const _RatingRow({required this.eventId, required this.socialService});
 
   final String eventId;
   final SocialService socialService;
@@ -2400,8 +3051,7 @@ class _RatingRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: context.palette.card,
-                borderRadius:
-                    BorderRadius.circular(VennuzoTheme.radiusLg),
+                borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
                 border: Border.all(
                   color: context.palette.border.withValues(alpha: 0.6),
                 ),
@@ -2413,8 +3063,9 @@ class _RatingRow extends StatelessWidget {
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFD700).withValues(alpha: 0.12),
-                      borderRadius:
-                          BorderRadius.circular(VennuzoTheme.radiusSm),
+                      borderRadius: BorderRadius.circular(
+                        VennuzoTheme.radiusSm,
+                      ),
                     ),
                     child: const Icon(
                       Icons.star_rounded,
@@ -2424,9 +3075,7 @@ class _RatingRow extends StatelessWidget {
                   ),
                   const SizedBox(width: 14),
                   Text(
-                    hasRatings
-                        ? avg.toStringAsFixed(1)
-                        : 'No reviews yet',
+                    hasRatings ? avg.toStringAsFixed(1) : 'No reviews yet',
                     style: context.text.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -2446,61 +3095,6 @@ class _RatingRow extends StatelessWidget {
           },
         );
       },
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _GradientCTAButton — gradient primary action button for event detail
-// ─────────────────────────────────────────────────────────────────────────────
-class _GradientCTAButton extends StatelessWidget {
-  const _GradientCTAButton({
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = onPressed == null;
-    return GestureDetector(
-      onTap: onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 50,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
-          gradient: disabled
-              ? null
-              : const LinearGradient(
-                  colors: [
-                    VennuzoTheme.primaryStart,
-                    VennuzoTheme.primaryMid,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-          color: disabled ? VennuzoTheme.surfaceElevated : null,
-          boxShadow: disabled
-              ? null
-              : VennuzoTheme.glowShadow(VennuzoTheme.primaryStart),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: disabled
-                  ? VennuzoTheme.textTertiary
-                  : Colors.white,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

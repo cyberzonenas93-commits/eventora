@@ -1,4 +1,4 @@
-enum VennuzoWorkspaceFace { attendee, admin }
+enum VennuzoWorkspaceFace { attendee, organizer, admin }
 
 enum OrganizerApplicationStatus {
   notStarted,
@@ -15,21 +15,35 @@ class VennuzoNotificationPrefs {
     this.pushEnabled = true,
     this.smsEnabled = true,
     this.marketingOptIn = false,
+    this.promotionalPushEnabled = true,
+    this.promotionalEventTypes = const <String>[],
+    this.promotionalCities = const <String>[],
   });
 
   final bool pushEnabled;
   final bool smsEnabled;
   final bool marketingOptIn;
+  final bool promotionalPushEnabled;
+  final List<String> promotionalEventTypes;
+  final List<String> promotionalCities;
 
   VennuzoNotificationPrefs copyWith({
     bool? pushEnabled,
     bool? smsEnabled,
     bool? marketingOptIn,
+    bool? promotionalPushEnabled,
+    List<String>? promotionalEventTypes,
+    List<String>? promotionalCities,
   }) {
     return VennuzoNotificationPrefs(
       pushEnabled: pushEnabled ?? this.pushEnabled,
       smsEnabled: smsEnabled ?? this.smsEnabled,
       marketingOptIn: marketingOptIn ?? this.marketingOptIn,
+      promotionalPushEnabled:
+          promotionalPushEnabled ?? this.promotionalPushEnabled,
+      promotionalEventTypes:
+          promotionalEventTypes ?? this.promotionalEventTypes,
+      promotionalCities: promotionalCities ?? this.promotionalCities,
     );
   }
 }
@@ -52,6 +66,7 @@ class VennuzoViewer {
     this.organizerReviewNotes,
     this.hasCustomerProfile = false,
     this.hasAdminProfile = false,
+    this.superAdminAllowed = false,
   });
 
   const VennuzoViewer.guest()
@@ -70,7 +85,8 @@ class VennuzoViewer {
       organizerApplicationStatus = OrganizerApplicationStatus.notStarted,
       organizerReviewNotes = null,
       hasCustomerProfile = false,
-      hasAdminProfile = false;
+      hasAdminProfile = false,
+      superAdminAllowed = false;
 
   final String? uid;
   final String displayName;
@@ -88,22 +104,26 @@ class VennuzoViewer {
   final String? organizerReviewNotes;
   final bool hasCustomerProfile;
   final bool hasAdminProfile;
+  final bool superAdminAllowed;
 
   bool get isGuest => !isAuthenticated;
   bool get isAdminWorkspace => activeFace == VennuzoWorkspaceFace.admin;
+  bool get isOrganizerWorkspace => activeFace == VennuzoWorkspaceFace.organizer;
   bool get hasOrganizerAccess =>
       _hasRole('organizer') ||
       organizerApplicationStatus == OrganizerApplicationStatus.active ||
       organizerApplicationStatus == OrganizerApplicationStatus.approved;
   bool get hasAdminAccess =>
       hasAdminProfile || _hasRole('admin') || _hasRole('superadmin');
-  bool get hasSuperAdminAccess =>
-      (adminRole ?? '').toLowerCase() == 'superadmin' || _hasRole('superadmin');
-  bool get hasMainAppAccess =>
+  bool get hasAttendeeAccess =>
       isGuest ||
       _hasRole('attendee') ||
-      hasOrganizerAccess ||
       (hasCustomerProfile && !hasAdminAccess);
+  bool get hasSuperAdminAccess =>
+      superAdminAllowed &&
+      ((adminRole ?? '').toLowerCase() == 'superadmin' ||
+          _hasRole('superadmin'));
+  bool get hasMainAppAccess => hasAttendeeAccess || hasOrganizerAccess;
   bool get hasPendingOrganizerApplication =>
       organizerApplicationStatus == OrganizerApplicationStatus.submitted ||
       organizerApplicationStatus == OrganizerApplicationStatus.underReview;
@@ -121,8 +141,14 @@ class VennuzoViewer {
     OrganizerApplicationStatus.approved => 'Approved',
     OrganizerApplicationStatus.rejected => 'Needs changes',
   };
-  bool get canUseAttendeeWorkspace => hasMainAppAccess;
-  bool get canChooseWorkspace => hasAdminAccess && hasMainAppAccess;
+  bool get canUseAttendeeWorkspace => hasAttendeeAccess;
+  int get availableWorkspaceFaceCount => [
+    hasAttendeeAccess,
+    hasOrganizerAccess,
+    hasAdminAccess,
+  ].where((enabled) => enabled).length;
+  bool get canChooseWorkspace =>
+      isAuthenticated && availableWorkspaceFaceCount > 1;
 
   String get badgeLabel {
     if (isGuest) {
@@ -131,8 +157,8 @@ class VennuzoViewer {
     if (isAdminWorkspace) {
       return hasSuperAdminAccess ? 'Superadmin console' : 'Admin console';
     }
-    if (hasOrganizerAccess) {
-      return 'Organizer app';
+    if (isOrganizerWorkspace) {
+      return 'Organizer portal';
     }
     return 'Vennuzo app';
   }
@@ -141,9 +167,13 @@ class VennuzoViewer {
     if (isGuest) {
       return 'Vennuzo';
     }
-    return isAdminWorkspace
-        ? (hasSuperAdminAccess ? 'Superadmin Console' : 'Admin Console')
-        : 'Vennuzo';
+    if (isAdminWorkspace) {
+      return hasSuperAdminAccess ? 'Superadmin Console' : 'Admin Console';
+    }
+    if (isOrganizerWorkspace) {
+      return 'Organizer Portal';
+    }
+    return 'Vennuzo';
   }
 
   VennuzoViewer copyWith({
@@ -166,6 +196,7 @@ class VennuzoViewer {
     bool clearOrganizerReviewNotes = false,
     bool? hasCustomerProfile,
     bool? hasAdminProfile,
+    bool? superAdminAllowed,
   }) {
     return VennuzoViewer(
       uid: uid ?? this.uid,
@@ -189,6 +220,7 @@ class VennuzoViewer {
           : organizerReviewNotes ?? this.organizerReviewNotes,
       hasCustomerProfile: hasCustomerProfile ?? this.hasCustomerProfile,
       hasAdminProfile: hasAdminProfile ?? this.hasAdminProfile,
+      superAdminAllowed: superAdminAllowed ?? this.superAdminAllowed,
     );
   }
 

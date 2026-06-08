@@ -151,7 +151,11 @@ class _DashboardHero extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
-          colors: [context.palette.ink, context.palette.teal],
+          colors: [
+            context.palette.darkSurface,
+            context.palette.darkSurfaceMid,
+            context.palette.teal,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -203,9 +207,9 @@ class _AdminInsightCard extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.84),
+        color: context.palette.card,
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: accent.withValues(alpha: 0.2)),
+        border: Border.all(color: accent.withValues(alpha: 0.36)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,8 +1,11 @@
-import { Suspense, lazy, type ReactElement } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Suspense, lazy, useEffect, type ReactElement } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ThemeProvider } from './lib/ThemeContext'
+import type { AdminCollectionId } from './lib/adminConsole'
+import { canPerformAdminAction, canReadAdminCollection, type AdminAction } from './lib/adminRoles'
+import { identifyAnalyticsUser, trackPageView } from './lib/analytics'
 import { PortalSessionProvider, usePortalSession } from './lib/portalSession'
 
 const LandingPage = lazy(() =>
@@ -39,8 +42,20 @@ const PaymentsPayoutsPage = lazy(() =>
 const PromotersPage = lazy(() =>
   import('./pages/PromotersPage').then((module) => ({ default: module.PromotersPage })),
 )
+const TablesPage = lazy(() =>
+  import('./pages/TablesPage').then((module) => ({ default: module.TablesPage })),
+)
+const PlacesPage = lazy(() =>
+  import('./pages/PlacesPage').then((module) => ({ default: module.PlacesPage })),
+)
+const OperationsPage = lazy(() =>
+  import('./pages/OperationsPage').then((module) => ({ default: module.OperationsPage })),
+)
 const PromotePage = lazy(() =>
   import('./pages/PromotePage').then((module) => ({ default: module.PromotePage })),
+)
+const CreativeServicesPage = lazy(() =>
+  import('./pages/CreativeServicesPage').then((module) => ({ default: module.CreativeServicesPage })),
 )
 const PortalLayout = lazy(() =>
   import('./components/PortalLayout').then((module) => ({ default: module.PortalLayout })),
@@ -59,8 +74,23 @@ const SuperadminPricingPage = lazy(() =>
 const SuperadminCampaignsPage = lazy(() =>
   import('./pages/SuperadminCampaignsPage').then((module) => ({ default: module.SuperadminCampaignsPage })),
 )
+const AdminSupportPage = lazy(() =>
+  import('./pages/AdminSupportPage').then((module) => ({ default: module.AdminSupportPage })),
+)
+const AdminAnalyticsPage = lazy(() =>
+  import('./pages/AdminAnalyticsPage').then((module) => ({ default: module.AdminAnalyticsPage })),
+)
 const SuperadminOptOutPage = lazy(() =>
   import('./pages/SuperadminOptOutPage').then((module) => ({ default: module.SuperadminOptOutPage })),
+)
+const AdminDashboardPage = lazy(() =>
+  import('./pages/AdminDashboardPage').then((module) => ({ default: module.AdminDashboardPage })),
+)
+const AdminDataPage = lazy(() =>
+  import('./pages/AdminDataPage').then((module) => ({ default: module.AdminDataPage })),
+)
+const AdminModerationPage = lazy(() =>
+  import('./pages/AdminModerationPage').then((module) => ({ default: module.AdminModerationPage })),
 )
 const UnsubscribePage = lazy(() =>
   import('./pages/UnsubscribePage').then((module) => ({ default: module.UnsubscribePage })),
@@ -85,9 +115,49 @@ const CheckoutConfirmationPage = lazy(() =>
     default: module.CheckoutConfirmationPage,
   })),
 )
+const OrganizerFeedPage = lazy(() =>
+  import('./pages/OrganizerFeedPage').then((module) => ({ default: module.OrganizerFeedPage })),
+)
+const StaffModePage = lazy(() =>
+  import('./pages/StaffModePage').then((module) => ({ default: module.StaffModePage })),
+)
+const EventTeamPage = lazy(() =>
+  import('./pages/EventTeamPage').then((module) => ({ default: module.EventTeamPage })),
+)
+const HostAnalyticsPage = lazy(() =>
+  import('./pages/HostAnalyticsPage').then((module) => ({ default: module.HostAnalyticsPage })),
+)
+const TeamInviteAcceptPage = lazy(() =>
+  import('./pages/TeamInviteAcceptPage').then((module) => ({ default: module.TeamInviteAcceptPage })),
+)
 
 function AppRoutes() {
   const session = usePortalSession()
+  const location = useLocation()
+  const adminHost = isAdminHost()
+
+  useEffect(() => {
+    if (session.loading) return
+    void identifyAnalyticsUser(
+      session.user?.uid ?? null,
+      {
+        admin_role: session.adminRole || 'none',
+        signed_in: Boolean(session.user),
+      },
+    )
+    void trackPageView({
+      organizationId: session.organizationId,
+      path: location.pathname,
+      role: session.adminRole || (session.user ? 'organizer' : 'guest'),
+      title: document.title,
+    })
+  }, [
+    location.pathname,
+    session.adminRole,
+    session.loading,
+    session.organizationId,
+    session.user,
+  ])
 
   if (session.loading) {
     return <StudioSplash />
@@ -98,13 +168,18 @@ function AppRoutes() {
       <Suspense fallback={<StudioSplash />}>
         <Routes>
         <Route element={<PublicLayout />} path="/">
-          <Route index element={<HomePage />} />
+          <Route index element={adminHost ? <Navigate replace to="/admin/overview" /> : <HomePage />} />
           <Route element={<PublicEventsPage />} path="events" />
           <Route element={<PublicEventDetailPage />} path="events/:eventId" />
           <Route element={<CheckoutPage />} path="checkout/:eventId" />
           <Route element={<CheckoutConfirmationPage />} path="checkout/:orderId/confirmation" />
+          <Route element={<CheckoutConfirmationPage />} path="tickets/:orderId" />
+          <Route element={<OrganizerFeedPage />} path="organizer-feed/:shareId" />
         </Route>
         <Route element={<UnsubscribePage />} path="/unsubscribe" />
+        <Route element={<TeamInviteAcceptPage />} path="/invite/:inviteId" />
+        <Route element={<StaffModePage />} path="/staff" />
+        <Route element={<StaffModePage />} path="/staff/:eventId" />
         <Route path="/studio" element={session.user ? <Outlet /> : <LandingPage />}>
           <Route index element={<Navigate replace to="/studio/overview" />} />
           <Route
@@ -123,9 +198,16 @@ function AppRoutes() {
             <Route element={<EventEditorPage />} path="events/new" />
             <Route element={<EventEditorPage />} path="events/:eventId/edit" />
             <Route element={<ContactsPage />} path="contacts" />
+            <Route element={<HostAnalyticsPage />} path="analytics" />
             <Route element={<PaymentsPayoutsPage />} path="payments" />
             <Route element={<PromotersPage />} path="promoters" />
+            <Route element={<TablesPage />} path="tables" />
+            <Route element={<PlacesPage />} path="places" />
+            <Route element={<OperationsPage />} path="operations" />
+            <Route element={<EventTeamPage />} path="team" />
             <Route element={<PromotePage />} path="promote" />
+            <Route element={<CreativeServicesPage />} path="creative" />
+            <Route element={<Navigate replace to="/studio/payments" />} path="billing" />
             <Route element={<SettingsPage />} path="settings" />
           </Route>
         </Route>
@@ -137,20 +219,85 @@ function AppRoutes() {
           }
           path="/review"
         />
-        <Route
-          element={
-            <RequireAdmin>
-              <SuperadminLayout />
-            </RequireAdmin>
-          }
-          path="/superadmin"
-        >
-          <Route index element={<Navigate replace to="/superadmin/approvals" />} />
-          <Route element={<SuperadminApprovalsPage />} path="approvals" />
-          <Route element={<SuperadminPricingPage />} path="pricing" />
-          <Route element={<SuperadminCampaignsPage />} path="campaigns" />
-          <Route element={<SuperadminOptOutPage />} path="optout" />
+        <Route element={<AdminRoutesGate />} path="/admin">
+          <Route index element={<Navigate replace to="/admin/overview" />} />
+          <Route element={<AdminDashboardPage />} path="overview" />
+          <Route
+            element={
+              <RequireAdminPermission action="read_analytics">
+                <AdminAnalyticsPage />
+              </RequireAdminPermission>
+            }
+            path="analytics"
+          />
+          <Route
+            element={
+              <RequireAdminPermission action="review_organizers">
+                <SuperadminApprovalsPage />
+              </RequireAdminPermission>
+            }
+            path="approvals"
+          />
+          <Route
+            element={
+              <RequireAdminPermission action="read_pricing">
+                <SuperadminPricingPage />
+              </RequireAdminPermission>
+            }
+            path="pricing"
+          />
+          <Route
+            element={
+              <RequireAdminPermission action="read_campaigns">
+                <SuperadminCampaignsPage />
+              </RequireAdminPermission>
+            }
+            path="campaigns"
+          />
+          <Route
+            element={
+              <RequireAdminPermission action="manage_support">
+                <AdminSupportPage />
+              </RequireAdminPermission>
+            }
+            path="support"
+          />
+          <Route
+            element={
+              <RequireAdminPermission collectionId="event_reports">
+                <AdminModerationPage />
+              </RequireAdminPermission>
+            }
+            path="moderation"
+          />
+          <Route
+            element={
+              <RequireAdminPermission action="record_sms_opt_out">
+                <SuperadminOptOutPage />
+              </RequireAdminPermission>
+            }
+            path="optout"
+          />
+          <Route
+            element={
+              <RequireAdminPermission collectionId="app_config">
+                <Navigate replace to="/admin/data/app_config" />
+              </RequireAdminPermission>
+            }
+            path="settings"
+          />
+          <Route
+            element={
+              <RequireAdminPermission collectionId="users">
+                <Navigate replace to="/admin/data/users" />
+              </RequireAdminPermission>
+            }
+            path="data"
+          />
+          <Route element={<AdminDataPage />} path="data/:collectionId" />
         </Route>
+        <Route element={<Navigate replace to="/admin/approvals" />} path="/superadmin" />
+        <Route element={<LegacySuperadminRedirect />} path="/superadmin/:section" />
         <Route element={<Navigate replace to="/" />} path="*" />
         </Routes>
       </Suspense>
@@ -169,37 +316,107 @@ function StudioSplash() {
   )
 }
 
+// Both guards share identical logic: require a signed-in session and bounce
+// admins (who aren't studio testers) to the admin console. Kept as two named
+// exports so existing call sites/routes read clearly, but the implementation
+// lives in one place to avoid drift.
 function RequireSignedIn({ children }: { children: ReactElement }) {
   const session = usePortalSession()
   if (!session.user) {
     return <Navigate replace to="/studio" />
   }
-  if (session.isAdmin) {
-    return <Navigate replace to="/superadmin" />
+  if (session.isAdmin && !isStudioTester(session.user.email)) {
+    return <Navigate replace to="/admin/overview" />
   }
   return children
 }
 
-function RequireOrganizer({ children }: { children: ReactElement }) {
-  const session = usePortalSession()
-  if (!session.user) {
-    return <Navigate replace to="/studio" />
-  }
-  if (session.isAdmin) {
-    return <Navigate replace to="/superadmin" />
-  }
-  return children
-}
+const RequireOrganizer = RequireSignedIn
 
-function RequireAdmin({ children }: { children: ReactElement }) {
+function AdminRoutesGate() {
   const session = usePortalSession()
   if (!session.user) {
-    return <Navigate replace to="/studio" />
+    return <LandingPage />
   }
   if (!session.isAdmin) {
-    return <Navigate replace to="/studio/overview" />
+    return <AdminAccessDenied />
   }
+  return <SuperadminLayout />
+}
+
+function RequireAdminPermission({
+  action,
+  children,
+  collectionId,
+}: {
+  action?: AdminAction
+  children: ReactElement
+  collectionId?: AdminCollectionId
+}) {
+  const session = usePortalSession()
+  const actionAllowed = action ? canPerformAdminAction(session.adminRole, action) : true
+  const collectionAllowed = collectionId ? canReadAdminCollection(session.adminRole, collectionId) : true
+
+  if (!actionAllowed || !collectionAllowed) {
+    return <AdminPermissionDenied />
+  }
+
   return children
+}
+
+function AdminAccessDenied() {
+  const session = usePortalSession()
+  return (
+    <main className="landing-page landing-page--admin-denied">
+      <section className="auth-panel auth-panel--centered">
+        <div className="studio-brand">
+          <div className="studio-brand__mark" aria-hidden>
+            <img src="/logo-mark.png" alt="" />
+          </div>
+          <div>
+            <strong>Vennuzo Admin</strong>
+            <span>Platform console</span>
+          </div>
+        </div>
+        <div className="auth-panel__header">
+          <p className="eyebrow">Access restricted</p>
+          <h2>This account is not an admin.</h2>
+        </div>
+        <p className="text-subtle">
+          Sign in with an account listed in the Vennuzo admin directory.
+        </p>
+        <button className="button button--secondary" onClick={() => void session.signOut()} type="button">
+          Sign out
+        </button>
+      </section>
+    </main>
+  )
+}
+
+function AdminPermissionDenied() {
+  return (
+    <div className="page-loader">
+      <p>This admin role cannot use that area.</p>
+      <p className="text-subtle">Choose another work area from the admin sidebar.</p>
+    </div>
+  )
+}
+
+function LegacySuperadminRedirect() {
+  const params = useParams()
+  return <Navigate replace to={`/admin/${params.section ?? 'approvals'}`} />
+}
+
+function isAdminHost() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  const hostname = window.location.hostname.toLowerCase()
+  return hostname === 'admin.vennuzo.com' || hostname.startsWith('admin.') || hostname.includes('vennuzo-admin')
+}
+
+function isStudioTester(email?: string | null) {
+  return email?.trim().toLowerCase() === 'angelonartey@hotmail.com'
 }
 
 function App() {

@@ -12,7 +12,7 @@ export function SettingsPage() {
 
   return (
     <div className="dashboard-stack">
-      <section className="page-hero page-hero--settings">
+      <section className="page-hero page-hero--settings page-hero--admin">
         <div className="page-hero__content">
           <p className="eyebrow">Settings</p>
           <h2>Keep your workspace current.</h2>

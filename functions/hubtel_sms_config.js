@@ -33,5 +33,5 @@ module.exports = {
   clientId: process.env.HUBTEL_SMS_CLIENT_ID || localEnv.HUBTEL_SMS_CLIENT_ID || "",
   clientSecret:
     process.env.HUBTEL_SMS_CLIENT_SECRET || localEnv.HUBTEL_SMS_CLIENT_SECRET || "",
-  senderId: process.env.HUBTEL_SMS_SENDER_ID || localEnv.HUBTEL_SMS_SENDER_ID || "GPlus",
+  senderId: process.env.HUBTEL_SMS_SENDER_ID || localEnv.HUBTEL_SMS_SENDER_ID || "Vennuzo",
 };

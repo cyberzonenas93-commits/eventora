@@ -3,6 +3,14 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const { notifySuperAdmins, notifyUserPush } = require("./event_notifications");
+const {
+  canRolePerform,
+  effectiveAdminRole,
+  getAdminRoleLabel,
+  isAllowedSuperAdminEmail,
+  isKnownAdminRole,
+  normalizeAdminRole,
+} = require("./admin_permissions");
 
 try {
   admin.app();
@@ -14,7 +22,6 @@ const db = admin.firestore();
 const { FieldValue } = admin.firestore;
 
 const REGION = "us-central1";
-
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
   return normalized || fallback;
@@ -28,25 +35,48 @@ function slugify(value) {
     .replace(/^-|-$/g, "");
 }
 
-async function assertSuperAdmin(uid) {
+async function resolveAdminEmail(uid, adminData) {
+  const docEmail = safeString(adminData && adminData.email).toLowerCase();
+  if (docEmail) {
+    return docEmail;
+  }
+  try {
+    const authUser = await admin.auth().getUser(uid);
+    return safeString(authUser.email).toLowerCase();
+  } catch (error) {
+    return "";
+  }
+}
+
+async function assertAdminCan(uid, action, message = "Admin access required.") {
   const adminSnap = await db.collection("admins").doc(uid).get();
   if (!adminSnap.exists) {
-    throw new HttpsError(
-      "permission-denied",
-      "Only superadmins can review organizer applications.",
-    );
+    throw new HttpsError("permission-denied", message);
   }
 
   const adminData = adminSnap.data() || {};
-  const role = safeString(adminData.role).toLowerCase();
-  if (role !== "superadmin") {
+  const role = normalizeAdminRole(adminData.role);
+  const status = safeString(adminData.status, "active").toLowerCase();
+  const email = await resolveAdminEmail(uid, adminData);
+  if (!isKnownAdminRole(role) || status === "disabled") {
+    throw new HttpsError("permission-denied", message);
+  }
+  if (effectiveAdminRole(role) === "superadmin" && !isAllowedSuperAdminEmail(email)) {
     throw new HttpsError(
       "permission-denied",
-      "Only superadmins can review organizer applications.",
+      "This superadmin console is restricted to approved Vennuzo owner credentials.",
     );
   }
+  if (!canRolePerform(role, action)) {
+    throw new HttpsError("permission-denied", message);
+  }
 
-  return adminData;
+  return {
+    ...adminData,
+    email,
+    role,
+    roleLabel: getAdminRoleLabel(role),
+  };
 }
 
 exports.reviewOrganizerApplication = onCall(
@@ -60,7 +90,11 @@ exports.reviewOrganizerApplication = onCall(
       );
     }
 
-    await assertSuperAdmin(callerUid);
+    await assertAdminCan(
+      callerUid,
+      "review_organizers",
+      "This admin role cannot review organizer applications.",
+    );
 
     const applicationId = safeString(request.data && request.data.applicationId);
     const decision = safeString(request.data && request.data.decision).toLowerCase();
@@ -276,18 +310,22 @@ exports.createAdminAccount = onCall(
       );
     }
 
-    const callerAdmin = await assertSuperAdmin(callerUid);
+    const callerAdmin = await assertAdminCan(
+      callerUid,
+      "manage_staff",
+      "Only the owner can create admin accounts.",
+    );
     const displayName = safeString(request.data && request.data.displayName);
     const email = safeString(request.data && request.data.email).toLowerCase();
     const password = safeString(request.data && request.data.password);
     const phone = safeString(request.data && request.data.phone);
-    const requestedRole = safeString(
-      request.data && request.data.role,
-      "admin",
-    ).toLowerCase();
-    const role = ["admin", "superadmin"].includes(requestedRole)
-      ? requestedRole
-      : "admin";
+    const requestedRole = normalizeAdminRole(
+      safeString(request.data && request.data.role, "operations_manager"),
+    );
+    const role =
+      requestedRole && requestedRole !== "admin" && isKnownAdminRole(requestedRole)
+        ? requestedRole
+        : "operations_manager";
 
     if (displayName.length < 2) {
       throw new HttpsError(
@@ -307,6 +345,12 @@ exports.createAdminAccount = onCall(
       throw new HttpsError(
         "invalid-argument",
         "Temporary password must be at least 8 characters.",
+      );
+    }
+    if (role === "superadmin" && !isAllowedSuperAdminEmail(email)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Superadmin access is restricted to approved Vennuzo owner credentials.",
       );
     }
 
@@ -361,7 +405,7 @@ exports.createAdminAccount = onCall(
       callerAdmin.displayName,
       safeString(callerAdmin.email, callerUid),
     );
-    const roles = role === "superadmin" ? ["admin", "superadmin"] : ["admin"];
+    const roles = Array.from(new Set(["admin", role].concat(role === "superadmin" ? ["superadmin"] : [])));
 
     await db.runTransaction(async (transaction) => {
       const userSnap = await transaction.get(userRef);
@@ -409,7 +453,7 @@ exports.createAdminAccount = onCall(
 
     await notifySuperAdmins({
       title: "Admin account created",
-      body: `${email} was granted ${role} by ${actorName}.`,
+      body: `${email} was granted ${getAdminRoleLabel(role)} by ${actorName}.`,
       route: "/admin/settings",
       kind: "superadmin_admin_created",
       excludeUids: [callerUid, targetUser.uid],

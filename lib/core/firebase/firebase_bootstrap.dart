@@ -23,9 +23,19 @@ class FirebaseBootstrap {
       return true;
     }
 
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    return true;
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      return true;
+    } on FirebaseException catch (error) {
+      if (error.code == 'duplicate-app') {
+        return true;
+      }
+      debugPrint(
+        'Vennuzo Firebase initialization failed: ${error.code} ${error.message ?? ''}',
+      );
+      return false;
+    }
   }
 }

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/models/account_models.dart';
+import '../../domain/models/creative_service_models.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/ticket_models.dart';
 
@@ -33,6 +34,43 @@ class VennuzoPaymentService {
   static FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: 'us-central1');
 
+  static Future<WalletBalance> getWalletBalance({
+    required String organizationId,
+  }) async {
+    final result = await _functions.httpsCallable('getWalletBalance').call(
+      <String, Object?>{'organizationId': organizationId},
+    );
+    return WalletBalance.fromMap(
+      Map<dynamic, dynamic>.from(result.data as Map),
+    );
+  }
+
+  static Future<String> startWalletTopUp({
+    required String organizationId,
+    required double amount,
+    required String payeeName,
+    required String payeeMobileNumber,
+    String? payeeEmail,
+  }) async {
+    final result = await _functions
+        .httpsCallable('initiateWalletTopUp')
+        .call(<String, Object?>{
+          'organizationId': organizationId,
+          'amount': amount,
+          'payeeName': payeeName,
+          'payeeMobileNumber': payeeMobileNumber,
+          if (payeeEmail != null && payeeEmail.trim().isNotEmpty)
+            'payeeEmail': payeeEmail.trim(),
+        });
+    final data = Map<dynamic, dynamic>.from(result.data as Map);
+    final checkoutUrl = '${data['checkoutUrl'] ?? ''}'.trim();
+    if (checkoutUrl.isEmpty) {
+      throw const VennuzoPaymentException('Wallet checkout link unavailable.');
+    }
+    await _launchCheckoutUrl(checkoutUrl);
+    return checkoutUrl;
+  }
+
   static Future<VennuzoCheckoutSession> startPaidCheckout({
     required EventModel event,
     required Map<String, int> selections,
@@ -42,6 +80,7 @@ class VennuzoPaymentService {
     String? buyerNameOverride,
     String? buyerPhoneOverride,
     String? buyerEmailOverride,
+    String? discountCode,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -51,13 +90,32 @@ class VennuzoPaymentService {
     }
 
     final selectedTiers = _buildSelections(event, selections);
-    final totalAmount = selectedTiers.fold<double>(
+    final grossAmount = selectedTiers.fold<double>(
       0,
       (runningTotal, selection) => runningTotal + selection.subtotal,
     );
-    if (selectedTiers.isEmpty || totalAmount <= 0) {
+    if (selectedTiers.isEmpty || grossAmount <= 0) {
       throw const VennuzoPaymentException(
         'Select at least one paid ticket tier.',
+      );
+    }
+    final voucher = event.ticketing.voucherByCode(discountCode);
+    final discountAmount = voucher?.discountFor(grossAmount) ?? 0;
+    final totalAmount = (grossAmount - discountAmount)
+        .clamp(0, grossAmount)
+        .toDouble();
+    final discount = voucher != null && discountAmount > 0
+        ? TicketDiscount(
+            code: voucher.normalizedCode,
+            label: voucher.label,
+            amount: discountAmount,
+            type: voucher.type.name,
+            value: voucher.value,
+          )
+        : null;
+    if (totalAmount <= 0) {
+      throw const VennuzoPaymentException(
+        'This discount covers the whole order. Use the reservation flow instead.',
       );
     }
 
@@ -82,6 +140,8 @@ class VennuzoPaymentService {
       phone: buyerPhone,
     );
 
+    var orderCreated = false;
+
     await orderRef.set(<String, Object?>{
       'eventId': event.id,
       'occurrenceId': '${event.id}_primary',
@@ -101,7 +161,19 @@ class VennuzoPaymentService {
             },
           )
           .toList(),
+      'grossAmount': grossAmount,
       'totalAmount': totalAmount,
+      'discountCode': discount?.code,
+      'discountAmount': discountAmount,
+      'discount': discount == null
+          ? null
+          : <String, Object?>{
+              'code': discount.code,
+              'label': discount.label,
+              'amount': discount.amount,
+              'type': discount.type,
+              'value': discount.value,
+            },
       'currency': event.ticketing.currency,
       'status': 'pending',
       'paymentStatus': 'initiated',
@@ -110,19 +182,28 @@ class VennuzoPaymentService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    orderCreated = true;
 
-    final callable = _functions.httpsCallable(
-      'createEventTicketPaymentForOrder',
-    );
-    final result = await callable.call(<String, Object?>{
-      'orderId': orderRef.id,
-    });
-    final data = Map<String, dynamic>.from(result.data as Map);
-    final checkoutUrl = (data['checkoutUrl'] as String? ?? '').trim();
-    if (checkoutUrl.isEmpty) {
-      throw const VennuzoPaymentException(
-        'Hubtel did not return a checkout link.',
+    late final String checkoutUrl;
+    try {
+      final callable = _functions.httpsCallable(
+        'createEventTicketPaymentForOrder',
       );
+      final result = await callable.call(<String, Object?>{
+        'orderId': orderRef.id,
+      });
+      final data = Map<String, dynamic>.from(result.data as Map);
+      checkoutUrl = (data['checkoutUrl'] as String? ?? '').trim();
+      if (checkoutUrl.isEmpty) {
+        throw const VennuzoPaymentException(
+          'Hubtel did not return a checkout link.',
+        );
+      }
+    } catch (error) {
+      if (orderCreated) {
+        await _markPaymentAttemptFailed(orderRef, error);
+      }
+      rethrow;
     }
 
     final launched = await _launchCheckoutUrl(checkoutUrl);
@@ -136,6 +217,7 @@ class VennuzoPaymentService {
       buyerEmail: buyerEmail,
       selectedTiers: selectedTiers,
       totalAmount: totalAmount,
+      discount: discount,
       status: TicketOrderStatus.pending,
       paymentStatus: TicketPaymentStatus.pending,
       source: 'app',
@@ -221,6 +303,7 @@ class VennuzoPaymentService {
       buyerEmail: (data['buyerEmail'] as String? ?? '').trim(),
       selectedTiers: selectedTiers,
       totalAmount: (data['totalAmount'] as num?)?.toDouble() ?? 0,
+      discount: _parseDiscount(data),
       status: status,
       paymentStatus: paymentStatus,
       source: (data['source'] as String? ?? 'app').trim(),
@@ -266,6 +349,31 @@ class VennuzoPaymentService {
     }, SetOptions(merge: true));
   }
 
+  static Future<void> _markPaymentAttemptFailed(
+    DocumentReference<Map<String, dynamic>> orderRef,
+    Object error,
+  ) async {
+    try {
+      await orderRef.set(<String, Object?>{
+        'paymentStatus': 'failed',
+        'paymentError': _paymentErrorMessage(error),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Preserve the original checkout error if recording cleanup fails.
+    }
+  }
+
+  static String _paymentErrorMessage(Object error) {
+    if (error is FirebaseFunctionsException) {
+      return error.message ?? error.code;
+    }
+    if (error is VennuzoPaymentException) {
+      return error.message;
+    }
+    return error.toString();
+  }
+
   static Map<String, Object?> _eventSnapshot(EventModel event) {
     return <String, Object?>{
       'id': event.id,
@@ -295,6 +403,22 @@ class VennuzoPaymentService {
                 'maxQuantity': tier.maxQuantity,
                 'sold': tier.sold,
                 'description': tier.description,
+              },
+            )
+            .toList(),
+        'discountVouchers': event.ticketing.discountVouchers
+            .map(
+              (voucher) => <String, Object?>{
+                'code': voucher.normalizedCode,
+                'type': voucher.type.name,
+                'value': voucher.value,
+                'maxRedemptions': voucher.maxRedemptions,
+                'redeemedCount': voucher.redeemedCount,
+                'active': voucher.active,
+                'expiresAt': voucher.expiresAt == null
+                    ? null
+                    : Timestamp.fromDate(voucher.expiresAt!),
+                'note': voucher.note,
               },
             )
             .toList(),
@@ -342,6 +466,37 @@ class VennuzoPaymentService {
       );
     }
     return selections.where((selection) => selection.quantity > 0).toList();
+  }
+
+  static TicketDiscount? _parseDiscount(Map<String, dynamic> data) {
+    final rawDiscount = data['discount'];
+    if (rawDiscount is Map) {
+      final discount = Map<String, dynamic>.from(rawDiscount);
+      final amount = (discount['amount'] as num?)?.toDouble() ?? 0;
+      final code = '${discount['code'] ?? ''}'.trim();
+      if (code.isNotEmpty && amount > 0) {
+        return TicketDiscount(
+          code: code,
+          label: '${discount['label'] ?? code}'.trim(),
+          amount: amount,
+          type: '${discount['type'] ?? 'voucher'}'.trim(),
+          value: (discount['value'] as num?)?.toDouble() ?? amount,
+        );
+      }
+    }
+
+    final amount = (data['discountAmount'] as num?)?.toDouble() ?? 0;
+    final code = '${data['discountCode'] ?? ''}'.trim();
+    if (code.isEmpty || amount <= 0) {
+      return null;
+    }
+    return TicketDiscount(
+      code: code,
+      label: code,
+      amount: amount,
+      type: 'voucher',
+      value: amount,
+    );
   }
 
   static List<EventTicket> _parseTickets({

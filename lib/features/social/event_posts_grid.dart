@@ -1,8 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import 'social_models.dart';
+import 'social_post_image.dart';
 import 'social_service.dart';
 
 class EventPostsGrid extends StatelessWidget {
@@ -94,20 +95,7 @@ class _PostThumbnail extends StatelessWidget {
         child: const Icon(Icons.image_outlined, color: Colors.white54),
       );
     }
-    return CachedNetworkImage(
-      imageUrl: photoUrl,
-      fit: BoxFit.cover,
-      placeholder: (_, __) => Container(
-        color: const Color(0xFF1F2937),
-        child: const Center(
-          child: CircularProgressIndicator(strokeWidth: 1.5),
-        ),
-      ),
-      errorWidget: (_, __, ___) => Container(
-        color: const Color(0xFF1F2937),
-        child: const Icon(Icons.broken_image_outlined, color: Colors.white38),
-      ),
-    );
+    return SocialPostImage(imageUrl: photoUrl, fit: BoxFit.cover);
   }
 }
 
@@ -171,10 +159,7 @@ class _FullScreenPostViewerState extends State<_FullScreenPostViewer> {
 }
 
 class _FullScreenPostCard extends StatelessWidget {
-  const _FullScreenPostCard({
-    required this.post,
-    required this.socialService,
-  });
+  const _FullScreenPostCard({required this.post, required this.socialService});
 
   final EventPost post;
   final SocialService socialService;
@@ -188,18 +173,7 @@ class _FullScreenPostCard extends StatelessWidget {
       children: [
         // Photo
         if (photoUrl != null && photoUrl.isNotEmpty)
-          CachedNetworkImage(
-            imageUrl: photoUrl,
-            fit: BoxFit.contain,
-            placeholder: (_, __) => const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            ),
-            errorWidget: (_, __, ___) => const Icon(
-              Icons.broken_image_outlined,
-              color: Colors.white38,
-              size: 64,
-            ),
-          )
+          SocialPostImage(imageUrl: photoUrl, fit: BoxFit.contain)
         else
           const Icon(Icons.image_outlined, color: Colors.white38, size: 64),
         // Glass overlay at bottom
@@ -226,7 +200,7 @@ class _FullScreenPostCard extends StatelessWidget {
                       radius: 16,
                       backgroundColor: Colors.white24,
                       foregroundImage: post.userPhotoUrl != null
-                          ? NetworkImage(post.userPhotoUrl!)
+                          ? CachedNetworkImageProvider(post.userPhotoUrl!)
                           : null,
                       child: post.userPhotoUrl == null
                           ? const Icon(
@@ -267,7 +241,10 @@ class _FullScreenPostCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 16),
                     const Icon(
-                        Icons.comment_outlined, color: Colors.white70, size: 18),
+                      Icons.comment_outlined,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${post.commentCount}',

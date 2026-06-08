@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/visuals/vennuzo_visuals.dart';
 import '../account/account_screen.dart';
 import '../events/event_editor_screen.dart';
 import '../promotions/campaign_composer_sheet.dart';
@@ -260,7 +261,13 @@ class _AdminBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Container(color: const Color(0xFF081319)),
+        Image.asset(
+          VennuzoVisuals.adminConsole,
+          fit: BoxFit.cover,
+          cacheWidth: 1400,
+          opacity: const AlwaysStoppedAnimation(0.2),
+        ),
+        Container(color: const Color(0xE6081319)),
         Positioned(
           top: -90,
           right: -40,

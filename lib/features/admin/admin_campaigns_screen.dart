@@ -62,7 +62,7 @@ class AdminCampaignsScreen extends StatelessWidget {
         SectionHeading(
           title: 'SMS and push routing',
           subtitle:
-              'Plan broadcast messaging around approved events, with clean controls for push, SMS, and premium placement.',
+              'Plan broadcast messaging around approved events and places, with clean controls for push, SMS, and premium placement.',
         ),
         const SizedBox(height: 14),
         ...events.map(
@@ -75,7 +75,7 @@ class AdminCampaignsScreen extends StatelessWidget {
         SectionHeading(
           title: 'Campaign history',
           subtitle:
-              'Every push, SMS, share-link, or featured placement stays tied to an event for auditing and reporting.',
+              'Every push, SMS, share-link, or featured placement stays tied to an event or place for auditing and reporting.',
           actionLabel: 'Launch',
           onAction: () => _launchCampaign(context),
         ),
@@ -120,7 +120,11 @@ class _CampaignsHero extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
-          colors: [context.palette.teal, context.palette.ink],
+          colors: [
+            context.palette.darkSurfaceMid,
+            context.palette.darkSurface,
+            context.palette.coral,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -222,7 +226,10 @@ class _CampaignCard extends StatelessWidget {
                         style: context.text.titleLarge?.copyWith(fontSize: 20),
                       ),
                       const SizedBox(height: 6),
-                      Text(campaign.eventTitle, style: context.text.bodyMedium),
+                      Text(
+                        campaign.targetLabel,
+                        style: context.text.bodyMedium,
+                      ),
                     ],
                   ),
                 ),
@@ -279,7 +286,11 @@ class _CampaignPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = color ?? context.palette.canvas;
-    final foreground = color == null ? context.palette.ink : Colors.white;
+    final foreground = color == null
+        ? context.palette.ink
+        : accent.computeLuminance() > 0.5
+        ? const Color(0xFF09111F)
+        : Colors.white;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),

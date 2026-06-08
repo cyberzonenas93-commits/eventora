@@ -1,16 +1,19 @@
 import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import 'saved_events_screen.dart';
 import 'social_models.dart';
+import 'social_post_image.dart';
 import 'social_service.dart';
 
 class SocialFeedScreen extends StatefulWidget {
@@ -23,7 +26,9 @@ class SocialFeedScreen extends StatefulWidget {
 class _SocialFeedScreenState extends State<SocialFeedScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  final _socialService = SocialService();
+  SocialService? _socialService;
+
+  SocialService get _service => _socialService ??= SocialService();
 
   @override
   void initState() {
@@ -41,42 +46,57 @@ class _SocialFeedScreenState extends State<SocialFeedScreen>
   Widget build(BuildContext context) {
     final session = context.watch<VennuzoSessionController>();
     final palette = context.palette;
+    final socialService = session.firebaseEnabled ? _service : null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Social'),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: palette.teal,
-          unselectedLabelColor: palette.slate,
-          indicatorColor: palette.teal,
-          tabs: const [
-            Tab(text: 'Feed'),
-            Tab(text: 'Explore'),
-            Tab(text: 'Saved'),
-          ],
-        ),
+      body: Column(
+        children: [
+          Material(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: palette.teal,
+              unselectedLabelColor: palette.slate,
+              indicatorColor: palette.teal,
+              tabs: const [
+                Tab(child: _AccessibleTabLabel(label: 'Feed')),
+                Tab(child: _AccessibleTabLabel(label: 'Explore')),
+                Tab(child: _AccessibleTabLabel(label: 'Saved')),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: socialService == null
+                  ? const [
+                      _OfflineSocialTab(),
+                      _OfflineSocialTab(),
+                      _OfflineSocialTab(),
+                    ]
+                  : [
+                      _FeedTab(socialService: socialService),
+                      _ExploreTab(socialService: socialService),
+                      SavedEventsScreen(userId: session.viewer.uid ?? ''),
+                    ],
+            ),
+          ),
+        ],
       ),
-      floatingActionButton: session.isGuest
+      floatingActionButton: session.isGuest || socialService == null
           ? null
           : FloatingActionButton(
               onPressed: () => _openNewPostFlow(context, session),
               tooltip: 'New Post',
               child: const Icon(Icons.add_a_photo_outlined),
             ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _FeedTab(socialService: _socialService),
-          _ExploreTab(socialService: _socialService),
-          SavedEventsScreen(userId: session.viewer.uid ?? ''),
-        ],
-      ),
     );
   }
 
   Future<void> _openNewPostFlow(
-      BuildContext context, VennuzoSessionController session) async {
+    BuildContext context,
+    VennuzoSessionController session,
+  ) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked == null || !context.mounted) return;
@@ -88,8 +108,43 @@ class _SocialFeedScreenState extends State<SocialFeedScreen>
       builder: (_) => _NewPostSheet(
         imageFile: imageFile,
         session: session,
-        socialService: _socialService,
+        socialService: _service,
       ),
+    );
+  }
+}
+
+class _OfflineSocialTab extends StatelessWidget {
+  const _OfflineSocialTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Social features are unavailable in offline preview mode.',
+          textAlign: TextAlign.center,
+          style: context.text.bodyMedium?.copyWith(
+            color: context.palette.slate,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccessibleTabLabel extends StatelessWidget {
+  const _AccessibleTabLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$label tab',
+      child: ExcludeSemantics(child: Text(label)),
     );
   }
 }
@@ -122,16 +177,14 @@ class _FeedTab extends StatelessWidget {
                     color: context.palette.slate.withValues(alpha: 0.5),
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'Nothing here yet',
-                    style: context.text.titleMedium,
-                  ),
+                  Text('Nothing here yet', style: context.text.titleMedium),
                   const SizedBox(height: 8),
                   Text(
                     'Posts from events you follow will appear here.',
                     textAlign: TextAlign.center,
-                    style: context.text.bodyMedium
-                        ?.copyWith(color: context.palette.slate),
+                    style: context.text.bodyMedium?.copyWith(
+                      color: context.palette.slate,
+                    ),
                   ),
                 ],
               ),
@@ -172,8 +225,9 @@ class _ExploreTab extends StatelessWidget {
           return Center(
             child: Text(
               'No posts to explore yet.',
-              style: context.text.bodyMedium
-                  ?.copyWith(color: context.palette.slate),
+              style: context.text.bodyMedium?.copyWith(
+                color: context.palette.slate,
+              ),
             ),
           );
         }
@@ -188,33 +242,28 @@ class _ExploreTab extends StatelessWidget {
           itemBuilder: (context, index) {
             final post = posts[index];
             final photoUrl = post.photoUrl;
-            return GestureDetector(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _SinglePostScreen(
-                    post: post,
-                    socialService: socialService,
+            return Semantics(
+              button: true,
+              label: 'Open post by ${post.displayName}',
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _SinglePostScreen(
+                      post: post,
+                      socialService: socialService,
+                    ),
                   ),
                 ),
+                child: photoUrl != null && photoUrl.isNotEmpty
+                    ? SocialPostImage(imageUrl: photoUrl)
+                    : Container(
+                        color: const Color(0xFF1F2937),
+                        child: const Icon(
+                          Icons.image_outlined,
+                          color: Colors.white38,
+                        ),
+                      ),
               ),
-              child: photoUrl != null && photoUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: photoUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(
-                        color: const Color(0xFF1F2937),
-                      ),
-                      errorWidget: (_, __, ___) => Container(
-                        color: const Color(0xFF1F2937),
-                        child: const Icon(Icons.broken_image_outlined,
-                            color: Colors.white38),
-                      ),
-                    )
-                  : Container(
-                      color: const Color(0xFF1F2937),
-                      child: const Icon(Icons.image_outlined,
-                          color: Colors.white38),
-                    ),
             );
           },
         );
@@ -225,19 +274,25 @@ class _ExploreTab extends StatelessWidget {
 
 // ─── Feed Post Card ───────────────────────────────────────────────────────────
 
-class _FeedPostCard extends StatelessWidget {
-  const _FeedPostCard({
-    required this.post,
-    required this.socialService,
-  });
+class _FeedPostCard extends StatefulWidget {
+  const _FeedPostCard({required this.post, required this.socialService});
 
   final EventPost post;
   final SocialService socialService;
 
   @override
+  State<_FeedPostCard> createState() => _FeedPostCardState();
+}
+
+class _FeedPostCardState extends State<_FeedPostCard> {
+  bool _shareCopied = false;
+
+  @override
   Widget build(BuildContext context) {
     final session = context.watch<VennuzoSessionController>();
     final repository = context.watch<VennuzoRepository>();
+    final post = widget.post;
+    final socialService = widget.socialService;
     final event = repository.eventById(post.eventId);
     final photoUrl = post.photoUrl;
     final dateStr = DateFormat('MMM d').format(post.timestamp);
@@ -257,10 +312,14 @@ class _FeedPostCard extends StatelessWidget {
                   radius: 18,
                   backgroundColor: Colors.white24,
                   foregroundImage: post.userPhotoUrl != null
-                      ? NetworkImage(post.userPhotoUrl!)
+                      ? CachedNetworkImageProvider(post.userPhotoUrl!)
                       : null,
                   child: post.userPhotoUrl == null
-                      ? const Icon(Icons.person, color: Colors.white70, size: 18)
+                      ? const Icon(
+                          Icons.person,
+                          color: Colors.white70,
+                          size: 18,
+                        )
                       : null,
                 ),
                 const SizedBox(width: 10),
@@ -280,7 +339,9 @@ class _FeedPostCard extends StatelessWidget {
                         Container(
                           margin: const EdgeInsets.only(top: 3),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: context.palette.teal.withValues(alpha: 0.3),
                             borderRadius: BorderRadius.circular(999),
@@ -308,23 +369,11 @@ class _FeedPostCard extends StatelessWidget {
           ),
           // Photo
           if (photoUrl != null && photoUrl.isNotEmpty)
-            CachedNetworkImage(
+            SocialPostImage(
               imageUrl: photoUrl,
               width: double.infinity,
+              height: 300,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
-                height: 300,
-                color: const Color(0xFF1F2937),
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              ),
-              errorWidget: (_, __, ___) => Container(
-                height: 200,
-                color: const Color(0xFF1F2937),
-                child: const Icon(Icons.broken_image_outlined,
-                    color: Colors.white38, size: 48),
-              ),
             ),
           // Caption
           if (post.caption.isNotEmpty)
@@ -347,23 +396,50 @@ class _FeedPostCard extends StatelessWidget {
                   socialService: socialService,
                 ),
                 const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => _SinglePostScreen(
-                        post: post,
-                        socialService: socialService,
+                Semantics(
+                  button: true,
+                  label: 'View comments, ${post.commentCount}',
+                  child: ExcludeSemantics(
+                    child: TextButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _SinglePostScreen(
+                            post: post,
+                            socialService: socialService,
+                          ),
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                      ),
+                      icon: const Icon(Icons.comment_outlined, size: 20),
+                      label: Text('${post.commentCount}'),
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (_shareCopied)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Text(
+                      'Copied',
+                      style: TextStyle(
+                        color: context.palette.teal,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  style: TextButton.styleFrom(foregroundColor: Colors.white70),
-                  icon: const Icon(Icons.comment_outlined, size: 20),
-                  label: Text('${post.commentCount}'),
-                ),
-                const Spacer(),
                 IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.share_outlined, color: Colors.white70),
+                  tooltip: _shareCopied ? 'Post copied' : 'Share post',
+                  onPressed: () =>
+                      _sharePost(context, eventTitle: event?.title),
+                  icon: Icon(
+                    _shareCopied
+                        ? Icons.check_circle_outline
+                        : Icons.share_outlined,
+                    color: _shareCopied ? context.palette.teal : Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -371,6 +447,36 @@ class _FeedPostCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _sharePost(BuildContext context, {String? eventTitle}) async {
+    final post = widget.post;
+    final caption = post.caption.trim();
+    final message = [
+      if (eventTitle != null && eventTitle.isNotEmpty)
+        'Post from $eventTitle on Vennuzo',
+      if (caption.isNotEmpty) caption,
+      if ((post.photoUrl ?? '').isNotEmpty) post.photoUrl!,
+    ].join('\n\n');
+    final fallback = message.isEmpty ? 'Post from Vennuzo' : message;
+
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: fallback));
+    if (mounted) setState(() => _shareCopied = true);
+    messenger.showSnackBar(const SnackBar(content: Text('Post text copied.')));
+
+    try {
+      await SharePlus.instance.share(
+        ShareParams(text: fallback, subject: eventTitle ?? 'Vennuzo post'),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Post text copied. Sharing is unavailable right now.'),
+        ),
+      );
+    }
   }
 }
 
@@ -392,34 +498,48 @@ class _LikeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (userId.isEmpty) {
-      return TextButton.icon(
-        onPressed: null,
-        style: TextButton.styleFrom(foregroundColor: Colors.white70),
-        icon: const Icon(Icons.favorite_outline, size: 20),
-        label: Text('$likeCount'),
+      return Semantics(
+        button: true,
+        enabled: false,
+        label: 'Sign in to like post, $likeCount likes',
+        child: ExcludeSemantics(
+          child: TextButton.icon(
+            onPressed: null,
+            style: TextButton.styleFrom(foregroundColor: Colors.white70),
+            icon: const Icon(Icons.favorite_outline, size: 20),
+            label: Text('$likeCount'),
+          ),
+        ),
       );
     }
     return StreamBuilder<bool>(
       stream: socialService.hasUserLikedPost(postId, userId),
       builder: (context, snapshot) {
         final liked = snapshot.data ?? false;
-        return TextButton.icon(
-          onPressed: () {
-            if (liked) {
-              socialService.unlikePost(postId, userId);
-            } else {
-              socialService.likePost(postId, userId);
-            }
-          },
-          style: TextButton.styleFrom(
-            foregroundColor:
-                liked ? context.palette.coral : Colors.white70,
+        return Semantics(
+          button: true,
+          label: liked
+              ? 'Unlike post, $likeCount likes'
+              : 'Like post, $likeCount likes',
+          child: ExcludeSemantics(
+            child: TextButton.icon(
+              onPressed: () {
+                if (liked) {
+                  socialService.unlikePost(postId, userId);
+                } else {
+                  socialService.likePost(postId, userId);
+                }
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: liked ? context.palette.coral : Colors.white70,
+              ),
+              icon: Icon(
+                liked ? Icons.favorite : Icons.favorite_outline,
+                size: 20,
+              ),
+              label: Text('$likeCount'),
+            ),
           ),
-          icon: Icon(
-            liked ? Icons.favorite : Icons.favorite_outline,
-            size: 20,
-          ),
-          label: Text('$likeCount'),
         );
       },
     );
@@ -429,10 +549,7 @@ class _LikeButton extends StatelessWidget {
 // ─── Single Post Screen ───────────────────────────────────────────────────────
 
 class _SinglePostScreen extends StatefulWidget {
-  const _SinglePostScreen({
-    required this.post,
-    required this.socialService,
-  });
+  const _SinglePostScreen({required this.post, required this.socialService});
 
   final EventPost post;
   final SocialService socialService;
@@ -493,18 +610,11 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
             child: ListView(
               children: [
                 if (photoUrl != null && photoUrl.isNotEmpty)
-                  CachedNetworkImage(
+                  SocialPostImage(
                     imageUrl: photoUrl,
                     width: double.infinity,
+                    height: 300,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
-                      height: 300,
-                      color: const Color(0xFF1F2937),
-                    ),
-                    errorWidget: (_, __, ___) => Container(
-                      height: 200,
-                      color: const Color(0xFF1F2937),
-                    ),
                   ),
                 if (widget.post.caption.isNotEmpty)
                   Padding(
@@ -516,8 +626,7 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
                   ),
                 const Divider(color: Colors.white12),
                 StreamBuilder<List<PostComment>>(
-                  stream: widget.socialService
-                      .getComments(widget.post.postId),
+                  stream: widget.socialService.getComments(widget.post.postId),
                   builder: (context, snapshot) {
                     final comments = snapshot.data ?? [];
                     return Column(
@@ -526,11 +635,14 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
                           leading: CircleAvatar(
                             radius: 14,
                             foregroundImage: c.photoUrl != null
-                                ? NetworkImage(c.photoUrl!)
+                                ? CachedNetworkImageProvider(c.photoUrl!)
                                 : null,
                             child: c.photoUrl == null
-                                ? const Icon(Icons.person,
-                                    size: 14, color: Colors.white)
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 14,
+                                    color: Colors.white,
+                                  )
                                 : null,
                           ),
                           title: Text(
@@ -544,7 +656,9 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
                           subtitle: Text(
                             c.text,
                             style: const TextStyle(
-                                color: Colors.white70, fontSize: 13),
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
                           ),
                         );
                       }).toList(),
@@ -579,16 +693,14 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
+                    tooltip: 'Send comment',
                     onPressed: _submitting
                         ? null
                         : () => _submitComment(
-                              session.viewer.uid ?? '',
-                              session.viewer.displayName,
-                            ),
-                    icon: Icon(
-                      Icons.send,
-                      color: context.palette.teal,
-                    ),
+                            session.viewer.uid ?? '',
+                            session.viewer.displayName,
+                          ),
+                    icon: Icon(Icons.send, color: context.palette.teal),
                   ),
                 ],
               ),
@@ -618,6 +730,7 @@ class _NewPostSheet extends StatefulWidget {
 
 class _NewPostSheetState extends State<_NewPostSheet> {
   final _captionController = TextEditingController();
+  String? _selectedEventId;
   bool _submitting = false;
 
   @override
@@ -630,10 +743,9 @@ class _NewPostSheetState extends State<_NewPostSheet> {
     setState(() => _submitting = true);
     try {
       final repository = context.read<VennuzoRepository>();
-      // Pick first available event as default (or empty)
       final events = repository.discoverableEvents;
       final eventId =
-          events.isNotEmpty ? events.first.id : 'unknown';
+          _selectedEventId ?? (events.isNotEmpty ? events.first.id : 'unknown');
 
       final post = EventPost(
         postId: widget.socialService.generateId('post'),
@@ -649,9 +761,9 @@ class _NewPostSheetState extends State<_NewPostSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to post: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to post: $e')));
       }
     }
   }
@@ -659,61 +771,115 @@ class _NewPostSheetState extends State<_NewPostSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final repository = context.watch<VennuzoRepository>();
+    final events = repository.discoverableEvents;
+    final selectedEventId =
+        _selectedEventId ?? (events.isNotEmpty ? events.first.id : null);
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: context.palette.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
+    return SafeArea(
+      top: false,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.only(bottom: bottom),
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.82,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: context.palette.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('New Post', style: context.text.titleMedium),
+                    ),
+                    IconButton.filledTonal(
+                      tooltip: 'Close new post composer',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            widget.imageFile,
+                            height: 220,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: selectedEventId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Event'),
+                          items: [
+                            for (final event in events)
+                              DropdownMenuItem<String>(
+                                value: event.id,
+                                child: Text(
+                                  event.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _selectedEventId = value),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _captionController,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            hintText: 'Write a caption…',
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _submitting ? null : _post,
+                    icon: _submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.send_outlined),
+                    label: Text(_submitting ? 'Publishing...' : 'Share Post'),
+                  ),
+                ),
+              ],
             ),
           ),
-          Text('New Post', style: context.text.titleMedium),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.file(
-              widget.imageFile,
-              height: 200,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _captionController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Write a caption…',
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _submitting ? null : _post,
-              child: _submitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Share Post'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

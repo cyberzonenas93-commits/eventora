@@ -22,6 +22,7 @@ import {
 
 import { auth } from '../firebaseAuth'
 import { db } from '../firebaseDb'
+import { isKnownAdminRole, isOwnerAdminRole, normalizeAdminRole } from './adminRoles'
 import { createEmptyApplication } from './organizerApplication'
 import type {
   OrganizerApplication,
@@ -100,7 +101,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
                 email: String(data.email ?? nextUser.email ?? ''),
                 phone: String(data.phone ?? ''),
                 roles: Array.isArray(data.roles) ? data.roles.map(String) : ['organizer'],
-                adminRole: adminRole.trim(),
+                adminRole: '',
                 defaultOrganizationId: String(
                   data.defaultOrganizationId ?? `org_${nextUser.uid}`,
                 ),
@@ -110,6 +111,12 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
               }
             : null,
         )
+        profileReady = true
+        finishLoading()
+      }, (error) => {
+        // Still flip the latch on error so loading completes instead of
+        // hanging on the splash screen forever.
+        console.error('portalSession: profile snapshot failed', error)
         profileReady = true
         finishLoading()
       })
@@ -130,11 +137,22 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
           applicationReady = true
           finishLoading()
         },
+        (error) => {
+          // Still flip the latch on error so loading completes.
+          console.error('portalSession: application snapshot failed', error)
+          applicationReady = true
+          finishLoading()
+        },
       )
 
       stopAdmin = onSnapshot(doc(db, 'admins', nextUser.uid), (snapshot) => {
         const data = snapshot.data()
         setAdminRole(String(data?.role ?? ''))
+        adminReady = true
+        finishLoading()
+      }, (error) => {
+        // Still flip the latch on error so loading completes.
+        console.error('portalSession: admin snapshot failed', error)
         adminReady = true
         finishLoading()
       })
@@ -147,6 +165,9 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       stopAuth()
     }
   }, [])
+
+  const organizationId =
+    application?.organizationId || profile?.defaultOrganizationId || (user ? `org_${user.uid}` : null)
 
   async function upsertOrganizerWorkspace(
     nextUser: User,
@@ -216,18 +237,16 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
   }
 
   const value = useMemo<PortalSessionValue>(() => {
-    const normalizedAdminRole = adminRole.trim().toLowerCase()
-    const isSuperAdmin = normalizedAdminRole === 'superadmin'
-    const isAdmin = normalizedAdminRole === 'admin' || isSuperAdmin
+    const normalizedAdminRole = normalizeAdminRole(adminRole)
+    const isSuperAdmin = isOwnerAdminRole(normalizedAdminRole)
+    const isAdmin = isKnownAdminRole(normalizedAdminRole)
     const applicationStatus =
       application?.status ?? profile?.organizerApplicationStatus ?? 'active'
     const status = user ? (isAdmin ? applicationStatus : 'active') : 'guest'
-    const organizationId =
-      application?.organizationId || profile?.defaultOrganizationId || (user ? `org_${user.uid}` : null)
     const profileWithAdminRole = profile
       ? {
           ...profile,
-          adminRole: adminRole.trim(),
+          adminRole: normalizedAdminRole,
         }
       : null
 
@@ -238,7 +257,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       loading,
       status,
       organizationId,
-      adminRole: adminRole.trim(),
+      adminRole: normalizedAdminRole,
       isAdmin,
       isSuperAdmin,
       async signIn(email, password) {
@@ -281,7 +300,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
         await firebaseSignOut(auth)
       },
     }
-  }, [adminRole, application, loading, profile, user])
+  }, [adminRole, application, loading, organizationId, profile, user])
 
   return (
     <PortalSessionContext.Provider value={value}>

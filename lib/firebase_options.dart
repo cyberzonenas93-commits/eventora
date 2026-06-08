@@ -19,7 +19,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB_1Baw7fcXLtG4WutG4OeUfQNSCZDRpJ8',
-    appId: '1:872808273884:android:1c19ea85767aa0d88c2119',
+    appId: '1:872808273884:android:ff2b0b5e1a301f2d8c2119',
     messagingSenderId: '872808273884',
     projectId: 'eventora-10063',
     storageBucket: 'eventora-10063.firebasestorage.app',
@@ -27,7 +27,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBGjRTuEircFcvXjQoDOAhXwSXQoB91ZBw',
-    appId: '1:872808273884:ios:a9e1919c2b6925158c2119',
+    appId: '1:872808273884:ios:fc8380699ce38f068c2119',
     messagingSenderId: '872808273884',
     projectId: 'eventora-10063',
     storageBucket: 'eventora-10063.firebasestorage.app',

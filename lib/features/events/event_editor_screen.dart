@@ -35,12 +35,14 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
   DateTime? _endDate;
   late EventVisibility _visibility;
   late EventMood _mood;
+  late String _categoryId;
   late bool _ticketingEnabled;
   late bool _requireTicket;
   late bool _sendPush;
   late bool _sendSms;
   late bool _allowSharing;
   late List<TicketTier> _tiers;
+  late List<EventDiscountVoucher> _discountVouchers;
   late RecurrenceFrequency _recurrenceFrequency;
   late int _recurrenceInterval;
   late RecurrenceEndType _recurrenceEndType;
@@ -81,12 +83,16 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
     _endDate = event?.endDate;
     _visibility = event?.visibility ?? EventVisibility.publicEvent;
     _mood = event?.mood ?? EventMood.night;
+    _categoryId = event?.categoryId ?? EventTaxonomy.defaultCategoryId;
     _ticketingEnabled = event?.ticketing.enabled ?? true;
     _requireTicket = event?.ticketing.requireTicket ?? true;
     _sendPush = event?.sendPushNotification ?? true;
     _sendSms = event?.sendSmsNotification ?? true;
     _allowSharing = event?.allowSharing ?? true;
     _tiers = List<TicketTier>.from(event?.ticketing.tiers ?? const []);
+    _discountVouchers = List<EventDiscountVoucher>.from(
+      event?.ticketing.discountVouchers ?? const [],
+    );
     _recurrenceFrequency =
         event?.recurrence.frequency ?? RecurrenceFrequency.none;
     _recurrenceInterval = event?.recurrence.interval ?? 1;
@@ -119,449 +125,490 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
       appBar: AppBar(title: Text(_isEditing ? 'Edit event' : 'Create event')),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: ListView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-            children: [
-              _EditorIntro(isEditing: _isEditing),
-              const SizedBox(height: 24),
-              _SectionCard(
-                title: 'Event basics',
-                body: Column(
-                  children: [
-                    TextField(
-                      controller: _titleController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Event title',
-                        hintText:
-                            'Give guests a clear name they can recognize fast.',
-                      ),
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          children: [
+            _EditorIntro(isEditing: _isEditing),
+            const SizedBox(height: 24),
+            _SectionCard(
+              title: 'Event basics',
+              body: Column(
+                children: [
+                  TextField(
+                    controller: _titleController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Event title',
+                      hintText:
+                          'Give guests a clear name they can recognize fast.',
                     ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _descriptionController,
-                      minLines: 4,
-                      maxLines: 8,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'What should guests know?',
-                        hintText:
-                            'Explain the format, who it is for, what the energy feels like, and what guests should expect when they arrive.',
-                      ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _descriptionController,
+                    minLines: 4,
+                    maxLines: 8,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'What should guests know?',
+                      hintText:
+                          'Explain the format, who it is for, what the energy feels like, and what guests should expect when they arrive.',
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Date and time',
-                body: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _DateButton(
-                      label: 'Starts',
-                      value: formatEventWindow(_startDate, null),
-                      onTap: () => _pickStartDate(context),
-                    ),
-                    const SizedBox(height: 12),
-                    _DateButton(
-                      label: _endDate == null ? 'Add an end time' : 'Ends',
-                      value: _endDate == null
-                          ? 'Not set yet'
-                          : formatEventWindow(_endDate!, null),
-                      onTap: () => _pickEndDate(context),
-                      onClear: _endDate == null
-                          ? null
-                          : () => setState(() => _endDate = null),
-                    ),
-                  ],
-                ),
+            ),
+            const SizedBox(height: 18),
+            _SectionCard(
+              title: 'Date and time',
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DateButton(
+                    label: 'Starts',
+                    value: formatEventWindow(_startDate, null),
+                    onTap: () => _pickStartDate(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _DateButton(
+                    label: _endDate == null ? 'Add an end time' : 'Ends',
+                    value: _endDate == null
+                        ? 'Not set yet'
+                        : formatEventWindow(_endDate!, null),
+                    onTap: () => _pickEndDate(context),
+                    onClear: _endDate == null
+                        ? null
+                        : () => setState(() => _endDate = null),
+                  ),
+                ],
               ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Venue and map',
-                body: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: _locationSearchController,
-                      onChanged: _onLocationSearchChanged,
-                      decoration: InputDecoration(
-                        labelText: 'Search for a venue or address',
-                        hintText:
-                            'Start typing a venue, landmark, or street address',
-                        suffixIcon: _isSearchingPlaces || _isResolvingPlace
-                            ? const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+            ),
+            const SizedBox(height: 18),
+            _SectionCard(
+              title: 'Venue and map',
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _locationSearchController,
+                    onChanged: _onLocationSearchChanged,
+                    decoration: InputDecoration(
+                      labelText: 'Search for a venue or address',
+                      hintText:
+                          'Start typing a venue, landmark, or street address',
+                      suffixIcon: _isSearchingPlaces || _isResolvingPlace
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
-                              )
-                            : _locationSearchController.text.trim().isEmpty
-                            ? null
-                            : IconButton(
-                                onPressed: _clearSelectedLocation,
-                                icon: const Icon(Icons.close),
-                                tooltip: 'Clear location',
                               ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Pick a real place so guests can preview it on a live map and Explore can surface the event near them.',
-                      style: context.text.bodyMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _isUsingDeviceLocation
-                          ? null
-                          : _useDeviceLocation,
-                      icon: _isUsingDeviceLocation
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.my_location_rounded),
-                      label: Text(
-                        _isUsingDeviceLocation
-                            ? 'Getting device location...'
-                            : 'Use device location',
-                      ),
+                          : _locationSearchController.text.trim().isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: _clearSelectedLocation,
+                              icon: const Icon(Icons.close),
+                              tooltip: 'Clear location',
+                            ),
                     ),
-                    if (_locationMessage != null) ...[
-                      const SizedBox(height: 12),
-                      _EditorInfoBanner(message: _locationMessage!),
-                    ],
-                    if (_placeSuggestions.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      _PlaceSuggestionList(
-                        suggestions: _placeSuggestions,
-                        onTap: _selectPlaceSuggestion,
-                      ),
-                    ],
-                    if (_selectedLocation != null) ...[
-                      const SizedBox(height: 14),
-                      _LocationPreviewCard(
-                        location: _selectedLocation!,
-                        venueName: _venueController.text.trim(),
-                        city: _cityController.text.trim(),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _venueController,
-                      onChanged: (_) => _markLocationAsNeedsReview(),
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Venue name',
-                      ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Pick a real place so guests can preview it on a live map and Explore can surface the event near them.',
+                    style: context.text.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _isUsingDeviceLocation
+                        ? null
+                        : _useDeviceLocation,
+                    icon: _isUsingDeviceLocation
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.my_location_rounded),
+                    label: Text(
+                      _isUsingDeviceLocation
+                          ? 'Getting device location...'
+                          : 'Use device location',
                     ),
+                  ),
+                  if (_locationMessage != null) ...[
+                    const SizedBox(height: 12),
+                    _EditorInfoBanner(message: _locationMessage!),
+                  ],
+                  if (_placeSuggestions.isNotEmpty) ...[
                     const SizedBox(height: 14),
-                    TextField(
-                      controller: _cityController,
-                      onChanged: (_) => _markLocationAsNeedsReview(),
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(labelText: 'City'),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _performersController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Performers',
-                        hintText: 'List artists, speakers, or featured talent.',
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _djsController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(labelText: 'DJs'),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _mcsController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Hosts / MCs',
-                      ),
+                    _PlaceSuggestionList(
+                      suggestions: _placeSuggestions,
+                      onTap: _selectPlaceSuggestion,
                     ),
                   ],
-                ),
+                  if (_selectedLocation != null) ...[
+                    const SizedBox(height: 14),
+                    _LocationPreviewCard(
+                      location: _selectedLocation!,
+                      venueName: _venueController.text.trim(),
+                      city: _cityController.text.trim(),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _venueController,
+                    onChanged: (_) => _markLocationAsNeedsReview(),
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(labelText: 'Venue name'),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _cityController,
+                    onChanged: (_) => _markLocationAsNeedsReview(),
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(labelText: 'City'),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _performersController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Performers',
+                      hintText: 'List artists, speakers, or featured talent.',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _djsController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(labelText: 'DJs'),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _mcsController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(labelText: 'Hosts / MCs'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Visibility and vibe',
-                body: Column(
-                  children: [
-                    DropdownButtonFormField<EventVisibility>(
-                      initialValue: _visibility,
-                      decoration: const InputDecoration(
-                        labelText: 'Visibility',
-                      ),
-                      items: EventVisibility.values
-                          .map(
-                            (visibility) => DropdownMenuItem(
-                              value: visibility,
-                              child: Text(
-                                visibility == EventVisibility.publicEvent
-                                    ? 'Public event'
-                                    : 'Private event',
-                              ),
+            ),
+            const SizedBox(height: 18),
+            _SectionCard(
+              title: 'Visibility and vibe',
+              body: Column(
+                children: [
+                  DropdownButtonFormField<EventVisibility>(
+                    initialValue: _visibility,
+                    decoration: const InputDecoration(labelText: 'Visibility'),
+                    items: EventVisibility.values
+                        .map(
+                          (visibility) => DropdownMenuItem(
+                            value: visibility,
+                            child: Text(
+                              visibility == EventVisibility.publicEvent
+                                  ? 'Public event'
+                                  : 'Private event',
                             ),
-                          )
-                          .toList(),
-                      onChanged: (value) =>
-                          setState(() => _visibility = value ?? _visibility),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _visibility = value ?? _visibility),
+                  ),
+                  const SizedBox(height: 18),
+                  DropdownButtonFormField<String>(
+                    initialValue: _categoryId,
+                    decoration: const InputDecoration(
+                      labelText: 'Event category',
+                      helperText:
+                          'Used for discovery, preferences, and paid promotion targeting.',
                     ),
-                    const SizedBox(height: 18),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Visual mood',
-                        style: context.text.titleLarge?.copyWith(fontSize: 20),
+                    items: EventTaxonomy.categories
+                        .map(
+                          (category) => DropdownMenuItem(
+                            value: category.id,
+                            child: Text(category.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(
+                      () => _categoryId =
+                          value ?? EventTaxonomy.defaultCategoryId,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Visual mood',
+                      style: context.text.titleLarge?.copyWith(fontSize: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: EventMood.values
+                        .map(
+                          (mood) => ChoiceChip(
+                            label: Text(_moodLabel(mood)),
+                            selected: _mood == mood,
+                            onSelected: (_) => setState(() => _mood = mood),
+                            showCheckmark: false,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            _SectionCard(
+              title: 'Tickets and entry',
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _ticketingEnabled,
+                    onChanged: (value) =>
+                        setState(() => _ticketingEnabled = value),
+                    title: const Text('Sell tickets'),
+                    subtitle: const Text(
+                      'Turn this on to add paid tiers, free passes, or pay-at-door reservations.',
+                    ),
+                  ),
+                  if (_ticketingEnabled) ...[
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: _requireTicket,
+                      onChanged: (value) =>
+                          setState(() => _requireTicket = value),
+                      title: const Text('Require a ticket for entry'),
+                      subtitle: const Text(
+                        'Turn this off if guests can RSVP first and buy optional support tickets later.',
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Wrap(
                       spacing: 10,
                       runSpacing: 10,
-                      children: EventMood.values
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _editTier(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add ticket option'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    if (_tiers.isEmpty)
+                      const Text('No ticket options yet.')
+                    else
+                      ..._tiers.asMap().entries.map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _TierSummaryCard(
+                            tier: entry.value,
+                            onEdit: () =>
+                                _editTier(context, existing: entry.value),
+                            onDelete: () =>
+                                setState(() => _tiers.removeAt(entry.key)),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Discount codes',
+                            style: context.text.titleLarge?.copyWith(
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _editVoucher(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add code'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (_discountVouchers.isEmpty)
+                      Text(
+                        'No voucher codes yet. Add one for guest lists, launch promos, partners, or limited-time offers.',
+                        style: context.text.bodyMedium,
+                      )
+                    else
+                      ..._discountVouchers.asMap().entries.map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _VoucherSummaryCard(
+                            voucher: entry.value,
+                            onEdit: () =>
+                                _editVoucher(context, existing: entry.value),
+                            onDelete: () => setState(
+                              () => _discountVouchers.removeAt(entry.key),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            _SectionCard(
+              title: 'Repeat schedule',
+              body: Column(
+                children: [
+                  DropdownButtonFormField<RecurrenceFrequency>(
+                    initialValue: _recurrenceFrequency,
+                    decoration: const InputDecoration(labelText: 'Frequency'),
+                    items: RecurrenceFrequency.values
+                        .map(
+                          (frequency) => DropdownMenuItem(
+                            value: frequency,
+                            child: Text(_frequencyLabel(frequency)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _recurrenceFrequency =
+                            value ?? RecurrenceFrequency.none;
+                        if (_recurrenceFrequency == RecurrenceFrequency.none) {
+                          _recurrenceEndType = RecurrenceEndType.never;
+                        }
+                      });
+                    },
+                  ),
+                  if (_recurrenceFrequency != RecurrenceFrequency.none) ...[
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<int>(
+                      initialValue: _recurrenceInterval,
+                      decoration: const InputDecoration(
+                        labelText: 'Repeat every',
+                      ),
+                      items: const [1, 2, 4]
                           .map(
-                            (mood) => ChoiceChip(
-                              label: Text(_moodLabel(mood)),
-                              selected: _mood == mood,
-                              onSelected: (_) => setState(() => _mood = mood),
-                              showCheckmark: false,
+                            (interval) => DropdownMenuItem(
+                              value: interval,
+                              child: Text(
+                                '$interval ${interval == 1 ? 'time' : 'times'}',
+                              ),
                             ),
                           )
                           .toList(),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Tickets and entry',
-                body: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: _ticketingEnabled,
                       onChanged: (value) =>
-                          setState(() => _ticketingEnabled = value),
-                      title: const Text('Sell tickets'),
-                      subtitle: const Text(
-                        'Turn this on to add paid tiers, free passes, or pay-at-door reservations.',
+                          setState(() => _recurrenceInterval = value ?? 1),
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<RecurrenceEndType>(
+                      initialValue: _recurrenceEndType,
+                      decoration: const InputDecoration(labelText: 'Ends'),
+                      items: RecurrenceEndType.values
+                          .map(
+                            (type) => DropdownMenuItem(
+                              value: type,
+                              child: Text(_endTypeLabel(type)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) => setState(
+                        () => _recurrenceEndType =
+                            value ?? RecurrenceEndType.never,
                       ),
                     ),
-                    if (_ticketingEnabled) ...[
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        value: _requireTicket,
-                        onChanged: (value) =>
-                            setState(() => _requireTicket = value),
-                        title: const Text('Require a ticket for entry'),
-                        subtitle: const Text(
-                          'Turn this off if guests can RSVP first and buy optional support tickets later.',
-                        ),
-                      ),
+                    if (_recurrenceEndType == RecurrenceEndType.onDate) ...[
                       const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: () => _editTier(context),
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add ticket option'),
-                          ),
-                        ],
+                      _DateButton(
+                        label: 'Recurrence end date',
+                        value: _recurrenceEndDate == null
+                            ? 'Choose end date'
+                            : formatShortDate(_recurrenceEndDate!),
+                        onTap: () => _pickRecurrenceEndDate(context),
+                        onClear: _recurrenceEndDate == null
+                            ? null
+                            : () => setState(() => _recurrenceEndDate = null),
                       ),
-                      const SizedBox(height: 14),
-                      if (_tiers.isEmpty)
-                        const Text('No ticket options yet.')
-                      else
-                        ..._tiers.asMap().entries.map(
-                          (entry) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _TierSummaryCard(
-                              tier: entry.value,
-                              onEdit: () =>
-                                  _editTier(context, existing: entry.value),
-                              onDelete: () =>
-                                  setState(() => _tiers.removeAt(entry.key)),
-                            ),
-                          ),
-                        ),
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Repeat schedule',
-                body: Column(
-                  children: [
-                    DropdownButtonFormField<RecurrenceFrequency>(
-                      initialValue: _recurrenceFrequency,
-                      decoration: const InputDecoration(labelText: 'Frequency'),
-                      items: RecurrenceFrequency.values
-                          .map(
-                            (frequency) => DropdownMenuItem(
-                              value: frequency,
-                              child: Text(_frequencyLabel(frequency)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _recurrenceFrequency =
-                              value ?? RecurrenceFrequency.none;
-                          if (_recurrenceFrequency ==
-                              RecurrenceFrequency.none) {
-                            _recurrenceEndType = RecurrenceEndType.never;
-                          }
-                        });
-                      },
-                    ),
-                    if (_recurrenceFrequency != RecurrenceFrequency.none) ...[
-                      const SizedBox(height: 14),
-                      DropdownButtonFormField<int>(
-                        initialValue: _recurrenceInterval,
+                    if (_recurrenceEndType ==
+                        RecurrenceEndType.afterOccurrences) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        initialValue: _recurrenceOccurrences?.toString() ?? '',
+                        keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          labelText: 'Repeat every',
+                          labelText: 'How many times should it repeat?',
                         ),
-                        items: const [1, 2, 4]
-                            .map(
-                              (interval) => DropdownMenuItem(
-                                value: interval,
-                                child: Text(
-                                  '$interval ${interval == 1 ? 'time' : 'times'}',
-                                ),
-                              ),
-                            )
-                            .toList(),
                         onChanged: (value) =>
-                            setState(() => _recurrenceInterval = value ?? 1),
+                            _recurrenceOccurrences = int.tryParse(value),
                       ),
-                      const SizedBox(height: 14),
-                      DropdownButtonFormField<RecurrenceEndType>(
-                        initialValue: _recurrenceEndType,
-                        decoration: const InputDecoration(labelText: 'Ends'),
-                        items: RecurrenceEndType.values
-                            .map(
-                              (type) => DropdownMenuItem(
-                                value: type,
-                                child: Text(_endTypeLabel(type)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) => setState(
-                          () => _recurrenceEndType =
-                              value ?? RecurrenceEndType.never,
-                        ),
-                      ),
-                      if (_recurrenceEndType == RecurrenceEndType.onDate) ...[
-                        const SizedBox(height: 12),
-                        _DateButton(
-                          label: 'Recurrence end date',
-                          value: _recurrenceEndDate == null
-                              ? 'Choose end date'
-                              : formatShortDate(_recurrenceEndDate!),
-                          onTap: () => _pickRecurrenceEndDate(context),
-                          onClear: _recurrenceEndDate == null
-                              ? null
-                              : () => setState(() => _recurrenceEndDate = null),
-                        ),
-                      ],
-                      if (_recurrenceEndType ==
-                          RecurrenceEndType.afterOccurrences) ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          initialValue:
-                              _recurrenceOccurrences?.toString() ?? '',
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'How many times should it repeat?',
-                          ),
-                          onChanged: (value) =>
-                              _recurrenceOccurrences = int.tryParse(value),
-                        ),
-                      ],
                     ],
                   ],
-                ),
+                ],
               ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Guest updates and sharing',
-                body: Column(
-                  children: [
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: _sendPush,
-                      onChanged: (value) => setState(() => _sendPush = value),
-                      title: const Text('Send a push alert when you publish'),
-                    ),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: _sendSms,
-                      onChanged: (value) => setState(() => _sendSms = value),
-                      title: const Text('Allow SMS updates'),
-                    ),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: _allowSharing,
-                      onChanged: (value) =>
-                          setState(() => _allowSharing = value),
-                      title: const Text('Let guests share your event'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Tags',
-                body: TextField(
-                  controller: _tagsController,
-                  keyboardType: TextInputType.multiline,
-                  minLines: 1,
-                  maxLines: 3,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Tags',
-                    hintText: 'Music, Rooftop, Family-friendly',
-                    helperText:
-                        'Separate tags with commas, semicolons, or put one tag on each line.',
+            ),
+            const SizedBox(height: 18),
+            _SectionCard(
+              title: 'Guest updates and sharing',
+              body: Column(
+                children: [
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _sendPush,
+                    onChanged: (value) => setState(() => _sendPush = value),
+                    title: const Text('Send a push alert when you publish'),
                   ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _save,
-                  child: Text(
-                    _isEditing ? 'Save changes' : 'Publish this event',
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _sendSms,
+                    onChanged: (value) => setState(() => _sendSms = value),
+                    title: const Text('Allow SMS updates'),
                   ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _allowSharing,
+                    onChanged: (value) => setState(() => _allowSharing = value),
+                    title: const Text('Let guests share your event'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            _SectionCard(
+              title: 'Tags',
+              body: TextField(
+                controller: _tagsController,
+                keyboardType: TextInputType.multiline,
+                minLines: 1,
+                maxLines: 3,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Tags',
+                  hintText: 'Music, Rooftop, Family-friendly',
+                  helperText:
+                      'Separate tags with commas, semicolons, or put one tag on each line.',
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _save,
+                child: Text(_isEditing ? 'Save changes' : 'Publish this event'),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -634,6 +681,42 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
         _tiers = [..._tiers, tier];
       } else {
         _tiers[index] = tier;
+      }
+    });
+  }
+
+  Future<void> _editVoucher(
+    BuildContext context, {
+    EventDiscountVoucher? existing,
+  }) async {
+    final voucher = await showDialog<EventDiscountVoucher>(
+      context: context,
+      builder: (_) => _VoucherEditorDialog(existing: existing),
+    );
+    if (voucher == null || !mounted) return;
+
+    final duplicate = _discountVouchers.any(
+      (current) =>
+          current.normalizedCode == voucher.normalizedCode &&
+          current.normalizedCode != existing?.normalizedCode,
+    );
+    if (duplicate) {
+      _showMessage('A voucher with that code already exists.');
+      return;
+    }
+
+    setState(() {
+      final index = existing == null
+          ? _discountVouchers.indexWhere(
+              (value) => value.normalizedCode == voucher.normalizedCode,
+            )
+          : _discountVouchers.indexWhere(
+              (value) => value.normalizedCode == existing.normalizedCode,
+            );
+      if (index == -1) {
+        _discountVouchers = [..._discountVouchers, voucher];
+      } else {
+        _discountVouchers[index] = voucher;
       }
     });
   }
@@ -889,6 +972,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
         requireTicket: _ticketingEnabled ? _requireTicket : false,
         currency: 'GHS',
         tiers: _ticketingEnabled ? _tiers : const [],
+        discountVouchers: _ticketingEnabled ? _discountVouchers : const [],
       ),
       recurrence: RecurrenceRule(
         frequency: _recurrenceFrequency,
@@ -912,6 +996,7 @@ class _EventEditorScreenState extends State<EventEditorScreen> {
       mcs: _mcsController.text.trim(),
       performers: _performersController.text.trim(),
       mood: _mood,
+      categoryId: _categoryId,
       tags: _parseTags(_tagsController.text),
       location: _selectedLocation,
     );
@@ -1147,6 +1232,93 @@ class _TierSummaryCard extends StatelessWidget {
   }
 }
 
+class _VoucherSummaryCard extends StatelessWidget {
+  const _VoucherSummaryCard({
+    required this.voucher,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final EventDiscountVoucher voucher;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = voucher.maxRedemptions == null
+        ? 'Unlimited uses'
+        : '${(voucher.maxRedemptions! - voucher.redeemedCount).clamp(0, voucher.maxRedemptions!)} left';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.palette.canvas,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  voucher.normalizedCode,
+                  style: context.text.titleLarge?.copyWith(fontSize: 19),
+                ),
+              ),
+              _VoucherStatusPill(
+                label: voucher.isAvailable ? 'Active' : 'Paused',
+                active: voucher.isAvailable,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('${voucher.label} • $remaining', style: context.text.bodyMedium),
+          if (voucher.note?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(voucher.note!, style: context.text.bodyMedium),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            children: [
+              OutlinedButton(onPressed: onEdit, child: const Text('Edit')),
+              OutlinedButton(onPressed: onDelete, child: const Text('Delete')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoucherStatusPill extends StatelessWidget {
+  const _VoucherStatusPill({required this.label, required this.active});
+
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: active
+            ? context.palette.teal.withValues(alpha: 0.14)
+            : context.palette.muted.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: context.text.labelSmall?.copyWith(
+          color: active ? context.palette.teal : context.palette.slate,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _PlaceSuggestionList extends StatelessWidget {
   const _PlaceSuggestionList({required this.suggestions, required this.onTap});
 
@@ -1362,5 +1534,177 @@ class _TierEditorDialogState extends State<_TierEditorDialog> {
         ),
       ],
     );
+  }
+}
+
+class _VoucherEditorDialog extends StatefulWidget {
+  const _VoucherEditorDialog({this.existing});
+
+  final EventDiscountVoucher? existing;
+
+  @override
+  State<_VoucherEditorDialog> createState() => _VoucherEditorDialogState();
+}
+
+class _VoucherEditorDialogState extends State<_VoucherEditorDialog> {
+  late final TextEditingController _codeController;
+  late final TextEditingController _valueController;
+  late final TextEditingController _limitController;
+  late final TextEditingController _noteController;
+  late EventDiscountVoucherType _type;
+  late bool _active;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _codeController = TextEditingController(
+      text: existing?.normalizedCode ?? '',
+    );
+    _valueController = TextEditingController(
+      text: existing?.value.toStringAsFixed(0) ?? '',
+    );
+    _limitController = TextEditingController(
+      text: existing?.maxRedemptions?.toString() ?? '',
+    );
+    _noteController = TextEditingController(text: existing?.note ?? '');
+    _type = existing?.type ?? EventDiscountVoucherType.percentage;
+    _active = existing?.active ?? true;
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _valueController.dispose();
+    _limitController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.existing == null ? 'Add voucher' : 'Edit voucher'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _codeController,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Code',
+                hintText: 'EARLYBIRD',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<EventDiscountVoucherType>(
+              initialValue: _type,
+              decoration: const InputDecoration(labelText: 'Discount type'),
+              items: const [
+                DropdownMenuItem(
+                  value: EventDiscountVoucherType.percentage,
+                  child: Text('Percentage off'),
+                ),
+                DropdownMenuItem(
+                  value: EventDiscountVoucherType.fixedAmount,
+                  child: Text('Fixed GHS amount'),
+                ),
+              ],
+              onChanged: (value) {
+                setState(() => _type = value ?? _type);
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _valueController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: _type == EventDiscountVoucherType.percentage
+                    ? 'Percent off'
+                    : 'GHS amount off',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _limitController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Max redemptions',
+                hintText: 'Leave blank for unlimited',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Internal note',
+                hintText: 'Guest list, launch promo, partner code...',
+              ),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: _active,
+              onChanged: (value) => setState(() => _active = value),
+              title: const Text('Voucher is active'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(onPressed: _save, child: const Text('Save')),
+      ],
+    );
+  }
+
+  void _save() {
+    final code = EventDiscountVoucher.normalizeCode(_codeController.text);
+    final value = double.tryParse(_valueController.text.trim());
+    final maxRedemptionsText = _limitController.text.trim();
+    final maxRedemptions = maxRedemptionsText.isEmpty
+        ? null
+        : int.tryParse(maxRedemptionsText);
+
+    if (code.length < 3 || value == null || value <= 0) {
+      _showDialogError('Add a code and a discount value.');
+      return;
+    }
+    if (_type == EventDiscountVoucherType.percentage && value > 100) {
+      _showDialogError('Percentage vouchers cannot be more than 100%.');
+      return;
+    }
+    if (maxRedemptionsText.isNotEmpty &&
+        (maxRedemptions == null || maxRedemptions <= 0)) {
+      _showDialogError('Max redemptions must be a positive number.');
+      return;
+    }
+
+    Navigator.of(context).pop(
+      EventDiscountVoucher(
+        code: code,
+        type: _type,
+        value: value,
+        maxRedemptions: maxRedemptions,
+        redeemedCount: widget.existing?.redeemedCount ?? 0,
+        active: _active,
+        note: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
+      ),
+    );
+  }
+
+  void _showDialogError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

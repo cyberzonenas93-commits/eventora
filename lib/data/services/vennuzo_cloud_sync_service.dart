@@ -5,7 +5,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../domain/models/account_models.dart';
+import '../../domain/models/creator_models.dart';
 import '../../domain/models/event_models.dart';
+import '../../domain/models/place_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../domain/models/ticket_models.dart';
 
@@ -64,6 +66,7 @@ class VennuzoCloudSyncService {
           'manageEvents': true,
           'manageTickets': true,
           'managePromotions': true,
+          'managePlaces': true,
           'validateTickets': true,
         },
         'status': 'active',
@@ -80,12 +83,96 @@ class VennuzoCloudSyncService {
           'pushEnabled': viewer.notificationPrefs.pushEnabled,
           'smsEnabled': viewer.notificationPrefs.smsEnabled,
           'marketingOptIn': viewer.notificationPrefs.marketingOptIn,
+          'promotionalPushEnabled':
+              viewer.notificationPrefs.promotionalPushEnabled,
+          'promotionalEventTypes':
+              viewer.notificationPrefs.promotionalEventTypes,
+          'promotionalCities': viewer.notificationPrefs.promotionalCities,
         },
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     }
 
     await _runSafely(batch.commit);
+  }
+
+  Future<void> upsertCreatorProfile(CreatorProfile profile) async {
+    if (!isEnabled) {
+      return;
+    }
+    await _runSafely(() {
+      return _firestore
+          .collection('creator_profiles')
+          .doc(profile.creatorId)
+          .set(<String, Object?>{
+            'creatorId': profile.creatorId,
+            'displayName': profile.displayName,
+            'bio': profile.bio,
+            'city': profile.city,
+            'avatarUrl': profile.avatarUrl,
+            'coverUrl': profile.coverUrl,
+            'metrics': <String, Object?>{
+              'followerCount': profile.followerCount,
+              'eventCount': profile.eventCount,
+              'photoCount': profile.photoCount,
+            },
+            'updatedAt': Timestamp.fromDate(profile.updatedAt),
+          }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> upsertCreatorEventPhoto(CreatorEventPhoto photo) async {
+    if (!isEnabled) {
+      return;
+    }
+    await _runSafely(() {
+      return _firestore
+          .collection('creator_event_photos')
+          .doc(photo.id)
+          .set(<String, Object?>{
+            'creatorId': photo.creatorId,
+            'eventId': photo.eventId,
+            'eventTitle': photo.eventTitle,
+            'imageUrl': photo.imageUrl,
+            'caption': photo.caption,
+            'createdAt': Timestamp.fromDate(photo.createdAt),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> followCreator({
+    required String followerId,
+    required String creatorId,
+  }) async {
+    if (!isEnabled) {
+      return;
+    }
+    await _runSafely(() {
+      return _firestore
+          .collection('creator_follows')
+          .doc('${followerId}_$creatorId')
+          .set(<String, Object?>{
+            'followerId': followerId,
+            'creatorId': creatorId,
+            'createdAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> unfollowCreator({
+    required String followerId,
+    required String creatorId,
+  }) async {
+    if (!isEnabled) {
+      return;
+    }
+    await _runSafely(
+      () => _firestore
+          .collection('creator_follows')
+          .doc('${followerId}_$creatorId')
+          .delete(),
+    );
   }
 
   Future<void> upsertEvent({
@@ -131,7 +218,7 @@ class VennuzoCloudSyncService {
         'organizationId': organizationId,
         'title': event.title,
         'description': event.description,
-        'imageUrl': '',
+        'imageUrl': event.flyerAsset ?? '',
         'slug': _slugify(event.title),
         'requireTicket': event.ticketing.requireTicket,
         'status': event.allowSharing ? 'active' : 'disabled',
@@ -248,7 +335,19 @@ class VennuzoCloudSyncService {
                 },
               )
               .toList(),
+          'grossAmount': order.grossAmount,
           'totalAmount': order.totalAmount,
+          'discountCode': order.discount?.code,
+          'discountAmount': order.discountAmount,
+          'discount': order.discount == null
+              ? null
+              : <String, Object?>{
+                  'code': order.discount!.code,
+                  'label': order.discount!.label,
+                  'amount': order.discount!.amount,
+                  'type': order.discount!.type,
+                  'value': order.discount!.value,
+                },
           'currency': event.ticketing.currency,
           'status': order.status.name,
           'paymentStatus': _paymentStatusValue(order.paymentStatus),
@@ -389,6 +488,9 @@ class VennuzoCloudSyncService {
         'occurrenceId': '${event.id}_primary',
         'organizationId': organizationId,
         'eventTitle': event.title,
+        'targetType': campaign.targetType.name,
+        'targetId': campaign.targetId,
+        'targetTitle': campaign.targetTitle,
         'name': campaign.name,
         'status': campaign.status.name,
         'channels': campaign.channels.map((channel) => channel.name).toList(),
@@ -397,9 +499,26 @@ class VennuzoCloudSyncService {
             : Timestamp.fromDate(campaign.scheduledAt!),
         'pushAudience': campaign.pushAudience,
         'smsAudience': campaign.smsAudience,
+        'audienceSources': campaign.audienceSources,
         'shareLinkEnabled': campaign.shareLinkEnabled,
         'budget': campaign.budget,
         'message': campaign.message,
+        'objective': campaign.objective.backendName,
+        'audienceStrategy': campaign.audienceStrategy.backendName,
+        'optimizationGoal': campaign.optimizationGoal.backendName,
+        'bidStrategy': campaign.bidStrategy.backendName,
+        'creativeMode': campaign.creativeMode.backendName,
+        'frequencyCap': campaign.frequencyCap,
+        'budgetCapGhs': campaign.budgetCapGhs,
+        'optimizationConfig': <String, Object?>{
+          'objective': campaign.objective.backendName,
+          'audienceStrategy': campaign.audienceStrategy.backendName,
+          'optimizationGoal': campaign.optimizationGoal.backendName,
+          'bidStrategy': campaign.bidStrategy.backendName,
+          'creativeMode': campaign.creativeMode.backendName,
+          'frequencyCap': campaign.frequencyCap,
+          'budgetCapGhs': campaign.budgetCapGhs,
+        },
         'createdBy': campaign.createdByUserId ?? viewer.uid,
         'createdAt': Timestamp.fromDate(campaign.createdAt),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -410,13 +529,231 @@ class VennuzoCloudSyncService {
           'campaignId': campaign.id,
           'eventId': event.id,
           'eventTitle': event.title,
+          'targetType': campaign.targetType.name,
+          'targetId': campaign.targetId,
+          'targetTitle': campaign.targetTitle,
           'name': campaign.name,
           'message': campaign.message,
           'channels': campaign.channels.map((channel) => channel.name).toList(),
+          'audienceSources': campaign.audienceSources,
           'scheduledAt': campaign.scheduledAt?.toIso8601String(),
           'shareLinkEnabled': campaign.shareLinkEnabled,
+          'objective': campaign.objective.backendName,
+          'audienceStrategy': campaign.audienceStrategy.backendName,
+          'optimizationGoal': campaign.optimizationGoal.backendName,
+          'bidStrategy': campaign.bidStrategy.backendName,
+          'creativeMode': campaign.creativeMode.backendName,
+          'frequencyCap': campaign.frequencyCap,
+          'budgetCapGhs': campaign.budgetCapGhs,
         },
       );
+    });
+  }
+
+  Future<void> launchPlaceCampaign({
+    required PromotionCampaign campaign,
+    required VennuzoViewer viewer,
+  }) async {
+    if (!isEnabled || viewer.uid == null) {
+      return;
+    }
+
+    await ensureOrganizerWorkspace(viewer);
+    final organizationId = organizationIdFor(viewer);
+    final campaignRef = _firestore
+        .collection('promotion_campaigns')
+        .doc(campaign.id);
+
+    await _runSafely(() {
+      return campaignRef.set(<String, Object?>{
+        'eventId': '',
+        'occurrenceId': '',
+        'organizationId': organizationId,
+        'eventTitle': '',
+        'targetType': campaign.targetType.name,
+        'targetId': campaign.targetId,
+        'targetTitle': campaign.targetTitle,
+        'name': campaign.name,
+        'status': campaign.status.name,
+        'channels': campaign.channels.map((channel) => channel.name).toList(),
+        'scheduledAt': campaign.scheduledAt == null
+            ? null
+            : Timestamp.fromDate(campaign.scheduledAt!),
+        'pushAudience': 0,
+        'smsAudience': 0,
+        'audienceSources': campaign.audienceSources,
+        'shareLinkEnabled': campaign.shareLinkEnabled,
+        'budget': campaign.budget,
+        'message': campaign.message,
+        'objective': campaign.objective.backendName,
+        'audienceStrategy': campaign.audienceStrategy.backendName,
+        'optimizationGoal': campaign.optimizationGoal.backendName,
+        'bidStrategy': campaign.bidStrategy.backendName,
+        'creativeMode': campaign.creativeMode.backendName,
+        'frequencyCap': campaign.frequencyCap,
+        'budgetCapGhs': campaign.budgetCapGhs,
+        'optimizationConfig': <String, Object?>{
+          'objective': campaign.objective.backendName,
+          'audienceStrategy': campaign.audienceStrategy.backendName,
+          'optimizationGoal': campaign.optimizationGoal.backendName,
+          'bidStrategy': campaign.bidStrategy.backendName,
+          'creativeMode': campaign.creativeMode.backendName,
+          'frequencyCap': campaign.frequencyCap,
+          'budgetCapGhs': campaign.budgetCapGhs,
+        },
+        'createdBy': campaign.createdByUserId ?? viewer.uid,
+        'createdAt': Timestamp.fromDate(campaign.createdAt),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> subscribeToPlace({
+    required String placeId,
+    required VennuzoViewer viewer,
+    PlaceSubscriptionPrefs prefs = const PlaceSubscriptionPrefs(),
+  }) async {
+    if (!isEnabled || viewer.uid == null) {
+      return;
+    }
+
+    await _runSafely(() {
+      return _firestore
+          .collection('place_subscriptions')
+          .doc('${viewer.uid}_$placeId')
+          .set(<String, Object?>{
+            'placeId': placeId,
+            'userId': viewer.uid,
+            'userName': viewer.displayName,
+            'phone': viewer.phone,
+            'email': viewer.email,
+            'channels': prefs.channels,
+            'prefs': <String, Object?>{
+              'events': prefs.events,
+              'menuSpecials': prefs.menuSpecials,
+              'reservationAlerts': prefs.reservationAlerts,
+              'announcements': prefs.announcements,
+            },
+            'status': 'active',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> unsubscribeFromPlace({
+    required String placeId,
+    required VennuzoViewer viewer,
+  }) async {
+    if (!isEnabled || viewer.uid == null) {
+      return;
+    }
+
+    await _runSafely(() {
+      return _firestore
+          .collection('place_subscriptions')
+          .doc('${viewer.uid}_$placeId')
+          .set(<String, Object?>{
+            'status': 'unsubscribed',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> createPlaceReservation({
+    required PlaceReservation reservation,
+  }) async {
+    if (!isEnabled) {
+      return;
+    }
+
+    await _runSafely(() {
+      return _functions
+          .httpsCallable('createPlaceReservation')
+          .call(<String, Object?>{
+            'reservationId': reservation.id,
+            'placeId': reservation.placeId,
+            'placeName': reservation.placeName,
+            'guestName': reservation.guestName,
+            'phone': reservation.phone,
+            'partySize': reservation.partySize,
+            'requestedAt': reservation.requestedAt.toIso8601String(),
+            'reservationType': reservation.reservationType.name,
+            'note': reservation.note,
+            'selectedMenuItemIds': reservation.selectedMenuItemIds,
+          })
+          .then((_) {});
+    });
+  }
+
+  Future<void> upsertPlaceMenuItem({
+    required PlaceMenuItem item,
+    required VennuzoViewer viewer,
+  }) async {
+    if (!isEnabled || viewer.uid == null) {
+      return;
+    }
+
+    await _runSafely(() {
+      return _functions
+          .httpsCallable('upsertPlaceMenuItem')
+          .call(<String, Object?>{
+            'itemId': item.id,
+            'placeId': item.placeId,
+            'sectionId': item.sectionId,
+            'name': item.name,
+            'description': item.description,
+            'price': item.price,
+            'currency': item.currency,
+            'imageUrl': item.imageUrl,
+            'featured': item.featured,
+            'status': item.status.name,
+            'options': item.options,
+            'tags': item.tags,
+            'sortOrder': item.sortOrder,
+          })
+          .then((_) {});
+    });
+  }
+
+  Future<void> updatePlaceReservationStatus({
+    required String reservationId,
+    required PlaceReservationStatus status,
+  }) async {
+    if (!isEnabled) {
+      return;
+    }
+
+    await _runSafely(() {
+      return _functions
+          .httpsCallable('updatePlaceReservationStatus')
+          .call(<String, Object?>{
+            'reservationId': reservationId,
+            'status': status.name,
+          })
+          .then((_) {});
+    });
+  }
+
+  Future<void> launchPlacePushCampaign({
+    required PlaceProfile place,
+    required String title,
+    required String message,
+  }) async {
+    if (!isEnabled) {
+      return;
+    }
+
+    await _runSafely(() {
+      return _functions
+          .httpsCallable('launchPlacePushCampaign')
+          .call(<String, Object?>{
+            'placeId': place.id,
+            'title': title,
+            'message': message,
+            'name': '${place.name} subscriber push',
+          })
+          .then((_) {});
     });
   }
 
@@ -489,6 +826,11 @@ class VennuzoCloudSyncService {
         EventVisibility.privateEvent => 'private',
       },
       'status': 'published',
+      'categoryId': event.categoryId,
+      'category': event.categoryId,
+      'categoryLabel': event.category.label,
+      'flyerAsset': event.flyerAsset,
+      'imageUrl': event.flyerAsset,
       'startAt': Timestamp.fromDate(event.startDate),
       'endAt': event.endDate == null
           ? null
@@ -518,6 +860,9 @@ class VennuzoCloudSyncService {
                 'description': tier.description,
               },
             )
+            .toList(),
+        'discountVouchers': event.ticketing.discountVouchers
+            .map(_discountVoucherData)
             .toList(),
       },
       'lineup': <String, Object?>{
@@ -557,6 +902,9 @@ class VennuzoCloudSyncService {
         EventVisibility.privateEvent => 'private',
       },
       'status': 'published',
+      'categoryId': event.categoryId,
+      'category': event.categoryId,
+      'categoryLabel': event.category.label,
       'occurrenceStartAt': Timestamp.fromDate(event.startDate),
       'occurrenceEndAt': event.endDate == null
           ? null
@@ -605,6 +953,21 @@ class VennuzoCloudSyncService {
   }
 
   String _ticketStatusValue(TicketStatus status) => status.name;
+
+  Map<String, Object?> _discountVoucherData(EventDiscountVoucher voucher) {
+    return <String, Object?>{
+      'code': voucher.normalizedCode,
+      'type': voucher.type.name,
+      'value': voucher.value,
+      'maxRedemptions': voucher.maxRedemptions,
+      'redeemedCount': voucher.redeemedCount,
+      'active': voucher.active,
+      'expiresAt': voucher.expiresAt == null
+          ? null
+          : Timestamp.fromDate(voucher.expiresAt!),
+      'note': voucher.note,
+    };
+  }
 
   String _eventOrganizationId({
     required EventModel event,

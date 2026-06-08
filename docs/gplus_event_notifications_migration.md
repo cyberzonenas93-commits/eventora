@@ -106,5 +106,5 @@ Implemented Flutter-side flows:
 ## Remaining deployment requirement
 
 iOS push delivery still needs the Apple APNs key or certificate uploaded in the
-Firebase console for the `eventora-10063` project. The app code and entitlements
+Firebase console for the Vennuzo project. The app code and entitlements
 are wired, but APNs credentials are still an Apple-side deployment step.

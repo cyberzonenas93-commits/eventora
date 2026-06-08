@@ -1,5 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/vennuzo_session_controller.dart';
@@ -7,6 +7,7 @@ import '../../core/theme/theme_extensions.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import 'social_models.dart';
+import 'social_post_image.dart';
 import 'social_service.dart';
 
 class SocialProfileScreen extends StatelessWidget {
@@ -62,9 +63,7 @@ class SocialProfileScreen extends StatelessWidget {
             ),
           ),
           SliverToBoxAdapter(
-            child: _AttendedEventsSection(
-              profileUserId: profileUserId,
-            ),
+            child: _AttendedEventsSection(profileUserId: profileUserId),
           ),
           SliverToBoxAdapter(
             child: _SavedEventsSection(
@@ -80,11 +79,7 @@ class SocialProfileScreen extends StatelessWidget {
 }
 
 class _CoverPhoto extends StatelessWidget {
-  const _CoverPhoto({
-    this.coverUrl,
-    this.photoUrl,
-    required this.displayName,
-  });
+  const _CoverPhoto({this.coverUrl, this.photoUrl, required this.displayName});
 
   final String? coverUrl;
   final String? photoUrl;
@@ -98,13 +93,7 @@ class _CoverPhoto extends StatelessWidget {
       children: [
         // Cover
         if (coverUrl != null && coverUrl!.isNotEmpty)
-          CachedNetworkImage(
-            imageUrl: coverUrl!,
-            fit: BoxFit.cover,
-            placeholder: (_, __) =>
-                Container(color: palette.darkSurface),
-            errorWidget: (_, __, ___) => _DefaultCover(palette: palette),
-          )
+          SocialPostImage(imageUrl: coverUrl!, fit: BoxFit.cover)
         else
           _DefaultCover(palette: palette),
         // Scrim
@@ -124,13 +113,10 @@ class _CoverPhoto extends StatelessWidget {
           child: CircleAvatar(
             radius: 36,
             backgroundColor: Colors.white,
-            foregroundImage:
-                photoUrl != null ? NetworkImage(photoUrl!) : null,
+            foregroundImage: photoUrl != null ? CachedNetworkImageProvider(photoUrl!) : null,
             child: photoUrl == null
                 ? Text(
-                    displayName.isNotEmpty
-                        ? displayName[0].toUpperCase()
-                        : '?',
+                    displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
@@ -153,9 +139,7 @@ class _DefaultCover extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [palette.teal, palette.coral],
-        ),
+        gradient: LinearGradient(colors: [palette.teal, palette.coral]),
       ),
     );
   }
@@ -192,23 +176,20 @@ class _ProfileHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      displayName,
-                      style: context.text.titleLarge,
-                    ),
+                    Text(displayName, style: context.text.titleLarge),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         _CountBadge(
                           label: 'Followers',
-                          stream: socialService
-                              .getFollowerCount(profileUserId),
+                          stream: socialService.getFollowerCount(profileUserId),
                         ),
                         const SizedBox(width: 20),
                         _CountBadge(
                           label: 'Following',
-                          stream: socialService
-                              .getFollowingCount(profileUserId),
+                          stream: socialService.getFollowingCount(
+                            profileUserId,
+                          ),
                         ),
                       ],
                     ),
@@ -291,8 +272,7 @@ class _FollowButton extends StatelessWidget {
           },
           style: following
               ? ElevatedButton.styleFrom(
-                  backgroundColor:
-                      context.palette.border,
+                  backgroundColor: context.palette.border,
                   foregroundColor: context.palette.ink,
                 )
               : null,
@@ -330,8 +310,9 @@ class _PostsSection extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                 child: Text(
                   'No posts yet.',
-                  style: context.text.bodyMedium
-                      ?.copyWith(color: context.palette.slate),
+                  style: context.text.bodyMedium?.copyWith(
+                    color: context.palette.slate,
+                  ),
                 ),
               );
             }
@@ -339,8 +320,7 @@ class _PostsSection extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 mainAxisSpacing: 4,
                 crossAxisSpacing: 4,
@@ -351,14 +331,7 @@ class _PostsSection extends StatelessWidget {
                 if (photoUrl == null || photoUrl.isEmpty) {
                   return Container(color: const Color(0xFF1F2937));
                 }
-                return CachedNetworkImage(
-                  imageUrl: photoUrl,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) =>
-                      Container(color: const Color(0xFF1F2937)),
-                  errorWidget: (_, __, ___) =>
-                      Container(color: const Color(0xFF1F2937)),
-                );
+                return SocialPostImage(imageUrl: photoUrl, fit: BoxFit.cover);
               },
             );
           },
@@ -394,8 +367,9 @@ class _AttendedEventsSection extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
             child: Text(
               'No events yet.',
-              style: context.text.bodyMedium
-                  ?.copyWith(color: context.palette.slate),
+              style: context.text.bodyMedium?.copyWith(
+                color: context.palette.slate,
+              ),
             ),
           )
         else
@@ -405,14 +379,11 @@ class _AttendedEventsSection extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: events.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final event = events[index];
                 return Chip(
-                  avatar: const Icon(
-                    Icons.event,
-                    size: 16,
-                  ),
+                  avatar: const Icon(Icons.event, size: 16),
                   label: Text(
                     event.title,
                     maxLines: 1,
@@ -457,8 +428,9 @@ class _SavedEventsSection extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                 child: Text(
                   'No saved events.',
-                  style: context.text.bodyMedium
-                      ?.copyWith(color: context.palette.slate),
+                  style: context.text.bodyMedium?.copyWith(
+                    color: context.palette.slate,
+                  ),
                 ),
               );
             }
@@ -473,7 +445,7 @@ class _SavedEventsSection extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: events.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final event = events[index]!;
                   return Chip(

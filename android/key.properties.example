@@ -1,0 +1,23 @@
+# Android release signing configuration.
+#
+# Copy this file to `android/key.properties` and fill in the values below.
+# `android/key.properties` and any *.keystore / *.jks files are gitignored and
+# must never be committed.
+#
+# Generate a keystore (once) with:
+#   keytool -genkey -v -keystore ~/vennuzo-upload-keystore.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# See https://flutter.dev/to/reference-keystore for details.
+
+# Alias of the key inside the keystore (the `-alias` value used above).
+keyAlias=upload
+
+# Password for the key (the key password set during keystore creation).
+keyPassword=changeme
+
+# Absolute path (or path relative to android/app) to the keystore file.
+storeFile=/absolute/path/to/vennuzo-upload-keystore.jks
+
+# Password for the keystore.
+storePassword=changeme

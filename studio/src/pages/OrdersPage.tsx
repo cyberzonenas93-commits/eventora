@@ -80,6 +80,41 @@ export function OrdersPage() {
     )
   }, [orders, query, statusChip])
 
+  function handleExportCsv() {
+    const rows = [
+      ['Order ID', 'Event', 'Buyer name', 'Buyer email', 'Buyer phone', 'Created', 'Tickets', 'Status', 'Amount'],
+      ...filteredOrders.map((order) => [
+        order.id,
+        order.eventTitle,
+        order.buyerName ?? '',
+        order.buyerEmail,
+        order.buyerPhone ?? '',
+        order.createdAt,
+        String(order.ticketCount),
+        order.paymentStatus,
+        String(order.totalAmount),
+      ]),
+    ]
+    const csvCell = (cell: unknown) => {
+      let text = String(cell ?? '')
+      // Neutralise CSV/Excel formula injection (=, +, -, @, tab, CR).
+      if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`
+      return `"${text.replace(/"/g, '""')}"`
+    }
+    const csv = rows
+      .map((row) => row.map(csvCell).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `vennuzo-orders-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) {
     return <div className="page-loader">{copy.loading}</div>
   }
@@ -96,7 +131,7 @@ export function OrdersPage() {
 
   return (
     <div className="dashboard-stack">
-      <section className="page-hero page-hero--events">
+      <section className="page-hero page-hero--events page-hero--checkout">
         <div className="page-hero__content">
           <p className="eyebrow">Ticket orders</p>
           <h2>View and track all ticket sales.</h2>
@@ -122,6 +157,9 @@ export function OrdersPage() {
             <Link className="button button--secondary" to="/studio/events">
               View events
             </Link>
+            <button className="button button--secondary" onClick={handleExportCsv} type="button">
+              Export CSV
+            </button>
           </div>
         </div>
       </section>
@@ -196,9 +234,14 @@ export function OrdersPage() {
                     </td>
                     <td className="cell-amount">{formatMoney(order.totalAmount)}</td>
                     <td>
-                      <Link className="button button--ghost" style={{ padding: '0.35rem 0.7rem', fontSize: '0.76rem' }} to={`/studio/events/${order.eventId}/edit`}>
-                        Event
-                      </Link>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <Link className="button button--ghost" style={{ padding: '0.35rem 0.7rem', fontSize: '0.76rem' }} to={`/tickets/${order.id}`}>
+                          Ticket
+                        </Link>
+                        <Link className="button button--ghost" style={{ padding: '0.35rem 0.7rem', fontSize: '0.76rem' }} to={`/studio/events/${order.eventId}/edit`}>
+                          Event
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

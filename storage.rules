@@ -22,28 +22,105 @@ service firebase.storage {
         ).data.status == 'active';
     }
 
+    function isOrgOwner(organizationId) {
+      return isSignedIn()
+        && organizationId == 'org_' + request.auth.uid;
+    }
+
+    function ownsOrganizerApplication(organizationId) {
+      return isSignedIn()
+        && firestore.get(
+          /databases/(default)/documents/organizer_applications/$(request.auth.uid)
+        ).exists()
+        && firestore.get(
+          /databases/(default)/documents/organizer_applications/$(request.auth.uid)
+        ).data.organizationId == organizationId;
+    }
+
+    function isEventManager(organizationId) {
+      return isAdmin() || isOrgOwner(organizationId) || isOrgMember(organizationId) || ownsOrganizerApplication(organizationId);
+    }
+
+    // Upload validation helpers. `request.resource` is null on delete, so callers
+    // must allow that case explicitly where deletes are permitted.
+    function isImageUpload(maxMb) {
+      return request.resource != null
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size < maxMb * 1024 * 1024;
+    }
+
+    function isDocOrImageUpload(maxMb) {
+      return request.resource != null
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType.matches('application/pdf'))
+        && request.resource.size < maxMb * 1024 * 1024;
+    }
+
+    function isDelete() {
+      return request.resource == null;
+    }
+
+    function eventExists(eventId) {
+      return firestore.exists(/databases/(default)/documents/events/$(eventId));
+    }
+
+    function eventOrgId(eventId) {
+      return firestore.get(/databases/(default)/documents/events/$(eventId)).data.organizationId;
+    }
+
+    // Verification documents may be images or PDFs.
     match /organizer-applications/{userId}/{allPaths=**} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId
+        && (isDelete() || isDocOrImageUpload(25));
+    }
+
+    match /place-verifications/{userId}/{allPaths=**} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId
+        && (isDelete() || isDocOrImageUpload(25));
     }
 
     match /users/{userId}/profile/{allPaths=**} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId
+        && (isDelete() || isImageUpload(10));
     }
 
     match /organizations/{organizationId}/{allPaths=**} {
-      allow read, write: if isAdmin() || isOrgMember(organizationId);
+      allow read: if isEventManager(organizationId);
+      allow write: if isEventManager(organizationId)
+        && (isDelete() || isDocOrImageUpload(25));
     }
 
-    // Event cover images uploaded from the organizer studio
+    match /creative-brands/{organizationId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isEventManager(organizationId)
+        && (isDelete() || isImageUpload(15));
+    }
+
+    match /creative_services/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Event cover images uploaded from the organizer studio. Scoped to the
+    // event's managers (admins/org owners/members). Falls back to any signed-in
+    // user only when the event doc does not yet exist (creation-time upload),
+    // which limits writes on existing events to their managers.
     match /event-covers/{eventId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isSignedIn()
+        && (isDelete()
+            || (isImageUpload(10)
+                && (!eventExists(eventId) || isEventManager(eventOrgId(eventId)))));
     }
 
-    // Social post images uploaded from the Flutter app
+    // Social post images uploaded from the Flutter app. Attendees may post, so
+    // any signed-in user can write — but only validated images within a size cap.
     match /event_posts/{eventId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && (isDelete() || isImageUpload(15));
     }
   }
 }

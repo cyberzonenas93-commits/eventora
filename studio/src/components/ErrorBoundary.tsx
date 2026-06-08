@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { copy } from '../lib/copy'
+import { captureError } from '../lib/errorReporting'
 
 type Props = {
   children: ReactNode
@@ -21,6 +22,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    captureError(error, { componentStack: errorInfo.componentStack ?? '' })
     if (typeof console !== 'undefined' && console.error) {
       console.error('ErrorBoundary caught an error', error, errorInfo)
     }

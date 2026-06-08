@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  ArrowRight,
+  CalendarDays,
+  CalendarPlus,
+  Megaphone,
+  Radio,
+  ReceiptText,
+  WalletCards,
+  type LucideIcon,
+} from 'lucide-react'
+import {
   Area,
   AreaChart,
   CartesianGrid,
@@ -139,6 +149,9 @@ export function OverviewPage() {
       sum + event.tiers.reduce((tierSum, tier) => tierSum + tier.maxQuantity, 0),
     0,
   )
+  const totalTicketsIssued = metrics?.ticketsIssued ?? 0
+  const soldThroughPercent =
+    totalCapacity > 0 ? Math.min(100, Math.round((totalTicketsIssued / totalCapacity) * 100)) : 0
   const revenuePerEvent =
     events.length > 0 ? Math.round((metrics?.grossRevenue ?? 0) / events.length) : 0
   const workspaceName = getWorkspaceName(session.application, session.profile)
@@ -161,7 +174,7 @@ export function OverviewPage() {
 
   return (
     <div className="dashboard-stack">
-      <section className="page-hero page-hero--overview">
+      <section className="page-hero page-hero--overview page-hero--organizer-ops">
         <div className="page-hero__content">
           <p className="eyebrow">Workspace overview</p>
           <h2>{workspaceName}</h2>
@@ -173,8 +186,13 @@ export function OverviewPage() {
             <span>{payoutReadiness.ready ? 'Payout ready' : 'Payout needs attention'}</span>
           </div>
         </div>
-        <div className="page-hero__panel">
-          <p className="eyebrow">Up next</p>
+        <div className="page-hero__panel overview-pulse-card">
+          <div className="overview-pulse-card__header">
+            <span className="overview-pulse-card__icon" aria-hidden>
+              <Radio size={17} />
+            </span>
+            <p className="eyebrow">Active pulse</p>
+          </div>
           {upcomingEvent ? (
             <>
               <h3>{upcomingEvent.title}</h3>
@@ -182,6 +200,15 @@ export function OverviewPage() {
                 {formatDateTime(upcomingEvent.startAt)} at {upcomingEvent.venue},{' '}
                 {upcomingEvent.city}
               </p>
+              <div className="overview-pulse-card__meter">
+                <div>
+                  <span>Sold through</span>
+                  <strong>{soldThroughPercent}%</strong>
+                </div>
+                <div className="readiness-meter__track">
+                  <span style={{ width: `${soldThroughPercent}%` }} />
+                </div>
+              </div>
               <div className="hero-chip-row hero-chip-row--compact">
                 <span>{upcomingEvent.status}</span>
                 <span>{upcomingEvent.visibility}</span>
@@ -189,10 +216,10 @@ export function OverviewPage() {
               </div>
               <div className="hero-actions">
                 <Link className="button button--primary" to={`/studio/events/${upcomingEvent.id}/edit`}>
-                  Open event
+                  Open event <ArrowRight size={15} aria-hidden />
                 </Link>
                 <Link className="button button--secondary" to="/studio/events/new">
-                  Create event
+                  <CalendarPlus size={15} aria-hidden /> Create event
                 </Link>
               </div>
             </>
@@ -201,7 +228,7 @@ export function OverviewPage() {
               <h3>Ready for your first event.</h3>
               <div className="hero-actions">
                 <Link className="button button--primary" to="/studio/events/new">
-                  Create event
+                  <CalendarPlus size={15} aria-hidden /> Create event
                 </Link>
               </div>
             </>
@@ -228,7 +255,7 @@ export function OverviewPage() {
         <MetricCard
           label="Tickets issued"
           tone="sun"
-          value={String(metrics?.ticketsIssued ?? 0)}
+          value={String(totalTicketsIssued)}
         />
         <MetricCard
           label="Avg revenue / event"
@@ -250,27 +277,12 @@ export function OverviewPage() {
           </div>
         </div>
         <div style={{ padding: '1rem 1.5rem' }}>
-          <div className="quick-actions">
-            <Link className="quick-action-btn" to="/studio/events/new">
-              <span className="quick-action-btn__icon">✦</span>
-              Create event
-            </Link>
-            <Link className="quick-action-btn" to="/studio/events">
-              <span className="quick-action-btn__icon">◈</span>
-              Manage events
-            </Link>
-            <Link className="quick-action-btn" to="/studio/orders">
-              <span className="quick-action-btn__icon">◻</span>
-              View orders
-            </Link>
-            <Link className="quick-action-btn" to="/studio/payments">
-              <span className="quick-action-btn__icon">◈</span>
-              Payments
-            </Link>
-            <Link className="quick-action-btn" to="/studio/promote">
-              <span className="quick-action-btn__icon">↗</span>
-              Promote
-            </Link>
+          <div className="quick-actions overview-actions-grid">
+            <QuickActionCard icon={CalendarPlus} label="Create event" meta="New public page" to="/studio/events/new" />
+            <QuickActionCard icon={CalendarDays} label="Manage events" meta={`${publishedEvents} live, ${draftEvents} draft`} to="/studio/events" />
+            <QuickActionCard icon={ReceiptText} label="View orders" meta={`${metrics?.paidOrders ?? 0} paid orders`} to="/studio/orders" />
+            <QuickActionCard icon={WalletCards} label="Payments" meta={payoutReadiness.ready ? 'Payout ready' : 'Needs setup'} to="/studio/payments" />
+            <QuickActionCard icon={Megaphone} label="Promote" meta="Push and SMS" to="/studio/promote" />
           </div>
         </div>
       </section>
@@ -377,6 +389,10 @@ export function OverviewPage() {
               label="Upcoming capacity"
               title={`${totalCapacity} tickets and admissions planned`}
             />
+            <FocusCard
+              label="Portfolio conversion"
+              title={`${soldThroughPercent}% of planned capacity sold`}
+            />
           </div>
         </article>
 
@@ -436,6 +452,31 @@ function MetricCard({
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
+  )
+}
+
+function QuickActionCard({
+  icon: Icon,
+  label,
+  meta,
+  to,
+}: {
+  icon: LucideIcon
+  label: string
+  meta: string
+  to: string
+}) {
+  return (
+    <Link className="quick-action-btn quick-action-card" to={to}>
+      <span className="quick-action-btn__icon quick-action-card__icon" aria-hidden>
+        <Icon size={18} />
+      </span>
+      <span>
+        <strong>{label}</strong>
+        <small>{meta}</small>
+      </span>
+      <ArrowRight size={15} aria-hidden />
+    </Link>
   )
 }
 

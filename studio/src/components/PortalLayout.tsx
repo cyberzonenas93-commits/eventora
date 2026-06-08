@@ -1,5 +1,30 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
+import {
+  BarChart3,
+  CalendarDays,
+  ContactRound,
+  CreditCard,
+  Handshake,
+  LogOut,
+  Megaphone,
+  Menu,
+  Monitor,
+  Moon,
+  MoreHorizontal,
+  Plus,
+  ReceiptText,
+  ScanLine,
+  Settings,
+  Sparkles,
+  Store,
+  Sun,
+  Table2,
+  TicketPlus,
+  UsersRound,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { titleCaseStatus } from '../lib/formatters'
@@ -22,14 +47,29 @@ export function PortalLayout() {
   const workspaceTagline = getWorkspaceTagline(application)
   const accentColor = getWorkspaceAccent(application)
   const payoutReadiness = getPayoutReadiness(application)
+  const primaryNav: Array<{ to: string; label: string; icon: LucideIcon; end?: boolean }> = [
+    { to: '/studio/overview', label: 'Overview', icon: BarChart3 },
+    { to: '/studio/events', label: 'Events', icon: CalendarDays, end: true },
+    { to: '/studio/analytics', label: 'Analytics', icon: BarChart3 },
+    { to: '/studio/orders', label: 'Orders', icon: ReceiptText },
+    { to: '/studio/contacts', label: 'Contacts', icon: ContactRound },
+    { to: '/studio/payments', label: 'Payments', icon: CreditCard },
+    { to: '/studio/promoters', label: 'Partners', icon: Handshake },
+    { to: '/studio/tables', label: 'Tables', icon: Table2 },
+    { to: '/studio/places', label: 'Places', icon: Store },
+    { to: '/studio/operations', label: 'Operations', icon: ScanLine },
+    { to: '/studio/team', label: 'Team', icon: UsersRound },
+  ]
+  const actionNav: Array<{ to: string; label: string; icon: LucideIcon }> = [
+    { to: '/studio/events/new', label: 'Create event', icon: TicketPlus },
+    { to: '/studio/promote', label: 'Promote event', icon: Megaphone },
+    { to: '/studio/creative', label: 'Creative services', icon: Sparkles },
+    { to: '/studio/settings', label: 'Settings', icon: Settings },
+  ]
 
-  // Always start with drawer closed (avoids stuck-open on load/hydration)
   useEffect(() => {
-    setMobileDrawerOpen(false)
-  }, [])
-
-  useEffect(() => {
-    setMobileDrawerOpen(false)
+    const frame = window.requestAnimationFrame(() => setMobileDrawerOpen(false))
+    return () => window.cancelAnimationFrame(frame)
   }, [location.pathname])
 
   // Scroll to top when switching tabs so the new screen is in view
@@ -50,7 +90,7 @@ export function PortalLayout() {
     setMobileDrawerOpen(false)
   }
 
-  const themeIcon = isAuto ? 'A' : theme === 'dark' ? 'L' : 'D'
+  const ThemeIcon = isAuto ? Monitor : theme === 'dark' ? Sun : Moon
   const themeLabel = isAuto ? 'Auto' : theme === 'dark' ? 'Light mode' : 'Dark mode'
   const themeTitle = isAuto
     ? 'Auto theme (time-based) — click to force dark'
@@ -68,7 +108,9 @@ export function PortalLayout() {
       {/* Mobile: top bar */}
       <header className="studio-mobile-header" aria-label="Mobile navigation">
         <div className="studio-mobile-header__brand">
-          <div className="studio-brand__mark" aria-hidden>V</div>
+          <div className="studio-brand__mark" aria-hidden>
+            <img src="/logo-mark.png" alt="" />
+          </div>
           <span className="studio-mobile-header__title">{workspaceName}</span>
         </div>
         <button
@@ -78,27 +120,19 @@ export function PortalLayout() {
           aria-expanded={mobileDrawerOpen}
           aria-label={mobileDrawerOpen ? 'Close menu' : 'Open menu'}
         >
-          <span className="studio-mobile-header__menu-icon" aria-hidden />
+          {mobileDrawerOpen ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}
         </button>
       </header>
 
-      {/* Drawer overlay (mobile): tap or click to close */}
-      <div
+      {/* Drawer overlay (mobile): a real, keyboard-accessible button so it can be
+          activated with Enter/Space and announced by screen readers (Escape and
+          the header toggle also close the drawer). */}
+      <button
+        type="button"
         className="studio-drawer-backdrop"
-        aria-hidden
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          closeDrawer()
-        }}
-        onTouchEnd={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          closeDrawer()
-        }}
-        role="button"
-        tabIndex={-1}
         aria-label="Close menu"
+        onClick={closeDrawer}
+        style={{ border: 'none', padding: 0, margin: 0, cursor: 'pointer' }}
       />
 
       <aside className="studio-sidebar studio-drawer" aria-label="Main navigation">
@@ -113,13 +147,15 @@ export function PortalLayout() {
             }}
             aria-label="Close menu"
           >
-            <span aria-hidden>×</span>
+            <X size={18} aria-hidden />
           </button>
           <div className="studio-brand">
-            <div className="studio-brand__mark">V</div>
+            <div className="studio-brand__mark" aria-hidden>
+              <img src="/logo-mark.png" alt="" />
+            </div>
             <div>
               <strong>Vennuzo Studio</strong>
-              <span>Organizer portal</span>
+              <span>Event operating system</span>
             </div>
           </div>
 
@@ -132,43 +168,23 @@ export function PortalLayout() {
           </div>
 
           <nav className="studio-nav">
-            <NavLink to="/studio/overview">
-              <span className="studio-nav-icon" aria-hidden>⬡</span>
-              <strong>Overview</strong>
-            </NavLink>
-            <NavLink to="/studio/events" end>
-              <span className="studio-nav-icon" aria-hidden>◈</span>
-              <strong>Events</strong>
-            </NavLink>
-            <NavLink to="/studio/orders">
-              <span className="studio-nav-icon" aria-hidden>◻</span>
-              <strong>Orders</strong>
-            </NavLink>
-            <NavLink to="/studio/contacts">
-              <span className="studio-nav-icon" aria-hidden>◉</span>
-              <strong>Contacts</strong>
-            </NavLink>
-            <NavLink to="/studio/payments">
-              <span className="studio-nav-icon" aria-hidden>◈</span>
-              <strong>Payments &amp; Payouts</strong>
-            </NavLink>
-            <NavLink to="/studio/promoters">
-              <span className="studio-nav-icon" aria-hidden>◎</span>
-              <strong>Partners</strong>
-            </NavLink>
+            {primaryNav.map((item) => (
+              <NavLink end={item.end} key={item.to} to={item.to}>
+                <span className="studio-nav-icon" aria-hidden>
+                  <item.icon size={17} strokeWidth={2.1} />
+                </span>
+                <strong>{item.label}</strong>
+              </NavLink>
+            ))}
             <div className="studio-nav__divider" />
-            <NavLink to="/studio/events/new">
-              <span className="studio-nav-icon" aria-hidden>✦</span>
-              <strong>Create event</strong>
-            </NavLink>
-            <NavLink to="/studio/promote">
-              <span className="studio-nav-icon" aria-hidden>↗</span>
-              <strong>Promote event</strong>
-            </NavLink>
-            <NavLink to="/studio/settings">
-              <span className="studio-nav-icon" aria-hidden>⚙</span>
-              <strong>Settings</strong>
-            </NavLink>
+            {actionNav.map((item) => (
+              <NavLink key={item.to} to={item.to}>
+                <span className="studio-nav-icon" aria-hidden>
+                  <item.icon size={17} strokeWidth={2.1} />
+                </span>
+                <strong>{item.label}</strong>
+              </NavLink>
+            ))}
           </nav>
 
           <div className="studio-sidebar__meta">
@@ -187,10 +203,11 @@ export function PortalLayout() {
               title={themeTitle}
               aria-label={themeTitle}
             >
-              <span aria-hidden>{themeIcon}</span>
+              <ThemeIcon size={16} aria-hidden />
               <span>{themeLabel}</span>
             </button>
             <Link className="button button--primary button--full" to="/studio/events/new">
+              <Plus size={16} aria-hidden />
               Create a new event
             </Link>
             <button
@@ -201,6 +218,7 @@ export function PortalLayout() {
               }}
               type="button"
             >
+              <LogOut size={16} aria-hidden />
               Sign out
             </button>
           </div>
@@ -219,6 +237,7 @@ export function PortalLayout() {
               {status === 'active' ? 'Live' : titleCaseStatus(status)}
             </div>
             <Link className="button button--secondary" to="/studio/events">
+              <CalendarDays size={16} aria-hidden />
               Open events
             </Link>
           </div>
@@ -232,19 +251,19 @@ export function PortalLayout() {
       {/* Mobile: bottom nav */}
       <nav className="studio-bottomnav" aria-label="Quick navigation">
         <NavLink to="/studio/overview" className="studio-bottomnav__item">
-          <span className="studio-bottomnav__icon" aria-hidden>◉</span>
+          <BarChart3 className="studio-bottomnav__icon" size={19} aria-hidden />
           <span>Overview</span>
         </NavLink>
         <NavLink to="/studio/events" end className="studio-bottomnav__item">
-          <span className="studio-bottomnav__icon" aria-hidden>◎</span>
+          <CalendarDays className="studio-bottomnav__icon" size={19} aria-hidden />
           <span>Events</span>
         </NavLink>
         <NavLink to="/studio/events/new" className="studio-bottomnav__item studio-bottomnav__item--primary">
-          <span className="studio-bottomnav__icon" aria-hidden>+</span>
+          <Plus className="studio-bottomnav__icon" size={20} aria-hidden />
           <span>Create</span>
         </NavLink>
         <NavLink to="/studio/payments" className="studio-bottomnav__item">
-          <span className="studio-bottomnav__icon" aria-hidden>¢</span>
+          <CreditCard className="studio-bottomnav__icon" size={19} aria-hidden />
           <span>Payments</span>
         </NavLink>
         <button
@@ -253,7 +272,7 @@ export function PortalLayout() {
           onClick={() => setMobileDrawerOpen(true)}
           aria-label="More menu"
         >
-          <span className="studio-bottomnav__icon" aria-hidden>⋯</span>
+          <MoreHorizontal className="studio-bottomnav__icon" size={20} aria-hidden />
           <span>More</span>
         </button>
       </nav>

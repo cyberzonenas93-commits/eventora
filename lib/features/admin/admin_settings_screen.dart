@@ -216,8 +216,8 @@ class _AdminToolsHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        color: Colors.white.withValues(alpha: 0.84),
-        border: Border.all(color: const Color(0x1410212A)),
+        color: context.palette.card,
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

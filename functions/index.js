@@ -25,10 +25,11 @@ const logger = require("./logger");
     );
   }
 
-  const studioUrl = process.env.VENNUZO_STUDIO_URL;
-  if (!studioUrl) {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  if (!smtpUser || !smtpPass) {
     warnings.push(
-      "VENNUZO_STUDIO_URL not set — payment redirect URLs will use the default fallback.",
+      "SMTP_USER / SMTP_PASS not set — ticket email delivery will fall back to Firestore app_config/email.",
     );
   }
 
@@ -45,6 +46,17 @@ const organizerApplications = require("./organizer_applications");
 const payments = require("./event_payments");
 const placesLookup = require("./places_lookup");
 const shareLinks = require("./share_link");
+const creativeServices = require("./creative_services");
+const adminConsole = require("./admin_console");
+const analytics = require("./analytics");
+const supportChat = require("./support_chat");
+const eventParity = require("./event_parity");
+const eventSafety = require("./event_safety");
+const eventOps = require("./event_ops");
+const phoneAuth = require("./phone_auth");
+const gplusSync = require("./gplus_sync");
+const placesPlatform = require("./places_platform");
+const gplusTicketBridge = require("./gplus_ticket_bridge");
 
 Object.assign(exports, adminSettings);
 Object.assign(exports, notifications);
@@ -52,3 +64,14 @@ Object.assign(exports, organizerApplications);
 Object.assign(exports, payments);
 Object.assign(exports, placesLookup);
 Object.assign(exports, shareLinks);
+Object.assign(exports, creativeServices);
+Object.assign(exports, adminConsole);
+Object.assign(exports, analytics);
+Object.assign(exports, supportChat);
+Object.assign(exports, eventParity);
+Object.assign(exports, eventSafety);
+Object.assign(exports, eventOps);
+Object.assign(exports, phoneAuth);
+Object.assign(exports, gplusSync);
+Object.assign(exports, placesPlatform);
+Object.assign(exports, gplusTicketBridge);

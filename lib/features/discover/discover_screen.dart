@@ -1,16 +1,16 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/art/event_art_widget.dart';
-import '../../core/art/mood_art_palette.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/visuals/vennuzo_visuals.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import '../../data/services/vennuzo_launch_preferences.dart';
-import '../../data/services/vennuzo_location_service.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../widgets/empty_state_card.dart';
@@ -18,6 +18,8 @@ import '../../widgets/event_card.dart';
 import '../../widgets/vennuzo_motion.dart';
 import '../../widgets/section_heading.dart';
 import '../events/event_detail_screen.dart';
+
+enum _DiscoverViewMode { list, calendar }
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -31,8 +33,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String? _selectedTag;
   String? _lastAnnouncementId;
   String _searchQuery = '';
+  List<String> _preferredCategoryIds = const <String>[];
   bool _announcementEligible = false;
+  bool _announcementCheckInFlight = false;
+  _DiscoverViewMode _viewMode = _DiscoverViewMode.list;
+  DateTime _calendarMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? _selectedCalendarDay;
   final ScrollController _scroll = ScrollController();
+  final GlobalKey _calendarSelectedDayKey = GlobalKey();
 
   TextEditingController get _searchController =>
       _searchControllerInstance ??= TextEditingController();
@@ -40,12 +48,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future<void>.delayed(const Duration(milliseconds: 280), () {
-        if (mounted) _loadNearbyEvents();
-      });
-    });
     _prepareAnnouncementGate();
+    _loadPreferenceFilters();
   }
 
   @override
@@ -69,49 +73,56 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     if (shouldAllow) _maybeShowAnnouncement();
   }
 
+  Future<void> _loadPreferenceFilters() async {
+    final prefs = await VennuzoLaunchPreferences.loadOnboardingPreferences();
+    if (!mounted) return;
+    setState(() => _preferredCategoryIds = prefs.categoryIds);
+  }
+
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<VennuzoRepository>();
-    final events = repository.discoverableEvents;
+    final events = repository.discoverableEventsForPreferences(
+      _preferredCategoryIds,
+    );
     final searchFilteredEvents = _searchQuery.isEmpty
         ? events
         : events.where((e) => _matchesSearch(e, _searchQuery)).toList();
-    final featuredCampaigns = repository.featuredCampaigns.where((campaign) {
-      final event = repository.eventById(campaign.eventId);
-      if (event == null) return false;
-      if (_searchQuery.isNotEmpty && !_matchesSearch(event, _searchQuery)) {
-        return false;
-      }
-      if (_selectedTag != null && !event.tags.contains(_selectedTag)) {
-        return false;
-      }
-      return true;
-    }).toList();
+    final featuredCampaigns = repository
+        .featuredCampaignsForPreferences(_preferredCategoryIds)
+        .where((campaign) {
+          final event = repository.eventById(campaign.eventId);
+          if (event == null) return false;
+          if (_searchQuery.isNotEmpty && !_matchesSearch(event, _searchQuery)) {
+            return false;
+          }
+          if (_selectedTag != null && !event.tags.contains(_selectedTag)) {
+            return false;
+          }
+          return true;
+        })
+        .toList();
 
     final tags = _discoverTags(searchFilteredEvents);
     final filteredEvents = _selectedTag == null
         ? searchFilteredEvents
         : searchFilteredEvents
-            .where((e) => e.tags.contains(_selectedTag))
-            .toList();
+              .where((e) => e.tags.contains(_selectedTag))
+              .toList();
+    final hasActiveFilters = _searchQuery.isNotEmpty || _selectedTag != null;
+    final followedCreatorEvents = hasActiveFilters
+        ? const <EventModel>[]
+        : repository.followedCreatorEvents;
 
     return ListView(
       controller: _scroll,
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       children: [
-        // ── Compact hero ─────────────────────────────────────────
-        VennuzoReveal(
-          child: _DiscoverHero(
-            eventCount: events.length,
-            featuredCount: featuredCampaigns.length,
-            onShowAnnouncement: () => _showCurrentAnnouncement(repository),
-          ),
-        ),
-        const SizedBox(height: 18),
-        // ── Search bar ───────────────────────────────────────────
+        // Keep search first and stable so typing does not lose focus when
+        // filters hide/show the hero content.
         VennuzoReveal(
           delay: const Duration(milliseconds: 60),
           child: _SearchBar(
@@ -124,7 +135,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             },
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 18),
+        // ── Compact hero ─────────────────────────────────────────
+        if (!hasActiveFilters) ...[
+          VennuzoReveal(
+            child: _DiscoverHero(
+              eventCount: events.length,
+              featuredCount: featuredCampaigns.length,
+              onShowAnnouncement: () => _showCurrentAnnouncement(repository),
+            ),
+          ),
+          const SizedBox(height: 18),
+        ],
         // ── Vibe filter chips ────────────────────────────────────
         VennuzoReveal(
           delay: const Duration(milliseconds: 100),
@@ -152,34 +174,60 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ),
         const SizedBox(height: 24),
         // ── Tonight on Vennuzo — cinematic film strip ────────────
-        VennuzoReveal(
-          delay: const Duration(milliseconds: 140),
-          child: const _FilmStrip(assets: _filmStripPhotos),
-        ),
-        const SizedBox(height: 28),
-        // ── Featured this week ───────────────────────────────────
-        if (featuredCampaigns.isNotEmpty) ...[
-          SectionHeading(title: 'Featured', subtitle: null),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 260,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: featuredCampaigns.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final campaign = featuredCampaigns[index];
-                final event = repository.eventById(campaign.eventId);
-                if (event == null) return const SizedBox.shrink();
-                return _FeaturedCard(
-                  event: event,
-                  campaign: campaign,
-                  onTap: () => _openEvent(context, event),
-                );
-              },
-            ),
+        if (!hasActiveFilters) ...[
+          VennuzoReveal(
+            delay: const Duration(milliseconds: 140),
+            child: const _FilmStrip(assets: _filmStripPhotos),
           ),
           const SizedBox(height: 28),
+          if (followedCreatorEvents.isNotEmpty) ...[
+            SectionHeading(title: 'From creators you follow', subtitle: null),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 310,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: followedCreatorEvents.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final event = followedCreatorEvents[index];
+                  return SizedBox(
+                    width: 280,
+                    child: EventCard(
+                      event: event,
+                      compact: true,
+                      onTap: () => _openEvent(context, event),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 28),
+          ],
+          // ── Featured this week ───────────────────────────────────
+          if (featuredCampaigns.isNotEmpty) ...[
+            SectionHeading(title: 'Featured', subtitle: null),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 260,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: featuredCampaigns.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final campaign = featuredCampaigns[index];
+                  final event = repository.eventById(campaign.eventId);
+                  if (event == null) return const SizedBox.shrink();
+                  return _FeaturedCard(
+                    event: event,
+                    campaign: campaign,
+                    onTap: () => _openEvent(context, event),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 28),
+          ],
         ],
         // ── Events list ──────────────────────────────────────────
         SectionHeading(
@@ -191,6 +239,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           onAction: (_selectedTag != null || _searchQuery.isNotEmpty)
               ? _clearAllFilters
               : null,
+        ),
+        const SizedBox(height: 12),
+        _DiscoverViewSwitch(
+          mode: _viewMode,
+          onChanged: (mode) => setState(() => _viewMode = mode),
         ),
         const SizedBox(height: 12),
         if (filteredEvents.isEmpty)
@@ -205,36 +258,55 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             actionLabel: 'Show all events',
             onAction: _clearAllFilters,
           )
+        else if (_viewMode == _DiscoverViewMode.calendar)
+          _DiscoverCalendarView(
+            events: filteredEvents,
+            month: _calendarMonth,
+            selectedDay: _selectedCalendarDay,
+            selectedDayKey: _calendarSelectedDayKey,
+            onMonthChanged: (month) => setState(() {
+              _calendarMonth = month;
+              _selectedCalendarDay = null;
+            }),
+            onSelectedDayChanged: _selectCalendarDay,
+            onOpenEvent: (event) => _openEvent(context, event),
+          )
         else ...[
           _LeadEventCard(
             event: filteredEvents.first,
             onTap: () => _openEvent(context, filteredEvents.first),
           ),
           const SizedBox(height: 14),
-          ...filteredEvents.skip(1).map(
+          ...filteredEvents
+              .skip(1)
+              .map(
                 (event) => Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: EventCard(
                     event: event,
                     onTap: () => _openEvent(context, event),
                     compact: true,
-                    footer: Row(children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _openEvent(context, event),
-                          child: const Text('Details'),
+                    footer: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _openEvent(context, event),
+                            child: const Text('Details'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _openEvent(context, event),
-                          child: Text(event.ticketing.enabled
-                              ? 'Get tickets'
-                              : 'Reserve spot'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _openEvent(context, event),
+                            child: Text(
+                              event.ticketing.enabled
+                                  ? 'Get tickets'
+                                  : 'Reserve spot',
+                            ),
+                          ),
                         ),
-                      ),
-                    ]),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -251,9 +323,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         const _ShowcaseMoments(),
         // ── Closing CTA band ─────────────────────────────────────
         const SizedBox(height: 28),
-        VennuzoReveal(
-          child: _CtaBand(onBrowseAll: _browseAll),
-        ),
+        VennuzoReveal(child: _CtaBand(onBrowseAll: _browseAll)),
       ],
     );
   }
@@ -273,8 +343,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return true;
     return [
-      event.title, event.description, event.venue, event.city,
-      event.performers, event.djs, event.mcs, ...event.tags,
+      event.title,
+      event.description,
+      event.venue,
+      event.city,
+      event.performers,
+      event.djs,
+      event.mcs,
+      event.category.label,
+      event.category.shortLabel,
+      ...event.tags,
     ].any((v) => v.toLowerCase().contains(q));
   }
 
@@ -284,12 +362,20 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
     if (_searchQuery.isNotEmpty) return 'Results for "$_searchQuery"';
     if (_selectedTag != null) return '$_selectedTag events';
+    if (_preferredCategoryIds.isNotEmpty) return 'Recommended for you';
     return 'Events for you';
   }
 
   void _clearAllFilters() {
     _searchController.clear();
-    setState(() { _searchQuery = ''; _selectedTag = null; });
+    setState(() {
+      _searchQuery = '';
+      _selectedTag = null;
+    });
+  }
+
+  void _selectCalendarDay(DateTime day) {
+    setState(() => _selectedCalendarDay = day);
   }
 
   void _browseAll() {
@@ -303,39 +389,64 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
-  Future<void> _loadNearbyEvents() async {
-    if (!mounted) return;
-    try {
-      await VennuzoLocationService.instance.getCurrentPosition();
-    } catch (_) {}
-  }
-
   void _maybeShowAnnouncement() {
-    if (!_announcementEligible) return;
+    if (!_announcementEligible || _announcementCheckInFlight) return;
     final repository = context.read<VennuzoRepository>();
-    final campaign = repository.primaryAnnouncementCampaign;
-    if (campaign == null || campaign.id == _lastAnnouncementId) return;
-    _lastAnnouncementId = campaign.id;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _showCurrentAnnouncement(repository);
+    final spotlight = _currentLaunchSpotlight(repository);
+    if (spotlight == null || spotlight.id == _lastAnnouncementId) return;
+    _announcementCheckInFlight = true;
+    VennuzoLaunchPreferences.hasSeenAnnouncementTakeover(spotlight.id).then((
+      seen,
+    ) {
+      if (!mounted) return;
+      _announcementCheckInFlight = false;
+      if (seen || spotlight.id == _lastAnnouncementId) return;
+      _lastAnnouncementId = spotlight.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showCurrentAnnouncement(repository);
+      });
     });
   }
 
+  _LaunchSpotlight? _currentLaunchSpotlight(VennuzoRepository repository) {
+    final campaign = repository.primaryAnnouncementCampaignForPreferences(
+      _preferredCategoryIds,
+    );
+    if (campaign != null) {
+      final event = repository.eventById(campaign.eventId);
+      if (event != null) {
+        return _LaunchSpotlight(
+          id: 'campaign_${campaign.id}',
+          event: event,
+          campaign: campaign,
+        );
+      }
+    }
+
+    final rankedEvents = repository.discoverableEventsForPreferences(
+      _preferredCategoryIds,
+    );
+    if (rankedEvents.isEmpty) return null;
+    final event = rankedEvents.first;
+    return _LaunchSpotlight(id: 'event_${event.id}', event: event);
+  }
+
   Future<void> _showCurrentAnnouncement(VennuzoRepository repository) async {
-    final campaign = repository.primaryAnnouncementCampaign;
-    if (campaign == null || !mounted) return;
-    final event = repository.eventById(campaign.eventId);
-    if (event == null) return;
+    final spotlight = _currentLaunchSpotlight(repository);
+    if (spotlight == null || !mounted) return;
     final openEvent = await showGeneralDialog<bool>(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.72),
       barrierLabel: 'Announcement',
-      pageBuilder: (ctx, anim, secAnim) =>
-          _AnnouncementTakeover(event: event, campaign: campaign),
+      pageBuilder: (ctx, anim, secAnim) => _AnnouncementTakeover(
+        event: spotlight.event,
+        campaign: spotlight.campaign,
+      ),
       transitionBuilder: (context, animation, secAnim, child) {
         final curved = CurvedAnimation(
-          parent: animation, curve: Curves.easeOutCubic,
+          parent: animation,
+          curve: Curves.easeOutCubic,
         );
         return FadeTransition(
           opacity: curved,
@@ -346,7 +457,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         );
       },
     );
-    if (openEvent == true && mounted) _openEvent(context, event);
+    await VennuzoLaunchPreferences.markAnnouncementTakeoverSeen(spotlight.id);
+    if (openEvent == true && mounted) _openEvent(context, spotlight.event);
   }
 
   void _openEvent(BuildContext context, EventModel event) {
@@ -356,6 +468,558 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
     );
   }
+}
+
+class _DiscoverViewSwitch extends StatelessWidget {
+  const _DiscoverViewSwitch({required this.mode, required this.onChanged});
+
+  final _DiscoverViewMode mode;
+  final ValueChanged<_DiscoverViewMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: VennuzoTheme.surface,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+        border: Border.all(color: VennuzoTheme.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _DiscoverViewButton(
+              label: 'List',
+              icon: Icons.view_agenda_outlined,
+              selected: mode == _DiscoverViewMode.list,
+              onTap: () => onChanged(_DiscoverViewMode.list),
+            ),
+          ),
+          Expanded(
+            child: _DiscoverViewButton(
+              label: 'Calendar',
+              icon: Icons.calendar_month_outlined,
+              selected: mode == _DiscoverViewMode.calendar,
+              onTap: () => onChanged(_DiscoverViewMode.calendar),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscoverViewButton extends StatelessWidget {
+  const _DiscoverViewButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
+            color: selected ? VennuzoTheme.primaryStart : Colors.transparent,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 17,
+                color: selected ? Colors.white : VennuzoTheme.textTertiary,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: context.text.labelLarge?.copyWith(
+                  color: selected ? Colors.white : VennuzoTheme.textSecondary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscoverCalendarView extends StatelessWidget {
+  const _DiscoverCalendarView({
+    required this.events,
+    required this.month,
+    required this.selectedDay,
+    required this.selectedDayKey,
+    required this.onMonthChanged,
+    required this.onSelectedDayChanged,
+    required this.onOpenEvent,
+  });
+
+  final List<EventModel> events;
+  final DateTime month;
+  final DateTime? selectedDay;
+  final GlobalKey selectedDayKey;
+  final ValueChanged<DateTime> onMonthChanged;
+  final ValueChanged<DateTime> onSelectedDayChanged;
+  final ValueChanged<EventModel> onOpenEvent;
+
+  @override
+  Widget build(BuildContext context) {
+    final eventsByDay = _eventsByDay(events);
+    final days = _calendarDays(month);
+    final defaultDay =
+        _firstEventDayInMonth(events, month) ??
+        DateTime(month.year, month.month, 1);
+    final activeDay =
+        selectedDay == null ||
+            selectedDay!.year != month.year ||
+            selectedDay!.month != month.month
+        ? defaultDay
+        : selectedDay!;
+    final activeEvents =
+        eventsByDay[_dateKey(activeDay)] ?? const <EventModel>[];
+    final monthEventCount = events
+        .where(
+          (event) =>
+              event.startDate.year == month.year &&
+              event.startDate.month == month.month,
+        )
+        .length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: VennuzoTheme.surface,
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
+            border: Border.all(color: VennuzoTheme.border),
+            boxShadow: VennuzoTheme.shadowResting,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SelectedCalendarDayPreview(
+                day: activeDay,
+                events: activeEvents,
+                onOpenEvent: onOpenEvent,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('MMMM yyyy').format(month),
+                          style: context.text.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '$monthEventCount matching ${monthEventCount == 1 ? 'event' : 'events'} this month',
+                          style: context.text.bodySmall?.copyWith(
+                            color: VennuzoTheme.textTertiary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton.filledTonal(
+                    onPressed: () => onMonthChanged(_addMonths(month, -1)),
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    tooltip: 'Previous month',
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton.filledTonal(
+                    onPressed: () => onMonthChanged(_addMonths(month, 1)),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    tooltip: 'Next month',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: const ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+                    .map(
+                      (label) => Expanded(
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: VennuzoTheme.textTertiary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 8),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: days.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  childAspectRatio: 0.54,
+                  mainAxisSpacing: 6,
+                  crossAxisSpacing: 6,
+                ),
+                itemBuilder: (context, index) {
+                  final day = days[index];
+                  final key = _dateKey(day);
+                  return _CalendarDayCell(
+                    day: day,
+                    inMonth: day.month == month.month,
+                    selected: _sameDay(day, activeDay),
+                    eventCount: eventsByDay[key]?.length ?? 0,
+                    onTap: () => onSelectedDayChanged(day),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        KeyedSubtree(
+          key: selectedDayKey,
+          child: SectionHeading(
+            title: DateFormat('EEE, MMM d').format(activeDay),
+            subtitle: activeEvents.isEmpty
+                ? 'No matching events on this day.'
+                : '${activeEvents.length} ${activeEvents.length == 1 ? 'event' : 'events'} scheduled',
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (activeEvents.isEmpty)
+          EmptyStateCard(
+            title: 'No events on this day',
+            body: 'Pick a highlighted date to see what is happening.',
+            icon: Icons.event_busy_outlined,
+          )
+        else
+          ...activeEvents.map(
+            (event) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: EventCard(
+                event: event,
+                compact: true,
+                onTap: () => onOpenEvent(event),
+                footer: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => onOpenEvent(event),
+                        child: const Text('Details'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => onOpenEvent(event),
+                        child: Text(
+                          event.ticketing.enabled
+                              ? 'Get tickets'
+                              : 'Reserve spot',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SelectedCalendarDayPreview extends StatelessWidget {
+  const _SelectedCalendarDayPreview({
+    required this.day,
+    required this.events,
+    required this.onOpenEvent,
+  });
+
+  final DateTime day;
+  final List<EventModel> events;
+  final ValueChanged<EventModel> onOpenEvent;
+
+  @override
+  Widget build(BuildContext context) {
+    final event = events.isEmpty ? null : events.first;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 78),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+        border: Border.all(color: VennuzoTheme.border),
+      ),
+      child: event == null
+          ? Row(
+              children: [
+                const Icon(
+                  Icons.event_busy_outlined,
+                  color: VennuzoTheme.textTertiary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${DateFormat('EEE, MMM d').format(day)} has no matching events.',
+                    style: context.text.bodyMedium?.copyWith(
+                      color: VennuzoTheme.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : InkWell(
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+              onTap: () => onOpenEvent(event),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: VennuzoTheme.primaryStart.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.event_available_rounded,
+                      color: VennuzoTheme.primaryStart,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          DateFormat('EEE, MMM d').format(day),
+                          style: context.text.labelMedium?.copyWith(
+                            color: VennuzoTheme.textTertiary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          event.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          events.length == 1
+                              ? event.venue
+                              : '${events.length} events, first at ${event.venue}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.bodySmall?.copyWith(
+                            color: VennuzoTheme.textSecondary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: VennuzoTheme.textTertiary,
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+class _CalendarDayCell extends StatelessWidget {
+  const _CalendarDayCell({
+    required this.day,
+    required this.inMonth,
+    required this.selected,
+    required this.eventCount,
+    required this.onTap,
+  });
+
+  final DateTime day;
+  final bool inMonth;
+  final bool selected;
+  final int eventCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasEvents = eventCount > 0;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label:
+          '${DateFormat('MMMM d').format(day)}, $eventCount ${eventCount == 1 ? 'event' : 'events'}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          decoration: BoxDecoration(
+            color: selected
+                ? VennuzoTheme.primaryStart.withValues(alpha: 0.14)
+                : hasEvents
+                ? VennuzoTheme.primaryStart.withValues(alpha: 0.07)
+                : Colors.white.withValues(alpha: 0.02),
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusSm),
+            border: Border.all(
+              color: selected
+                  ? VennuzoTheme.primaryStart
+                  : hasEvents
+                  ? VennuzoTheme.primaryStart.withValues(alpha: 0.28)
+                  : VennuzoTheme.border,
+            ),
+          ),
+          child: Opacity(
+            opacity: inMonth ? 1 : 0.34,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${day.day}',
+                  style: context.text.labelLarge?.copyWith(
+                    color: selected
+                        ? VennuzoTheme.primaryStart
+                        : VennuzoTheme.textPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                if (hasEvents)
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 18),
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? VennuzoTheme.primaryStart
+                          : VennuzoTheme.accentMint,
+                      borderRadius: BorderRadius.circular(
+                        VennuzoTheme.radiusFull,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$eventCount',
+                        style: context.text.labelSmall?.copyWith(
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF03201B),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: VennuzoTheme.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+DateTime _addMonths(DateTime month, int amount) =>
+    DateTime(month.year, month.month + amount);
+
+String _dateKey(DateTime value) =>
+    '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+List<DateTime> _calendarDays(DateTime month) {
+  final first = DateTime(month.year, month.month);
+  final start = first.subtract(Duration(days: first.weekday % 7));
+  return List<DateTime>.generate(
+    42,
+    (index) => start.add(Duration(days: index)),
+  );
+}
+
+Map<String, List<EventModel>> _eventsByDay(List<EventModel> events) {
+  final groups = <String, List<EventModel>>{};
+  for (final event in events) {
+    groups
+        .putIfAbsent(_dateKey(event.startDate), () => <EventModel>[])
+        .add(event);
+  }
+  for (final group in groups.values) {
+    group.sort((a, b) => a.startDate.compareTo(b.startDate));
+  }
+  return groups;
+}
+
+DateTime? _firstEventDayInMonth(List<EventModel> events, DateTime month) {
+  final monthEvents =
+      events
+          .where(
+            (event) =>
+                event.startDate.year == month.year &&
+                event.startDate.month == month.month,
+          )
+          .toList()
+        ..sort((a, b) => a.startDate.compareTo(b.startDate));
+  if (monthEvents.isEmpty) return null;
+  final start = monthEvents.first.startDate;
+  return DateTime(start.year, start.month, start.day);
+}
+
+class _LaunchSpotlight {
+  const _LaunchSpotlight({
+    required this.id,
+    required this.event,
+    this.campaign,
+  });
+
+  final String id;
+  final EventModel event;
+  final PromotionCampaign? campaign;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -377,7 +1041,8 @@ class _DiscoverHero extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
-        boxShadow: VennuzoTheme.glowShadow(VennuzoTheme.primaryMid),
+        border: Border.all(color: VennuzoTheme.borderSubtle),
+        boxShadow: VennuzoTheme.shadowResting,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
@@ -388,7 +1053,7 @@ class _DiscoverHero extends StatelessWidget {
             children: [
               // Cinematic photo with slow Ken Burns drift
               const _KenBurnsImage(
-                asset: 'assets/photos/01_hero_concert_crowd.jpg',
+                asset: VennuzoVisuals.exploreSpotlight,
                 cacheWidth: 1080,
               ),
               // Legibility scrim — darkest toward the bottom-left copy
@@ -400,9 +1065,9 @@ class _DiscoverHero extends StatelessWidget {
                       end: Alignment.bottomLeft,
                       stops: const [0.0, 0.45, 1.0],
                       colors: [
-                        VennuzoTheme.background.withValues(alpha: 0.10),
-                        VennuzoTheme.background.withValues(alpha: 0.55),
-                        VennuzoTheme.background.withValues(alpha: 0.92),
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.44),
+                        Colors.black.withValues(alpha: 0.82),
                       ],
                     ),
                   ),
@@ -430,10 +1095,12 @@ class _DiscoverHero extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const _HeroEyebrow(),
-                        const Spacer(),
                         if (featuredCount > 0)
                           _SpotlightButton(onTap: onShowAnnouncement),
                       ],
@@ -446,7 +1113,6 @@ class _DiscoverHero extends StatelessWidget {
                           style: context.text.headlineLarge?.copyWith(
                             color: Colors.white,
                             height: 1.04,
-                            letterSpacing: -0.8,
                             fontWeight: FontWeight.w800,
                             shadows: [
                               Shadow(
@@ -457,21 +1123,21 @@ class _DiscoverHero extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
                             _StatPill(
                               icon: Icons.bolt_rounded,
                               label: '$eventCount events',
                               color: VennuzoTheme.primaryStart,
                             ),
-                            if (featuredCount > 0) ...[
-                              const SizedBox(width: 8),
+                            if (featuredCount > 0)
                               _StatPill(
                                 icon: Icons.auto_awesome_rounded,
                                 label: '$featuredCount featured',
                                 color: VennuzoTheme.primaryEnd,
                               ),
-                            ],
                           ],
                         ),
                       ],
@@ -522,7 +1188,6 @@ class _HeroEyebrow extends StatelessWidget {
             style: context.text.labelSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
             ),
           ),
         ],
@@ -564,7 +1229,6 @@ class _StatPill extends StatelessWidget {
             style: context.text.labelSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -579,36 +1243,49 @@ class _SpotlightButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [VennuzoTheme.primaryStart, VennuzoTheme.primaryMid],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
-          boxShadow: VennuzoTheme.glowShadow(VennuzoTheme.primaryStart),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.local_fire_department_rounded,
-              color: Colors.white,
-              size: 16,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Spotlight',
-              style: context.text.labelMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'Open spotlight event',
+      child: GestureDetector(
+        onTap: onTap,
+        child: ExcludeSemantics(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [VennuzoTheme.primaryStart, VennuzoTheme.primaryMid],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+              boxShadow: [
+                BoxShadow(
+                  color: VennuzoTheme.primaryStart.withValues(alpha: 0.18),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.local_fire_department_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Spotlight',
+                  style: context.text.labelMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -636,7 +1313,7 @@ class _SearchBar extends StatelessWidget {
     final palette = context.palette;
     return Container(
       decoration: BoxDecoration(
-        color: VennuzoTheme.surfaceElevated,
+        color: VennuzoTheme.surface,
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
         border: Border.all(color: VennuzoTheme.border),
         boxShadow: VennuzoTheme.shadowResting,
@@ -657,18 +1334,17 @@ class _SearchBar extends StatelessWidget {
           ),
           prefixIcon: Padding(
             padding: const EdgeInsets.only(left: 16, right: 10),
-            child: Icon(
-              Icons.search_rounded,
-              color: palette.slate,
-              size: 22,
-            ),
+            child: Icon(Icons.search_rounded, color: palette.slate, size: 22),
           ),
-          prefixIconConstraints:
-              const BoxConstraints(minWidth: 48, minHeight: 48),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 48,
+            minHeight: 48,
+          ),
           suffixIcon: query.isEmpty
               ? null
               : IconButton(
                   onPressed: onClear,
+                  tooltip: 'Clear search',
                   icon: Icon(
                     Icons.close_rounded,
                     color: palette.slate,
@@ -705,36 +1381,32 @@ class _VibeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-          gradient: selected
-              ? const LinearGradient(
-                  colors: [
-                    VennuzoTheme.primaryStart,
-                    VennuzoTheme.primaryMid,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: selected ? null : VennuzoTheme.surfaceElevated,
-          border: selected
-              ? null
-              : Border.all(color: VennuzoTheme.border),
-        ),
-        child: Text(
-          label,
-          style: context.text.labelMedium?.copyWith(
-            color: selected ? Colors.white : palette.slate,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+            color: selected ? VennuzoTheme.primaryStart : VennuzoTheme.surface,
+            border: selected
+                ? null
+                : Border.all(color: VennuzoTheme.borderBright),
+            boxShadow: selected ? VennuzoTheme.shadowResting : null,
+          ),
+          child: ExcludeSemantics(
+            child: Text(
+              label,
+              style: context.text.labelMedium?.copyWith(
+                color: selected ? Colors.white : VennuzoTheme.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
       ),
@@ -759,10 +1431,7 @@ class _FeaturedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final minPrice = event.ticketing.minimumPrice;
-    final priceLabel =
-        minPrice == null ? 'Free' : formatMoney(minPrice);
-    final moodPal = MoodArtPalette.fromMood(event.mood);
-
+    final priceLabel = minPrice == null ? 'Free' : formatMoney(minPrice);
     return SizedBox(
       width: 240,
       child: Container(
@@ -770,9 +1439,9 @@ class _FeaturedCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
           boxShadow: [
             BoxShadow(
-              color: moodPal.base.withValues(alpha: 0.22),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -811,7 +1480,8 @@ class _FeaturedCard extends StatelessWidget {
                         // Featured badge
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5,
+                            horizontal: 10,
+                            vertical: 5,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.15),
@@ -850,7 +1520,6 @@ class _FeaturedCard extends StatelessWidget {
                           style: context.text.titleLarge?.copyWith(
                             color: Colors.white,
                             height: 1.1,
-                            letterSpacing: -0.3,
                             shadows: [
                               Shadow(
                                 color: Colors.black.withValues(alpha: 0.5),
@@ -878,8 +1547,10 @@ class _FeaturedCard extends StatelessWidget {
                               ),
                             ),
                             Container(
+                              constraints: const BoxConstraints(maxWidth: 96),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4,
+                                horizontal: 8,
+                                vertical: 4,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.white,
@@ -887,8 +1558,10 @@ class _FeaturedCard extends StatelessWidget {
                               ),
                               child: Text(
                                 priceLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: context.text.labelSmall?.copyWith(
-                                  color: VennuzoTheme.textPrimary,
+                                  color: const Color(0xFF031018),
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -949,19 +1622,34 @@ class _LeadEventCard extends StatelessWidget {
 // _AnnouncementTakeover — fullscreen spotlight modal (unchanged logic)
 // ─────────────────────────────────────────────────────────────────────────────
 class _AnnouncementTakeover extends StatelessWidget {
-  const _AnnouncementTakeover({
-    required this.event,
-    required this.campaign,
-  });
+  const _AnnouncementTakeover({required this.event, required this.campaign});
 
   final EventModel event;
-  final PromotionCampaign campaign;
+  final PromotionCampaign? campaign;
 
   @override
   Widget build(BuildContext context) {
     final minPrice = event.ticketing.minimumPrice;
-    final priceLabel =
-        minPrice == null ? 'Free entry' : 'From ${formatMoney(minPrice)}';
+    final priceLabel = minPrice == null
+        ? 'Free entry'
+        : 'From ${formatMoney(minPrice)}';
+    final ticketSales = event.ticketing.totalSold;
+    final isPromoted = campaign != null;
+    final badgeLabel = isPromoted
+        ? 'PROMOTED'
+        : ticketSales >= 50
+        ? 'TOP SELLING'
+        : event.rsvpCount + event.likesCount >= 150
+        ? 'POPULAR'
+        : 'SPOTLIGHT';
+    final message = campaign?.message.trim().isNotEmpty == true
+        ? campaign!.message
+        : ticketSales >= 50
+        ? '$ticketSales tickets are already moving for this event.'
+        : event.rsvpCount + event.likesCount >= 150
+        ? 'People are saving and joining this event right now.'
+        : event.description;
+    final footerLabel = isPromoted ? 'Sponsored event' : 'Featured by demand';
 
     return SafeArea(
       child: Padding(
@@ -1010,7 +1698,8 @@ class _AnnouncementTakeover extends StatelessWidget {
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 6,
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withValues(alpha: 0.15),
@@ -1018,14 +1707,15 @@ class _AnnouncementTakeover extends StatelessWidget {
                                       VennuzoTheme.radiusFull,
                                     ),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                   ),
                                   child: Text(
-                                    'NOW SPOTLIGHTING',
+                                    badgeLabel,
                                     style: context.text.labelSmall?.copyWith(
                                       color: Colors.white,
-                                      letterSpacing: 1.0,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -1034,9 +1724,11 @@ class _AnnouncementTakeover extends StatelessWidget {
                                 IconButton(
                                   onPressed: () =>
                                       Navigator.of(context).pop(false),
+                                  tooltip: 'Close spotlight',
                                   style: IconButton.styleFrom(
-                                    backgroundColor:
-                                        Colors.white.withValues(alpha: 0.15),
+                                    backgroundColor: Colors.white.withValues(
+                                      alpha: 0.15,
+                                    ),
                                     shape: const CircleBorder(),
                                   ),
                                   icon: const Icon(
@@ -1052,13 +1744,12 @@ class _AnnouncementTakeover extends StatelessWidget {
                               event.title,
                               style: context.text.displayMedium?.copyWith(
                                 color: Colors.white,
-                                letterSpacing: -1.0,
                                 height: 1.0,
                               ),
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              campaign.message,
+                              message,
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                               style: context.text.bodyLarge?.copyWith(
@@ -1070,7 +1761,9 @@ class _AnnouncementTakeover extends StatelessWidget {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _InfoPill(label: formatShortDate(event.startDate)),
+                                _InfoPill(
+                                  label: formatShortDate(event.startDate),
+                                ),
                                 _InfoPill(label: event.city),
                                 _InfoPill(label: priceLabel),
                               ],
@@ -1083,34 +1776,34 @@ class _AnnouncementTakeover extends StatelessWidget {
                                     Navigator.of(context).pop(true),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
-                                  foregroundColor: VennuzoTheme.background,
+                                  foregroundColor: const Color(0xFF031018),
                                   minimumSize: const Size.fromHeight(52),
+                                  elevation: 0,
+                                  shadowColor: Colors.transparent,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(
                                       VennuzoTheme.radiusMd,
                                     ),
+                                    side: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.92,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                child: const Text('See full event'),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                                style: TextButton.styleFrom(
-                                  foregroundColor:
-                                      Colors.white.withValues(alpha: 0.7),
+                                child: const Text(
+                                  'See full event',
+                                  style: TextStyle(
+                                    color: Color(0xFF031018),
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
-                                child: const Text('Not now'),
                               ),
                             ),
                             Text(
-                              'This placement is part of Vennuzo premium promotion inventory for organizers.',
+                              footerLabel,
                               style: context.text.bodySmall?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.4),
+                                color: Colors.white.withValues(alpha: 0.72),
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -1173,10 +1866,7 @@ const double _kFilmGap = 10;
 
 // Slowly drifting + scaling photo (Ken Burns). Fills its parent constraints.
 class _KenBurnsImage extends StatefulWidget {
-  const _KenBurnsImage({
-    required this.asset,
-    this.cacheWidth = 900,
-  });
+  const _KenBurnsImage({required this.asset, this.cacheWidth = 900});
 
   final String asset;
   final int cacheWidth;
@@ -1214,10 +1904,16 @@ class _KenBurnsImageState extends State<_KenBurnsImage>
       animation: curved,
       builder: (context, _) {
         final t = curved.value;
-        final scale =
-            lerpDouble(_KenBurnsImage._scaleBegin, _KenBurnsImage._scaleEnd, t)!;
+        final scale = lerpDouble(
+          _KenBurnsImage._scaleBegin,
+          _KenBurnsImage._scaleEnd,
+          t,
+        )!;
         final align = Alignment.lerp(
-            _KenBurnsImage._alignmentBegin, _KenBurnsImage._alignmentEnd, t)!;
+          _KenBurnsImage._alignmentBegin,
+          _KenBurnsImage._alignmentEnd,
+          t,
+        )!;
         return Transform.scale(
           scale: scale,
           alignment: align,
@@ -1289,6 +1985,12 @@ class _FilmStripState extends State<_FilmStrip>
                       for (var i = 0; i < widget.assets.length * 2; i++) ...[
                         _FilmFrame(
                           asset: widget.assets[i % widget.assets.length],
+                          title: _filmTitle(
+                            widget.assets[i % widget.assets.length],
+                          ),
+                          meta: _filmMeta(
+                            widget.assets[i % widget.assets.length],
+                          ),
                         ),
                         const SizedBox(width: _kFilmGap),
                       ],
@@ -1302,11 +2004,38 @@ class _FilmStripState extends State<_FilmStrip>
       ),
     );
   }
+
+  String _filmTitle(String asset) {
+    return switch (asset) {
+      'assets/photos/02_dj_booth_night.jpg' => 'DJ sets',
+      'assets/photos/03_festival_dusk.jpg' => 'Festival dusk',
+      'assets/photos/04_friends_arriving.jpg' => 'Doors open',
+      'assets/photos/05_qr_entry.jpg' => 'Fast entry',
+      'assets/photos/06_rooftop_party.jpg' => 'Rooftop nights',
+      'assets/photos/07_dancefloor_silhouettes.jpg' => 'Dancefloor',
+      _ => 'Tonight',
+    };
+  }
+
+  String _filmMeta(String asset) {
+    return switch (asset) {
+      'assets/photos/05_qr_entry.jpg' => 'QR ready',
+      'assets/photos/06_rooftop_party.jpg' => 'From GHS 40',
+      'assets/photos/03_festival_dusk.jpg' => 'This weekend',
+      _ => 'Accra',
+    };
+  }
 }
 
 class _FilmFrame extends StatelessWidget {
-  const _FilmFrame({required this.asset});
+  const _FilmFrame({
+    required this.asset,
+    required this.title,
+    required this.meta,
+  });
   final String asset;
+  final String title;
+  final String meta;
 
   @override
   Widget build(BuildContext context) {
@@ -1316,7 +2045,8 @@ class _FilmFrame extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: VennuzoTheme.borderSubtle),
+        boxShadow: VennuzoTheme.shadowResting,
       ),
       child: Stack(
         fit: StackFit.expand,
@@ -1327,11 +2057,42 @@ class _FilmFrame extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
+                stops: const [0.0, 0.46, 1.0],
                 colors: [
                   Colors.transparent,
-                  VennuzoTheme.background.withValues(alpha: 0.30),
+                  Colors.black.withValues(alpha: 0.42),
+                  Colors.black.withValues(alpha: 0.84),
                 ],
               ),
+            ),
+          ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 10,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.text.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  meta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.text.labelSmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1420,9 +2181,9 @@ class _MomentCard extends StatelessWidget {
                   end: Alignment.centerLeft,
                   stops: const [0.0, 0.5, 1.0],
                   colors: [
-                    VennuzoTheme.background.withValues(alpha: 0.14),
-                    VennuzoTheme.background.withValues(alpha: 0.62),
-                    VennuzoTheme.background.withValues(alpha: 0.9),
+                    Colors.black.withValues(alpha: 0.10),
+                    Colors.black.withValues(alpha: 0.56),
+                    Colors.black.withValues(alpha: 0.84),
                   ],
                 ),
               ),
@@ -1438,7 +2199,6 @@ class _MomentCard extends StatelessWidget {
                     style: context.text.titleMedium?.copyWith(
                       color: moment.accent,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -1449,7 +2209,6 @@ class _MomentCard extends StatelessWidget {
                       style: context.text.titleLarge?.copyWith(
                         color: Colors.white,
                         height: 1.12,
-                        letterSpacing: -0.4,
                         shadows: [
                           Shadow(
                             color: Colors.black.withValues(alpha: 0.5),
@@ -1457,6 +2216,8 @@ class _MomentCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1468,6 +2229,8 @@ class _MomentCard extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.82),
                         height: 1.4,
                       ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -1490,7 +2253,8 @@ class _CtaBand extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
-        boxShadow: VennuzoTheme.glowShadow(VennuzoTheme.primaryEnd),
+        border: Border.all(color: VennuzoTheme.borderSubtle),
+        boxShadow: VennuzoTheme.shadowResting,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
@@ -1510,8 +2274,8 @@ class _CtaBand extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      VennuzoTheme.background.withValues(alpha: 0.55),
-                      VennuzoTheme.background.withValues(alpha: 0.86),
+                      Colors.black.withValues(alpha: 0.48),
+                      Colors.black.withValues(alpha: 0.82),
                     ],
                   ),
                 ),
@@ -1527,7 +2291,6 @@ class _CtaBand extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: context.text.labelSmall?.copyWith(
                       color: VennuzoTheme.accentMint,
-                      letterSpacing: 2,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1538,7 +2301,6 @@ class _CtaBand extends StatelessWidget {
                     style: context.text.headlineMedium?.copyWith(
                       color: Colors.white,
                       height: 1.05,
-                      letterSpacing: -0.6,
                       shadows: [
                         Shadow(
                           color: Colors.black.withValues(alpha: 0.5),
@@ -1588,9 +2350,15 @@ class _GradientButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
         decoration: BoxDecoration(
-          gradient: VennuzoTheme.brandGradient,
+          color: VennuzoTheme.primaryStart,
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-          boxShadow: VennuzoTheme.glowShadow(VennuzoTheme.primaryMid),
+          boxShadow: [
+            BoxShadow(
+              color: VennuzoTheme.primaryStart.withValues(alpha: 0.18),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

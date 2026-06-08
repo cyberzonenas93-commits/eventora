@@ -7,6 +7,14 @@ import { functions } from '../firebaseFunctions'
 import { copy } from '../lib/copy'
 import { titleCaseStatus } from '../lib/formatters'
 import { getErrorMessage } from '../lib/errorMessages'
+import { trackEvent } from '../lib/analytics'
+import {
+  canPerformAdminAction,
+  getAdminRoleLabel,
+  normalizeAdminRole,
+  staffRoleOptions,
+  type AdminRoleId,
+} from '../lib/adminRoles'
 import { createEmptyApplication } from '../lib/organizerApplication'
 import { usePortalSession } from '../lib/portalSession'
 import type { OrganizerApplication, OrganizerApplicationStatus } from '../lib/types'
@@ -27,7 +35,7 @@ interface AdminConsoleUser {
   displayName: string
   email: string
   phone: string
-  role: 'admin' | 'superadmin'
+  role: AdminRoleId
   status: string
   createdAt: Timestamp | null
   createdByName: string
@@ -44,13 +52,15 @@ const createAdminAccount = httpsCallable<
     email: string
     phone?: string
     password: string
-    role: 'admin' | 'superadmin'
+    role: AdminRoleId
   },
-  { success: boolean; uid: string; created: boolean; role: 'admin' | 'superadmin' }
+  { success: boolean; uid: string; created: boolean; role: AdminRoleId }
 >(functions, 'createAdminAccount')
 
 export function SuperadminApprovalsPage() {
   const session = usePortalSession()
+  const canReviewOrganizers = canPerformAdminAction(session.adminRole, 'review_organizers')
+  const canManageStaff = canPerformAdminAction(session.adminRole, 'manage_staff')
   const [applications, setApplications] = useState<ApprovalApplication[]>([])
   const [admins, setAdmins] = useState<AdminConsoleUser[]>([])
   const [filter, setFilter] = useState<QueueStatus>('all')
@@ -70,10 +80,17 @@ export function SuperadminApprovalsPage() {
     email: '',
     phone: '',
     password: '',
-    role: 'admin' as 'admin' | 'superadmin',
+    role: 'operations_manager' as AdminRoleId,
   })
 
   useEffect(() => {
+    if (!canReviewOrganizers) {
+      setApplications([])
+      setSelectedApplicationId('')
+      setLoading(false)
+      return
+    }
+
     const stop = onSnapshot(
       collection(db, 'organizer_applications'),
       (snapshot) => {
@@ -134,9 +151,15 @@ export function SuperadminApprovalsPage() {
     )
 
     return () => stop()
-  }, [])
+  }, [canReviewOrganizers])
 
   useEffect(() => {
+    if (!canManageStaff) {
+      setAdmins([])
+      setAdminsLoading(false)
+      return
+    }
+
     const stop = onSnapshot(
       collection(db, 'admins'),
       (snapshot) => {
@@ -144,10 +167,7 @@ export function SuperadminApprovalsPage() {
         const nextAdmins = snapshot.docs
           .map((docSnap) => {
             const data = docSnap.data()
-            const role: AdminConsoleUser['role'] =
-              String(data.role ?? '').toLowerCase() === 'superadmin'
-                ? 'superadmin'
-                : 'admin'
+            const role = normalizeAdminRole(String(data.role ?? '')) || 'read_only'
 
             return {
               id: docSnap.id,
@@ -180,7 +200,7 @@ export function SuperadminApprovalsPage() {
     )
 
     return () => stop()
-  }, [])
+  }, [canManageStaff])
 
   const filteredApplications = useMemo(
     () => applications.filter((application) => (filter === 'all' ? true : application.status === filter)),
@@ -198,6 +218,8 @@ export function SuperadminApprovalsPage() {
     applicationId: string,
     decision: 'under_review' | 'approved' | 'rejected',
   ) {
+    if (!canReviewOrganizers) return
+
     setBusyId(applicationId)
     setError('')
     setNotice('')
@@ -214,6 +236,13 @@ export function SuperadminApprovalsPage() {
             ? 'Application rejected successfully.'
             : 'Application moved into review successfully.',
       )
+      void trackEvent('admin_action', {
+        action: 'organizer_reviewed',
+        decision,
+      }, {
+        area: 'admin',
+        role: session.adminRole,
+      })
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, copy.reviewFailed))
     } finally {
@@ -222,6 +251,8 @@ export function SuperadminApprovalsPage() {
   }
 
   async function handleCreateAdmin() {
+    if (!canManageStaff) return
+
     setAdminError('')
     setAdminNotice('')
 
@@ -255,12 +286,19 @@ export function SuperadminApprovalsPage() {
           ? `${adminForm.displayName.trim()} can now sign in to the admin console.`
           : `${adminForm.displayName.trim()} was promoted into the admin console.`,
       )
+      void trackEvent('admin_action', {
+        action: result.data.created ? 'admin_created' : 'admin_promoted',
+        admin_role: result.data.role,
+      }, {
+        area: 'admin',
+        role: session.adminRole,
+      })
       setAdminForm({
         displayName: '',
         email: '',
         phone: '',
         password: '',
-        role: 'admin',
+        role: 'operations_manager',
       })
       setShowAdminPassword(false)
     } catch (caughtError) {
@@ -275,23 +313,23 @@ export function SuperadminApprovalsPage() {
       <section className="status-card superadmin-card">
         <div className="status-card__header">
           <div>
-            <p className="eyebrow">Superadmin</p>
+            <p className="eyebrow">Organizer review</p>
             <h1>Organizer approval queue</h1>
           </div>
           <div className="status-pill status-pill--approved">Web dashboard</div>
         </div>
 
         <p>
-          Every organizer submission from Vennuzo Studio lands here. Superadmins can
-          move it into review, approve it, or reject it with notes.
+          Every organizer submission from Vennuzo Studio lands here. Approved staff can
+          move applications into review, approve them, or reject them with notes.
         </p>
 
-        {!session.isSuperAdmin ? (
+        {!canManageStaff ? (
           <div className="review-note">
-            <strong>Read-only admin access</strong>
+            <strong>{getAdminRoleLabel(session.adminRole)} access</strong>
             <p>
-              Your account can monitor the queue, but only superadmins can approve
-              organizer applications or onboard more admins.
+              Your role can review organizer applications. Staff account creation is
+              reserved for the owner role.
             </p>
           </div>
         ) : null}
@@ -299,7 +337,7 @@ export function SuperadminApprovalsPage() {
         <div className="status-summary-grid">
           <div className="signal-card signal-card--plain">
             <span className="eyebrow">Signed in as</span>
-            <strong>{session.profile?.displayName || session.user?.email || 'Superadmin'}</strong>
+            <strong>{session.profile?.displayName || session.user?.email || 'Admin'}</strong>
             <p>This is the Studio entrypoint for organizer application review.</p>
           </div>
           <div className="signal-card signal-card--ready">
@@ -307,11 +345,19 @@ export function SuperadminApprovalsPage() {
             <strong>{applications.length} applications</strong>
             <p>{filteredApplications.length} visible in the current filter.</p>
           </div>
-          <div className="signal-card signal-card--plain">
-            <span className="eyebrow">Admin access</span>
-            <strong>{activeAdminCount} active admins</strong>
-            <p>{superadminCount} superadmins can provision more access from here.</p>
-          </div>
+          {canManageStaff ? (
+            <div className="signal-card signal-card--plain">
+              <span className="eyebrow">Staff access</span>
+              <strong>{activeAdminCount} active admins</strong>
+              <p>{superadminCount} owner-level accounts can provision more access from here.</p>
+            </div>
+          ) : (
+            <div className="signal-card signal-card--plain">
+              <span className="eyebrow">Your role</span>
+              <strong>{getAdminRoleLabel(session.adminRole)}</strong>
+              <p>Use this queue for organizer review decisions.</p>
+            </div>
+          )}
         </div>
 
         <div className="superadmin-filters">
@@ -524,7 +570,7 @@ export function SuperadminApprovalsPage() {
                     <div className="hero-actions">
                       <button
                         className="button button--secondary"
-                        disabled={busyId === selectedApplication.id || !session.isSuperAdmin}
+                        disabled={busyId === selectedApplication.id || !canReviewOrganizers}
                         onClick={() => handleDecision(selectedApplication.id, 'under_review')}
                         type="button"
                       >
@@ -532,7 +578,7 @@ export function SuperadminApprovalsPage() {
                       </button>
                       <button
                         className="button button--primary"
-                        disabled={busyId === selectedApplication.id || !session.isSuperAdmin}
+                        disabled={busyId === selectedApplication.id || !canReviewOrganizers}
                         onClick={() => handleDecision(selectedApplication.id, 'approved')}
                         type="button"
                       >
@@ -540,7 +586,7 @@ export function SuperadminApprovalsPage() {
                       </button>
                       <button
                         className="button button--ghost"
-                        disabled={busyId === selectedApplication.id || !session.isSuperAdmin}
+                        disabled={busyId === selectedApplication.id || !canReviewOrganizers}
                         onClick={() => handleDecision(selectedApplication.id, 'rejected')}
                         type="button"
                       >
@@ -563,10 +609,10 @@ export function SuperadminApprovalsPage() {
       <section className="status-card superadmin-card">
         <div className="status-card__header">
           <div>
-            <p className="eyebrow">Admin Management</p>
+            <p className="eyebrow">Staff management</p>
             <h1>Onboard another admin</h1>
           </div>
-          <div className="status-pill status-pill--approved">Superadmin only</div>
+          <div className="status-pill status-pill--approved">Owner only</div>
         </div>
 
         <p>
@@ -574,10 +620,17 @@ export function SuperadminApprovalsPage() {
           access and registers the user in the Vennuzo admin directory.
         </p>
 
-        <div className="superadmin-admin-grid">
-          <article className="superadmin-admin-card">
-            <strong>Create admin account</strong>
-            {session.isSuperAdmin ? (
+        {!canManageStaff ? (
+          <div className="review-note">
+            <strong>Owner access required</strong>
+            <p>Your role can review organizer applications, but staff access changes are restricted.</p>
+          </div>
+        ) : null}
+
+        {canManageStaff ? (
+          <div className="superadmin-admin-grid">
+            <article className="superadmin-admin-card">
+              <strong>Create admin account</strong>
               <>
                 <div className="auth-form auth-form--reference superadmin-admin-form">
                   <label className="field">
@@ -629,15 +682,21 @@ export function SuperadminApprovalsPage() {
                       onChange={(event) =>
                         setAdminForm((current) => ({
                           ...current,
-                          role: event.target.value === 'superadmin' ? 'superadmin' : 'admin',
+                          role: event.target.value as AdminRoleId,
                         }))
                       }
                       value={adminForm.role}
                     >
-                      <option value="admin">Admin</option>
-                      <option value="superadmin">Superadmin</option>
+                      {staffRoleOptions.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.label}
+                        </option>
+                      ))}
                     </select>
-                    <small>Only superadmins can create or approve other admins.</small>
+                    <small>
+                      {staffRoleOptions.find((role) => role.id === adminForm.role)?.description ??
+                        'Choose what this staff member should manage.'}
+                    </small>
                   </label>
 
                   <label className="field">
@@ -680,53 +739,45 @@ export function SuperadminApprovalsPage() {
                   </button>
                 </div>
               </>
-            ) : (
-              <div className="review-note">
-                <strong>Superadmin access required</strong>
-                <p>
-                  Standard admins can view the directory, but only superadmins can create
-                  new admin accounts or assign superadmin access.
-                </p>
-              </div>
-            )}
-          </article>
+            </article>
 
-          <article className="superadmin-admin-card">
-            <strong>Current admin directory</strong>
-            <p className="superadmin-admin-card__intro">
-              Everyone who can access the Vennuzo admin console is listed here.
-            </p>
+            <article className="superadmin-admin-card">
+              <strong>Current admin directory</strong>
+              <p className="superadmin-admin-card__intro">
+                Everyone who can access the Vennuzo admin console is listed here.
+              </p>
 
-            {adminsLoading ? (
-              <div className="page-loader page-loader--inline">Loading admin directory...</div>
-            ) : admins.length === 0 ? (
-              <div className="review-note">
-                <strong>No admins found yet</strong>
-                <p>Your first admin accounts will appear here after they are created.</p>
-              </div>
-            ) : (
-              <div className="superadmin-admin-list">
-                {admins.map((admin) => (
-                  <article className="superadmin-admin-list__item" key={admin.id}>
-                    <div>
-                      <strong>{admin.displayName || admin.email}</strong>
-                      <p>{[admin.email, admin.phone].filter(Boolean).join(' • ')}</p>
-                    </div>
-                    <div className="superadmin-admin-list__meta">
-                      <span className={`status-pill status-pill--${admin.role === 'superadmin' ? 'approved' : 'submitted'}`}>
-                        {admin.role === 'superadmin' ? 'Superadmin' : 'Admin'}
-                      </span>
-                      <small>
-                        Added {formatTimestamp(admin.createdAt)}
-                        {admin.createdByName ? ` by ${admin.createdByName}` : ''}
-                      </small>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </article>
-        </div>
+              {adminsLoading ? (
+                <div className="page-loader page-loader--inline">Loading admin directory...</div>
+              ) : admins.length === 0 ? (
+                <div className="review-note">
+                  <strong>No admins found yet</strong>
+                  <p>Your first admin accounts will appear here after they are created.</p>
+                </div>
+              ) : (
+                <div className="superadmin-admin-list">
+                  {admins.map((admin) => (
+                    <article className="superadmin-admin-list__item" key={admin.id}>
+                      <div>
+                        <strong>{admin.displayName || admin.email}</strong>
+                        <p>{[admin.email, admin.phone].filter(Boolean).join(' • ')}</p>
+                      </div>
+                      <div className="superadmin-admin-list__meta">
+                        <span className={`status-pill status-pill--${admin.role === 'superadmin' ? 'approved' : 'submitted'}`}>
+                          {getAdminRoleLabel(admin.role)}
+                        </span>
+                        <small>
+                          Added {formatTimestamp(admin.createdAt)}
+                          {admin.createdByName ? ` by ${admin.createdByName}` : ''}
+                        </small>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </article>
+          </div>
+        ) : null}
       </section>
     </main>
   )

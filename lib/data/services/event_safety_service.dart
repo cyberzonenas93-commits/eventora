@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class EventSafetyService {
   const EventSafetyService();
@@ -11,14 +11,17 @@ class EventSafetyService {
     String? reporterUid,
     String? reporterEmail,
   }) {
-    return FirebaseFirestore.instance.collection('event_reports').add({
+    return FirebaseFunctions.instanceFor(
+      region: 'us-central1',
+    ).httpsCallable('submitEventReport').call({
       'eventId': eventId,
       'eventTitle': eventTitle,
       'reason': reason,
       'details': details.trim(),
-      'reporterUid': reporterUid,
-      'reporterEmail': reporterEmail?.trim().isEmpty == true ? null : reporterEmail?.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
+      if (reporterUid?.trim().isNotEmpty == true)
+        'reporterUid': reporterUid!.trim(),
+      if (reporterEmail?.trim().isNotEmpty == true)
+        'reporterEmail': reporterEmail!.trim(),
     });
   }
 }

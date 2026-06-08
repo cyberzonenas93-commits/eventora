@@ -18,6 +18,8 @@ export const copy = {
   validEmailAndPassword: 'Enter a valid email address and password to continue.',
   googleSignInFailed: 'Google sign-in didn’t work. Please try again.',
   appleSignInFailed: 'Apple sign-in didn’t work. Please try again.',
+  appleSignInNotConfigured:
+    'Apple sign-in is not fully configured for Vennuzo yet. Please use Google or email while we finish the Apple provider setup.',
 
   /** Data loading */
   loadFailed: 'We couldn’t load this. Check your connection and try again.',
@@ -38,7 +40,7 @@ export const copy = {
   setupSaveFailed: 'We couldn’t save your details. Please try again.',
   uploadFailed: 'We couldn’t upload the file. Please try again.',
   campaignLaunchFailed: 'We couldn’t launch the campaign. Please try again.',
-  campaignLaunchInsufficient: 'Load your wallet in Payments & Payouts to run SMS campaigns.',
+  campaignLaunchInsufficient: 'Load your wallet in Payments & Payouts to run paid push or SMS campaigns.',
   recordOptOutFailed: 'We couldn’t record the opt-out. Please try again.',
   reviewFailed: 'We couldn’t submit your decision. Please try again.',
   pricingSaveFailed: 'We couldn’t save. Please try again.',

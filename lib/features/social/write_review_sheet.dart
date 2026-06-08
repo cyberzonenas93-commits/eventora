@@ -59,7 +59,9 @@ class _WriteReviewSheetState extends State<_WriteReviewSheet> {
   Future<void> _submit() async {
     if (_textController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please write something about the event.')),
+        const SnackBar(
+          content: Text('Please write something about the event.'),
+        ),
       );
       return;
     }
@@ -109,10 +111,7 @@ class _WriteReviewSheetState extends State<_WriteReviewSheet> {
               ),
             ),
           ),
-          Text(
-            'Write a Review',
-            style: context.text.titleMedium,
-          ),
+          Text('Write a Review', style: context.text.titleMedium),
           const SizedBox(height: 6),
           Text(
             'Share your experience at this event',
@@ -128,10 +127,8 @@ class _WriteReviewSheetState extends State<_WriteReviewSheet> {
               itemCount: 5,
               itemSize: 40,
               itemPadding: const EdgeInsets.symmetric(horizontal: 4),
-              itemBuilder: (_, __) => const Icon(
-                Icons.star,
-                color: Color(0xFFFFD700),
-              ),
+              itemBuilder: (_, _) =>
+                  const Icon(Icons.star, color: Color(0xFFFFD700)),
               onRatingUpdate: (rating) => setState(() => _rating = rating),
             ),
           ),

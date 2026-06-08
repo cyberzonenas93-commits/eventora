@@ -28,6 +28,22 @@ class TicketSelection {
   double get subtotal => price * quantity;
 }
 
+class TicketDiscount {
+  const TicketDiscount({
+    required this.code,
+    required this.label,
+    required this.amount,
+    required this.type,
+    required this.value,
+  });
+
+  final String code;
+  final String label;
+  final double amount;
+  final String type;
+  final double value;
+}
+
 class EventTicket {
   const EventTicket({
     required this.ticketId,
@@ -87,6 +103,7 @@ class TicketOrder {
     required this.buyerEmail,
     required this.selectedTiers,
     required this.totalAmount,
+    this.discount,
     required this.status,
     required this.paymentStatus,
     required this.source,
@@ -104,6 +121,7 @@ class TicketOrder {
   final String buyerEmail;
   final List<TicketSelection> selectedTiers;
   final double totalAmount;
+  final TicketDiscount? discount;
   final TicketOrderStatus status;
   final TicketPaymentStatus paymentStatus;
   final String source;
@@ -112,6 +130,11 @@ class TicketOrder {
   final List<EventTicket> tickets;
 
   bool get isPaid => status == TicketOrderStatus.paid;
+  double get grossAmount => selectedTiers.fold<double>(
+    0,
+    (total, selection) => total + selection.subtotal,
+  );
+  double get discountAmount => discount?.amount ?? 0;
   int get ticketCount => tickets.isNotEmpty
       ? tickets.length
       : selectedTiers.fold<int>(
@@ -137,6 +160,7 @@ class TicketOrder {
       buyerEmail: buyerEmail,
       selectedTiers: selectedTiers,
       totalAmount: totalAmount,
+      discount: discount,
       status: status ?? this.status,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       source: source,

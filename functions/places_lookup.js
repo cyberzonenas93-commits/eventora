@@ -2,13 +2,33 @@
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
+const admin = require("firebase-admin");
+const { checkRateLimit } = require("./rate_limiter");
 
+try {
+  admin.app();
+} catch (error) {
+  admin.initializeApp();
+}
+
+const db = admin.firestore();
 const REGION = "us-central1";
 const GOOGLE_PLACES_API_KEY = defineSecret("GOOGLE_PLACES_API_KEY");
 
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
   return normalized || fallback;
+}
+
+// Rate limit Places proxy calls (per signed-in user, else per IP) to protect the
+// shared Google Places billing/quota from abuse.
+async function enforcePlacesRateLimit(request) {
+  const key = safeString(
+    (request.auth && request.auth.uid) ||
+      (request.rawRequest && request.rawRequest.ip),
+    "unknown",
+  );
+  await checkRateLimit(db, `places_${key}`, "placesLookup", { maxCalls: 60, windowSeconds: 60 });
 }
 
 function safeNumber(value) {
@@ -183,6 +203,7 @@ exports.autocompleteEventPlaces = onCall(
     secrets: [GOOGLE_PLACES_API_KEY],
   },
   async (request) => {
+    await enforcePlacesRateLimit(request);
     const query = safeString(request.data?.query);
     if (query.length < 2) {
       return { suggestions: [] };
@@ -242,6 +263,7 @@ exports.getEventPlaceDetails = onCall(
     secrets: [GOOGLE_PLACES_API_KEY],
   },
   async (request) => {
+    await enforcePlacesRateLimit(request);
     const placeId = safeString(request.data?.placeId);
     if (!placeId) {
       throw new HttpsError("invalid-argument", "A place ID is required.");
@@ -278,6 +300,7 @@ exports.reverseGeocodeEventCoordinates = onCall(
     secrets: [GOOGLE_PLACES_API_KEY],
   },
   async (request) => {
+    await enforcePlacesRateLimit(request);
     const latitude = safeNumber(request.data?.latitude);
     const longitude = safeNumber(request.data?.longitude);
     if (latitude == null || longitude == null) {

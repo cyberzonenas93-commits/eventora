@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/ticket_models.dart';
@@ -45,67 +46,60 @@ class TicketsScreen extends StatelessWidget {
         .length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
       children: [
         _TicketsHero(
           ticketCount: orders.length,
           paidCount: paidCount,
           reservedCount: reservedCount,
           isGuest: session.isGuest,
+          onGuestAction: () => _promptForAccess(context),
         ),
-        const SizedBox(height: 22),
-        Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: [
-            MetricTile(
-              label: 'Orders',
-              value: '${orders.length}',
-              icon: Icons.shopping_bag_outlined,
-            ),
-            MetricTile(
-              label: 'Used already',
-              value: '$admittedCount',
-              icon: Icons.verified_outlined,
-              highlight: context.palette.teal,
-            ),
-            MetricTile(
-              label: 'Ready or waiting',
-              value: '$openGateCount',
-              icon: Icons.qr_code_scanner_outlined,
-              highlight: context.palette.coral,
-            ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        SectionHeading(title: 'Ready at the door', subtitle: null),
-        const SizedBox(height: 14),
-        if (session.isGuest)
-          EmptyStateCard(
-            title: 'Save tickets to your account',
-            icon: Icons.qr_code_scanner_outlined,
-            actionLabel: 'Sign in',
-            onAction: () => _promptForAccess(context),
-          )
-        else
-          _GateQueue(),
-        const SizedBox(height: 26),
-        SectionHeading(title: 'Saved orders', subtitle: null),
-        const SizedBox(height: 14),
-        if (session.isGuest)
-          const SizedBox.shrink()
-        else if (orders.isEmpty)
-          const EmptyStateCard(
-            title: 'No orders yet',
-            icon: Icons.receipt_long_outlined,
-          )
-        else
-          ...orders.map(
-            (order) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _OrderCard(order: order),
-            ),
+        const SizedBox(height: 18),
+        if (!session.isGuest) ...[
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              MetricTile(
+                label: 'Orders',
+                value: '${orders.length}',
+                icon: Icons.shopping_bag_outlined,
+              ),
+              MetricTile(
+                label: 'Used already',
+                value: '$admittedCount',
+                icon: Icons.verified_outlined,
+                highlight: context.palette.teal,
+              ),
+              MetricTile(
+                label: 'Ready or waiting',
+                value: '$openGateCount',
+                icon: Icons.qr_code_scanner_outlined,
+                highlight: context.palette.coral,
+              ),
+            ],
           ),
+          const SizedBox(height: 28),
+          SectionHeading(title: 'Ready at the door', subtitle: null),
+          const SizedBox(height: 14),
+          _GateQueue(),
+          const SizedBox(height: 26),
+          SectionHeading(title: 'Saved orders', subtitle: null),
+          const SizedBox(height: 14),
+          if (orders.isEmpty)
+            const EmptyStateCard(
+              title: 'No orders yet',
+              icon: Icons.receipt_long_outlined,
+            )
+          else
+            ...orders.map(
+              (order) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _OrderCard(order: order),
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -113,8 +107,9 @@ class TicketsScreen extends StatelessWidget {
   void _promptForAccess(BuildContext context) {
     showAuthPromptSheet(
       context,
-      title: 'Save tickets with an account',
-      body: 'Create an account to keep them handy.',
+      title: 'Continue to save tickets',
+      body:
+          'Sign in or create an account to keep every QR code ready at the door.',
     );
   }
 }
@@ -125,72 +120,207 @@ class _TicketsHero extends StatelessWidget {
     required this.paidCount,
     required this.reservedCount,
     required this.isGuest,
+    required this.onGuestAction,
   });
 
   final int ticketCount;
   final int paidCount;
   final int reservedCount;
   final bool isGuest;
+  final VoidCallback onGuestAction;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 560;
+
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: palette.card,
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+            border: Border.all(color: palette.border),
+            boxShadow: VennuzoTheme.shadowResting,
+          ),
+          child: wide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PassHeroIcon(color: palette.primaryStart),
+                    const SizedBox(width: 18),
+                    Expanded(child: _TicketsHeroCopy(isGuest: isGuest)),
+                    const SizedBox(width: 18),
+                    _TicketsHeroActions(
+                      ticketCount: ticketCount,
+                      paidCount: paidCount,
+                      reservedCount: reservedCount,
+                      isGuest: isGuest,
+                      onGuestAction: onGuestAction,
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PassHeroIcon(color: palette.primaryStart),
+                    const SizedBox(height: 18),
+                    _TicketsHeroCopy(isGuest: isGuest),
+                    const SizedBox(height: 18),
+                    _TicketsHeroActions(
+                      ticketCount: ticketCount,
+                      paidCount: paidCount,
+                      reservedCount: reservedCount,
+                      isGuest: isGuest,
+                      onGuestAction: onGuestAction,
+                    ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _PassHeroIcon extends StatelessWidget {
+  const _PassHeroIcon({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [palette.primaryStart, palette.gold, palette.primaryEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+      ),
+      child: Icon(Icons.confirmation_num_outlined, color: color),
+    );
+  }
+}
+
+class _TicketsHeroCopy extends StatelessWidget {
+  const _TicketsHeroCopy({required this.isGuest});
+
+  final bool isGuest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pass wallet',
+          style: context.text.bodyLarge?.copyWith(
+            color: context.palette.primaryStart,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: palette.primaryStart.withValues(alpha: 0.18),
-            blurRadius: 30,
-            offset: const Offset(0, 18),
+        const SizedBox(height: 10),
+        Text(
+          isGuest ? 'Your passes stay ready.' : 'Everything for the door.',
+          style: context.text.headlineSmall,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          isGuest
+              ? 'Sign in to access purchased tickets, saved reservations, and QR codes.'
+              : 'See QR codes, payment state, and check-in status without opening each order.',
+          style: context.text.bodyLarge,
+        ),
+      ],
+    );
+  }
+}
+
+class _TicketsHeroActions extends StatelessWidget {
+  const _TicketsHeroActions({
+    required this.ticketCount,
+    required this.paidCount,
+    required this.reservedCount,
+    required this.isGuest,
+    required this.onGuestAction,
+  });
+
+  final int ticketCount;
+  final int paidCount;
+  final int reservedCount;
+  final bool isGuest;
+  final VoidCallback onGuestAction;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isGuest) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _InfoPill(label: 'QR codes'),
+              _InfoPill(label: 'Reservations'),
+              _InfoPill(label: 'Door scan'),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 260),
+            child: ElevatedButton.icon(
+              onPressed: onGuestAction,
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('Sign in / Create account'),
+            ),
           ),
         ],
+      );
+    }
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _HeroStat(value: '$paidCount', label: 'Paid'),
+        _HeroStat(value: '$reservedCount', label: 'Pay at door'),
+        _HeroStat(value: '$ticketCount', label: 'Orders'),
+      ],
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 92),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.palette.canvas,
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tickets and reservations',
-            style: context.text.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.84),
-              fontWeight: FontWeight.w800,
+            value,
+            style: context.text.titleLarge?.copyWith(
+              color: context.palette.primaryStart,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            isGuest
-                ? 'Sign in once and keep every ticket together.'
-                : '$ticketCount orders are in your wallet.',
-            style: context.text.headlineSmall?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            isGuest
-                ? 'Browse as a guest, then sign in when you want to save tickets.'
-                : 'Open any order to see what is ready to scan.',
-            style: context.text.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.86),
-            ),
-          ),
-          if (!isGuest) ...[
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _InfoPill(label: '$paidCount paid'),
-                _InfoPill(label: '$reservedCount pay-at-door'),
-                _InfoPill(label: '$ticketCount saved orders'),
-              ],
-            ),
-          ],
+          const SizedBox(height: 2),
+          Text(label, style: context.text.bodySmall),
         ],
       ),
     );
@@ -201,6 +331,11 @@ class _GateQueue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<VennuzoRepository>();
+    final session = context.watch<VennuzoSessionController>();
+    final canCheckIn =
+        (session.viewer.isAdminWorkspace && session.viewer.hasAdminAccess) ||
+        (session.viewer.isOrganizerWorkspace &&
+            session.viewer.hasOrganizerAccess);
     final entries = [
       for (final order in repository.orders)
         for (final ticket in order.tickets)
@@ -220,85 +355,7 @@ class _GateQueue extends StatelessWidget {
           .map(
             (entry) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  entry.ticket.attendeeName,
-                                  style: context.text.titleLarge?.copyWith(
-                                    fontSize: 20,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  entry.order.eventTitle,
-                                  style: context.text.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ),
-                          _StatusPill(
-                            label: _ticketStatusLabel(entry.ticket.status),
-                            color: entry.ticket.status == TicketStatus.unpaid
-                                ? context.palette.coral
-                                : context.palette.teal,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          _InfoPill(label: entry.ticket.tierName),
-                          _InfoPill(
-                            label: _paymentStatusLabel(
-                              entry.order.paymentStatus,
-                            ),
-                          ),
-                          _QrPill(
-                            qrToken: entry.ticket.qrToken,
-                            label: entry.ticket.tierName,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            context.read<VennuzoRepository>().admitTicket(
-                              entry.order.id,
-                              entry.ticket.ticketId,
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '${entry.ticket.attendeeName} is now checked in.',
-                                ),
-                              ),
-                            );
-                          },
-                          child: Text(
-                            entry.ticket.status == TicketStatus.unpaid
-                                ? 'Pay at door and check in'
-                                : 'Mark as checked in',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              child: _GatePassCard(entry: entry, canCheckIn: canCheckIn),
             ),
           )
           .toList(),
@@ -306,14 +363,168 @@ class _GateQueue extends StatelessWidget {
   }
 }
 
-class _OrderCard extends StatelessWidget {
+class _GatePassCard extends StatelessWidget {
+  const _GatePassCard({required this.entry, required this.canCheckIn});
+
+  final _GateEntry entry;
+  final bool canCheckIn;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final statusColor = entry.ticket.status == TicketStatus.unpaid
+        ? palette.coral
+        : palette.teal;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 520;
+
+            final details = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _StatusPill(
+                      label: _ticketStatusLabel(entry.ticket.status),
+                      color: statusColor,
+                    ),
+                    _InfoPill(
+                      label: _paymentStatusLabel(entry.order.paymentStatus),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  entry.ticket.attendeeName,
+                  style: context.text.titleLarge?.copyWith(fontSize: 20),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  entry.order.eventTitle,
+                  style: context.text.bodyMedium,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _InfoPill(label: entry.ticket.tierName),
+                    _QrPill(
+                      qrToken: entry.ticket.qrToken,
+                      label: entry.ticket.tierName,
+                    ),
+                  ],
+                ),
+              ],
+            );
+
+            final action = canCheckIn
+                ? ElevatedButton(
+                    onPressed: () {
+                      context.read<VennuzoRepository>().admitTicket(
+                        entry.order.id,
+                        entry.ticket.ticketId,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '${entry.ticket.attendeeName} is now checked in.',
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      entry.ticket.status == TicketStatus.unpaid
+                          ? 'Pay at door and check in'
+                          : 'Mark as checked in',
+                    ),
+                  )
+                : Text(
+                    entry.ticket.status == TicketStatus.unpaid
+                        ? 'Pay at the door, then let gate staff scan this pass.'
+                        : 'Show this QR code to gate staff for check-in.',
+                    style: context.text.bodyMedium?.copyWith(
+                      color: palette.slate,
+                    ),
+                  );
+
+            final qrMark = Container(
+              width: wide ? 84 : 56,
+              height: wide ? 84 : 56,
+              decoration: BoxDecoration(
+                color: palette.canvas,
+                borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+                border: Border.all(
+                  color: palette.border.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Icon(
+                Icons.qr_code_2_rounded,
+                color: palette.primaryStart,
+                size: wide ? 42 : 30,
+              ),
+            );
+
+            if (wide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  qrMark,
+                  const SizedBox(width: 16),
+                  Expanded(child: details),
+                  const SizedBox(width: 16),
+                  SizedBox(width: 210, child: action),
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    qrMark,
+                    const SizedBox(width: 14),
+                    Expanded(child: details),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(width: double.infinity, child: action),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderCard extends StatefulWidget {
   const _OrderCard({required this.order});
 
   final TicketOrder order;
 
   @override
+  State<_OrderCard> createState() => _OrderCardState();
+}
+
+class _OrderCardState extends State<_OrderCard> {
+  bool _linkCopied = false;
+
+  @override
   Widget build(BuildContext context) {
     final repository = context.read<VennuzoRepository>();
+    final order = widget.order;
     final publicLink = repository.buildPublicTicketLink(order.id);
 
     return Card(
@@ -322,10 +533,14 @@ class _OrderCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -398,39 +613,7 @@ class _OrderCard extends StatelessWidget {
                   ...order.tickets.map(
                     (ticket) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  ticket.attendeeName,
-                                  style: context.text.bodyLarge,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  ticket.tierName,
-                                  style: context.text.bodyMedium,
-                                ),
-                                const SizedBox(height: 6),
-                                _QrPill(
-                                  qrToken: ticket.qrToken,
-                                  label: ticket.tierName,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _StatusPill(
-                            label: _ticketStatusLabel(ticket.status),
-                            color: ticket.status == TicketStatus.admitted
-                                ? context.palette.teal
-                                : context.palette.ink,
-                          ),
-                        ],
-                      ),
+                      child: _OrderTicketRow(ticket: ticket),
                     ),
                   ),
                 ],
@@ -445,18 +628,86 @@ class _OrderCard extends StatelessWidget {
                   onPressed: () async {
                     await Clipboard.setData(ClipboardData(text: publicLink));
                     if (context.mounted) {
+                      setState(() => _linkCopied = true);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Order link copied.')),
                       );
                     }
                   },
-                  icon: const Icon(Icons.copy_outlined),
-                  label: const Text('Copy order link'),
+                  icon: Icon(
+                    _linkCopied
+                        ? Icons.check_circle_outline
+                        : Icons.copy_outlined,
+                  ),
+                  label: Text(_linkCopied ? 'Copied' : 'Copy order link'),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OrderTicketRow extends StatelessWidget {
+  const _OrderTicketRow({required this.ticket});
+
+  final EventTicket ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.palette.card.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
+        border: Border.all(
+          color: context.palette.border.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: context.palette.primaryStart.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.confirmation_num_outlined,
+              color: context.palette.primaryStart,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(ticket.attendeeName, style: context.text.bodyLarge),
+                const SizedBox(height: 4),
+                Text(ticket.tierName, style: context.text.bodyMedium),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _StatusPill(
+                      label: _ticketStatusLabel(ticket.status),
+                      color: ticket.status == TicketStatus.admitted
+                          ? context.palette.teal
+                          : context.palette.ink,
+                    ),
+                    _QrPill(qrToken: ticket.qrToken, label: ticket.tierName),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -609,10 +860,7 @@ class _QrDialog extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               qrToken,
-              style: context.text.bodySmall?.copyWith(
-                fontFamily: 'monospace',
-                letterSpacing: 0.5,
-              ),
+              style: context.text.bodySmall?.copyWith(fontFamily: 'monospace'),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
@@ -633,15 +881,15 @@ class _QrDialog extends StatelessWidget {
 String _orderStatusLabel(TicketOrderStatus status) => switch (status) {
   TicketOrderStatus.pending => 'On the way',
   TicketOrderStatus.reserved => 'Reserved',
-  TicketOrderStatus.paid => 'Paid',
+  TicketOrderStatus.paid => '✓ Paid',
 };
 
 String _paymentStatusLabel(TicketPaymentStatus status) => switch (status) {
   TicketPaymentStatus.initiated => 'Started',
   TicketPaymentStatus.pending => 'Pending',
-  TicketPaymentStatus.paid => 'Paid',
+  TicketPaymentStatus.paid => '✓ Paid',
   TicketPaymentStatus.cashAtGate => 'Pay at door',
-  TicketPaymentStatus.cashAtGatePaid => 'Paid at door',
+  TicketPaymentStatus.cashAtGatePaid => '✓ Paid at door',
   TicketPaymentStatus.complimentary => 'Free pass',
   TicketPaymentStatus.failed => 'Failed',
 };

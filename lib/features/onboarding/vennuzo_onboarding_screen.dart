@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../core/art/art_seed.dart';
-import '../../core/art/event_art_widget.dart';
-import '../../core/art/mood_art_palette.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/visuals/vennuzo_visuals.dart';
+import '../../data/services/vennuzo_launch_preferences.dart';
 import '../../domain/models/event_models.dart';
 
 class VennuzoOnboardingScreen extends StatefulWidget {
   const VennuzoOnboardingScreen({super.key, required this.onFinished});
 
-  final Future<void> Function() onFinished;
+  final Future<void> Function(VennuzoOnboardingPreferences preferences)
+  onFinished;
 
   @override
   State<VennuzoOnboardingScreen> createState() =>
@@ -19,45 +19,101 @@ class VennuzoOnboardingScreen extends StatefulWidget {
 
 class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
   final PageController _pageController = PageController();
+  final TextEditingController _cityController = TextEditingController(
+    text: 'Accra',
+  );
+  final Set<String> _selectedCategoryIds = <String>{
+    'nightlife',
+    'music_live',
+    'corporate_professional',
+  };
   int _currentIndex = 0;
   bool _isFinishing = false;
+  bool _marketingOptIn = false;
+  bool _promotionalPushEnabled = true;
 
   static const _slides = [
     _OnboardingSlideData(
       badge: 'Discover',
-      title: 'Find what\u2019s next',
+      title: 'Find the night faster',
       body:
-          'Browse events near you\u2014concerts, parties, meetups. Curated so you don\u2019t miss the good ones.',
-      statLabel: 'Curated picks',
-      statValue: 'One place for events',
+          'Browse photo-led events, see what is close, and save the ones worth leaving the house for.',
+      statLabel: 'Discovery',
+      statValue: 'Photos, map, saves',
+      imagePath: VennuzoVisuals.exploreSpotlight,
+      caption: 'Curated live picks around you',
       accent: _SlideAccent.primary,
       icon: Icons.explore_rounded,
     ),
     _OnboardingSlideData(
       badge: 'Attend',
-      title: 'Get in fast',
+      title: 'Tickets that feel instant',
       body:
-          'Book tickets in one flow. Instant confirmation and easy checkout so you\u2019re in without the hassle.',
+          'Book, pay, and keep your QR pass ready at the door without digging through emails.',
       statLabel: 'Ticketing',
-      statValue: 'Simple & quick',
+      statValue: 'Checkout to QR',
+      imagePath: VennuzoVisuals.checkoutTicket,
+      caption: 'Fast entry when the room is full',
       accent: _SlideAccent.accent,
       icon: Icons.confirmation_num_rounded,
     ),
     _OnboardingSlideData(
       badge: 'Connect',
-      title: 'Stay in the loop',
+      title: 'Move with your people',
       body:
-          'Share with friends and get updates from organizers. Events are better when you\u2019re connected.',
-      statLabel: 'Experience',
-      statValue: 'Social by design',
+          'Share plans, follow updates, and keep the event conversation in one clean place.',
+      statLabel: 'Social layer',
+      statValue: 'Friends, posts, alerts',
+      imagePath: VennuzoVisuals.creatorProfile,
+      caption: 'Events are better with a crew',
       accent: _SlideAccent.secondary,
       icon: Icons.people_rounded,
     ),
+    _OnboardingSlideData(
+      badge: 'Create',
+      title: 'Fill the room with less friction',
+      body:
+          'Hosts get event setup, promotions, check-in, and performance signals built into the same app.',
+      statLabel: 'For creators',
+      statValue: 'Launch, sell, measure',
+      imagePath: VennuzoVisuals.organizerOps,
+      caption: 'Tools for the people making the night happen',
+      accent: _SlideAccent.primary,
+      icon: Icons.auto_graph_rounded,
+    ),
+    _OnboardingSlideData(
+      badge: 'Preferences',
+      title: 'Choose your event world',
+      body:
+          'Tell Vennuzo what belongs in your feed, from nightlife and music to church, corporate, sales, family, tech, and travel experiences.',
+      statLabel: 'Personalization',
+      statValue: 'Every event type',
+      imagePath: VennuzoVisuals.onboardingPreferences,
+      caption: 'A feed shaped around the events you actually want',
+      accent: _SlideAccent.secondary,
+      icon: Icons.tune_rounded,
+    ),
+    _OnboardingSlideData(
+      badge: 'Alerts',
+      title: 'Keep promotions intentional',
+      body:
+          'Promotional pushes should match your selected categories, city, and creators you follow.',
+      statLabel: 'Opt-in only',
+      statValue: 'No platform-wide blasts',
+      imagePath: VennuzoVisuals.campaignReach,
+      caption: 'Sponsored events only when they match your lane',
+      accent: _SlideAccent.accent,
+      icon: Icons.notifications_active_rounded,
+    ),
   ];
+
+  static const _categorySlideIndex = 4;
+  static const _notificationSlideIndex = 5;
 
   @override
   void dispose() {
     _pageController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -72,19 +128,53 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 720;
-          final heroHeight = compact ? 220.0 : 260.0;
-          final paddingH = compact ? 22.0 : 28.0;
-          final paddingV = compact ? 18.0 : 28.0;
+          final veryCompact = constraints.maxHeight < 640;
+          final heroHeight = veryCompact
+              ? 168.0
+              : compact
+              ? 204.0
+              : 260.0;
+          final paddingH = constraints.maxWidth < 380
+              ? 20.0
+              : compact
+              ? 22.0
+              : 28.0;
+          final paddingV = veryCompact
+              ? 12.0
+              : compact
+              ? 18.0
+              : 28.0;
+          final headerGap = veryCompact
+              ? 14.0
+              : compact
+              ? 22.0
+              : 32.0;
+          final slideGap = veryCompact
+              ? 14.0
+              : compact
+              ? 20.0
+              : 28.0;
+          final indicatorTopGap = veryCompact
+              ? 12.0
+              : compact
+              ? 16.0
+              : 24.0;
+          final actionTopGap = veryCompact
+              ? 14.0
+              : compact
+              ? 20.0
+              : 28.0;
+          final actionHeight = veryCompact ? 50.0 : 54.0;
 
           return AnimatedContainer(
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  palette.canvas,
-                  Colors.white,
-                  accent.withValues(alpha: 0.05),
+                colors: const [
+                  Color(0xFF030510),
+                  Color(0xFF070B1D),
+                  Color(0xFF120D2A),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -96,21 +186,23 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
                   paddingH,
                   paddingV,
                   paddingH,
-                  compact ? 22 : 32,
+                  veryCompact
+                      ? 14
+                      : compact
+                      ? 22
+                      : 32,
                 ),
                 child: Column(
                   children: [
-                    _OnboardingHeader(
-                      onSkip: _isFinishing ? null : _finish,
-                    ),
-                    SizedBox(height: compact ? 24 : 32),
+                    _OnboardingHeader(onSkip: _isFinishing ? null : _finish),
+                    SizedBox(height: headerGap),
                     _OnboardingHero(
                       slide: slide,
                       height: heroHeight,
                       compact: compact,
                       slideIndex: _currentIndex,
                     ),
-                    SizedBox(height: compact ? 24 : 28),
+                    SizedBox(height: slideGap),
                     Expanded(
                       child: PageView.builder(
                         controller: _pageController,
@@ -119,25 +211,47 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
                           setState(() => _currentIndex = index);
                         },
                         itemBuilder: (context, index) {
+                          if (index == _categorySlideIndex) {
+                            return _CategoryPreferenceSlide(
+                              selectedCategoryIds: _selectedCategoryIds,
+                              onToggle: _toggleCategory,
+                              compact: compact,
+                            );
+                          }
+                          if (index == _notificationSlideIndex) {
+                            return _NotificationPreferenceSlide(
+                              cityController: _cityController,
+                              marketingOptIn: _marketingOptIn,
+                              promotionalPushEnabled: _promotionalPushEnabled,
+                              onMarketingChanged: (value) =>
+                                  setState(() => _marketingOptIn = value),
+                              onPushChanged: (value) => setState(
+                                () => _promotionalPushEnabled = value,
+                              ),
+                              compact: compact,
+                            );
+                          }
                           return _OnboardingSlide(
                             item: _slides[index],
                             compact: compact,
+                            veryCompact: veryCompact,
                           );
                         },
                       ),
                     ),
-                    SizedBox(height: compact ? 18 : 24),
+                    SizedBox(height: indicatorTopGap),
                     _PageIndicator(
                       count: _slides.length,
                       current: _currentIndex,
                       accent: accent,
                       palette: palette,
                     ),
-                    SizedBox(height: compact ? 24 : 28),
+                    SizedBox(height: actionTopGap),
                     DecoratedBox(
                       decoration: BoxDecoration(
-                        borderRadius:
-                            BorderRadius.circular(VennuzoTheme.radiusMd),
+                        borderRadius: BorderRadius.circular(
+                          VennuzoTheme.radiusMd,
+                        ),
                         gradient: LinearGradient(
                           colors: [
                             palette.primaryStart,
@@ -152,15 +266,17 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
                         onPressed: _isFinishing
                             ? null
                             : isLast
-                                ? _finish
-                                : _next,
+                            ? _finish
+                            : _next,
                         style: FilledButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 54),
+                          minimumSize: Size(double.infinity, actionHeight),
                           backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(VennuzoTheme.radiusMd),
+                            borderRadius: BorderRadius.circular(
+                              VennuzoTheme.radiusMd,
+                            ),
                           ),
                           textStyle: const TextStyle(
                             fontSize: 16,
@@ -171,24 +287,11 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
                           _isFinishing
                               ? 'Opening Vennuzo...'
                               : isLast
-                                  ? 'Start exploring'
-                                  : 'Continue',
+                              ? 'Save preferences'
+                              : 'Continue',
                         ),
                       ),
                     ),
-                    if (!isLast) ...[
-                      const SizedBox(height: 14),
-                      TextButton(
-                        onPressed: _isFinishing ? null : _finish,
-                        child: Text(
-                          'Skip',
-                          style: TextStyle(
-                            color: palette.slate,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -209,8 +312,27 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
   Future<void> _finish() async {
     if (_isFinishing) return;
     setState(() => _isFinishing = true);
-    await widget.onFinished();
+    await widget.onFinished(
+      VennuzoOnboardingPreferences(
+        categoryIds: _selectedCategoryIds.toList()..sort(),
+        city: _cityController.text.trim().isEmpty
+            ? 'Accra'
+            : _cityController.text.trim(),
+        marketingOptIn: _marketingOptIn,
+        promotionalPushEnabled: _promotionalPushEnabled,
+      ),
+    );
     if (mounted) setState(() => _isFinishing = false);
+  }
+
+  void _toggleCategory(String categoryId) {
+    setState(() {
+      if (_selectedCategoryIds.contains(categoryId)) {
+        _selectedCategoryIds.remove(categoryId);
+      } else {
+        _selectedCategoryIds.add(categoryId);
+      }
+    });
   }
 }
 
@@ -221,32 +343,35 @@ class _OnboardingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.fromLTRB(12, 7, 16, 7),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: VennuzoTheme.surfaceElevated.withValues(alpha: 0.84),
             borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-            boxShadow: VennuzoTheme.shadowResting,
+            border: Border.all(color: VennuzoTheme.borderBright),
+            boxShadow: VennuzoTheme.shadowElevated,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.confirmation_num_rounded,
-                size: 20,
-                color: palette.primaryStart,
+              SizedBox(
+                width: 24,
+                height: 32,
+                child: Image.asset(
+                  'assets/logo-transparent.png',
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                ),
               ),
               const SizedBox(width: 8),
               Text(
                 'Vennuzo',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: palette.ink,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  color: VennuzoTheme.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -258,7 +383,7 @@ class _OnboardingHeader extends StatelessWidget {
             child: Text(
               'Skip',
               style: TextStyle(
-                color: palette.slate,
+                color: VennuzoTheme.textSecondary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -281,42 +406,10 @@ class _OnboardingHero extends StatelessWidget {
   final bool compact;
   final int slideIndex;
 
-  // Vibrant palettes per slide -- hand-tuned for visual punch
-  static const _slidePalettes = [
-    // Discover -- indigo / electric blue
-    MoodArtPalette(
-      base: Color(0xFF1A1A5E),
-      mid: Color(0xFF4F46E5),
-      highlight: Color(0xFF818CF8),
-      pop: Color(0xFF06B6D4),
-      overlay: Color(0xFF312E81),
-      accent: Color(0xFFC7D2FE),
-    ),
-    // Attend -- coral / warm rose
-    MoodArtPalette(
-      base: Color(0xFF7F1D1D),
-      mid: Color(0xFFF43F5E),
-      highlight: Color(0xFFFB7185),
-      pop: Color(0xFFFBBF24),
-      overlay: Color(0xFF9F1239),
-      accent: Color(0xFFFFE4E6),
-    ),
-    // Connect -- violet / purple
-    MoodArtPalette(
-      base: Color(0xFF3B0764),
-      mid: Color(0xFF8B5CF6),
-      highlight: Color(0xFFA78BFA),
-      pop: Color(0xFFF472B6),
-      overlay: Color(0xFF581C87),
-      accent: Color(0xFFEDE9FE),
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final artPalette = _slidePalettes[slideIndex % _slidePalettes.length];
-    final moods = [EventMood.night, EventMood.sunrise, EventMood.electric];
-    final artMood = moods[slideIndex % moods.length];
+    final palette = context.palette;
+    final accent = slide.resolveAccent(palette);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
@@ -326,9 +419,9 @@ class _OnboardingHero extends StatelessWidget {
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
         boxShadow: [
           BoxShadow(
-            color: artPalette.mid.withValues(alpha: 0.35),
-            blurRadius: 36,
-            offset: const Offset(0, 14),
+            color: accent.withValues(alpha: 0.24),
+            blurRadius: 34,
+            offset: const Offset(0, 16),
           ),
           BoxShadow(
             color: VennuzoTheme.shadow.withValues(alpha: 0.08),
@@ -342,64 +435,125 @@ class _OnboardingHero extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Generative art with vibrant palette -- deeper intensity
-            GenerativeArt(
-              seed: ArtSeed.combine(slideIndex * 9973, 77731),
-              mood: artMood,
-              palette: artPalette,
-              height: height,
-              intensity: 1.4,
+            Image.asset(
+              slide.imagePath,
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              gaplessPlayback: true,
             ),
-            // Richer scrim for depth
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.05),
-                    Colors.black.withValues(alpha: 0.15),
-                    Colors.black.withValues(alpha: 0.35),
+                    Colors.black.withValues(alpha: 0.08),
+                    Colors.black.withValues(alpha: 0.18),
+                    Colors.black.withValues(alpha: 0.58),
                   ],
-                  stops: const [0.0, 0.5, 1.0],
+                  stops: const [0.0, 0.46, 1.0],
                 ),
               ),
             ),
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            Positioned(
+              top: 16,
+              left: 16,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF080C1D).withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+                  border: Border.all(
+                    color: VennuzoTheme.primaryStart.withValues(alpha: 0.28),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 13, 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 24,
+                        child: Image.asset(
+                          'assets/logo-transparent.png',
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        'Vennuzo',
+                        style: context.text.labelMedium?.copyWith(
+                          color: VennuzoTheme.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 18,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Icon above text
                   Container(
-                    width: compact ? 64 : 76,
-                    height: compact ? 64 : 76,
+                    width: compact ? 50 : 58,
+                    height: compact ? 50 : 58,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(22),
+                      color: Colors.white.withValues(alpha: 0.20),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.22),
+                        color: Colors.white.withValues(alpha: 0.36),
                       ),
                     ),
                     child: Icon(
                       slide.icon,
-                      size: compact ? 32 : 38,
+                      size: compact ? 26 : 30,
                       color: Colors.white,
                     ),
                   ),
-                  SizedBox(height: compact ? 14 : 18),
-                  Text(
-                    slide.badge,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              blurRadius: 14,
-                            ),
-                          ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          slide.badge,
+                          style: context.text.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          slide.caption,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.bodyMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -428,34 +582,34 @@ class _PageIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        count,
-        (index) {
-          final isActive = index == current;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            margin: EdgeInsets.only(right: index == count - 1 ? 0 : 10),
-            width: isActive ? 32 : 8,
-            height: 8,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
-              color: isActive
-                  ? accent
-                  : palette.ink.withValues(alpha: 0.14),
-            ),
-          );
-        },
-      ),
+      children: List.generate(count, (index) {
+        final isActive = index == current;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          margin: EdgeInsets.only(right: index == count - 1 ? 0 : 10),
+          width: isActive ? 32 : 8,
+          height: 8,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(VennuzoTheme.radiusFull),
+            color: isActive ? accent : palette.ink.withValues(alpha: 0.14),
+          ),
+        );
+      }),
     );
   }
 }
 
 class _OnboardingSlide extends StatelessWidget {
-  const _OnboardingSlide({required this.item, required this.compact});
+  const _OnboardingSlide({
+    required this.item,
+    required this.compact,
+    required this.veryCompact,
+  });
 
   final _OnboardingSlideData item;
   final bool compact;
+  final bool veryCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -463,113 +617,280 @@ class _OnboardingSlide extends StatelessWidget {
     final accent = item.resolveAccent(palette);
 
     return SingleChildScrollView(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item.title,
-              style: (compact
-                      ? Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 22,
-                          height: 1.2,
-                        )
-                      : Theme.of(context).textTheme.headlineSmall)
-                  ?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: palette.ink,
-                letterSpacing: -0.3,
+      padding: EdgeInsets.fromLTRB(compact ? 4 : 10, 0, compact ? 4 : 10, 6),
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.title,
+            style:
+                (compact
+                        ? Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontSize: veryCompact ? 20 : 22,
+                            height: 1.2,
+                          )
+                        : Theme.of(context).textTheme.headlineSmall)
+                    ?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: VennuzoTheme.textPrimary,
+                    ),
+          ),
+          SizedBox(
+            height: veryCompact
+                ? 8
+                : compact
+                ? 12
+                : 16,
+          ),
+          Text(
+            item.body,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: VennuzoTheme.textSecondary,
+              height: veryCompact ? 1.38 : 1.5,
+              fontSize: veryCompact
+                  ? 14
+                  : compact
+                  ? 15
+                  : 16,
+            ),
+          ),
+          SizedBox(
+            height: veryCompact
+                ? 12
+                : compact
+                ? 18
+                : 24,
+          ),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(
+              veryCompact
+                  ? 14
+                  : compact
+                  ? 18
+                  : 22,
+            ),
+            decoration: BoxDecoration(
+              color: VennuzoTheme.surfaceElevated,
+              borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.32),
+                width: 1,
               ),
+              boxShadow: VennuzoTheme.shadowResting,
             ),
-            SizedBox(height: compact ? 12 : 16),
-            Text(
-              item.body,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: palette.slate,
-                    height: 1.55,
-                    fontSize: compact ? 15 : 16,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.statLabel,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: VennuzoTheme.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        item.statValue,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontSize: compact ? 18 : 20,
+                          fontWeight: FontWeight.w800,
+                          color: VennuzoTheme.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
-            ),
-            SizedBox(height: compact ? 22 : 28),
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(compact ? 20 : 24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    accent.withValues(alpha: 0.07),
-                    accent.withValues(alpha: 0.03),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                 ),
-                borderRadius:
-                    BorderRadius.circular(VennuzoTheme.radiusLg),
-                border: Border.all(
-                  color: accent.withValues(alpha: 0.16),
-                  width: 1,
+                Container(
+                  width: veryCompact ? 44 : 50,
+                  height: veryCompact ? 44 : 50,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    gradient: LinearGradient(
+                      colors: [
+                        accent.withValues(alpha: 0.95),
+                        Color.lerp(accent, Colors.black, 0.18)!,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.20),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    item.icon,
+                    size: veryCompact ? 22 : 25,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.statLabel,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: palette.slate,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.statValue,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(
-                                fontSize: compact ? 18 : 20,
-                                fontWeight: FontWeight.w800,
-                                color: palette.ink,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: [
-                        BoxShadow(
-                          color: VennuzoTheme.shadow.withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: GenerativeArt(
-                      seed: ArtSeed.combine(item.badge.hashCode, 55337),
-                      mood: EventMood.night,
-                      palette: MoodArtPalette.fromAccent(accent),
-                      height: 50,
-                      width: 50,
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _CategoryPreferenceSlide extends StatelessWidget {
+  const _CategoryPreferenceSlide({
+    required this.selectedCategoryIds,
+    required this.onToggle,
+    required this.compact,
+  });
+
+  final Set<String> selectedCategoryIds;
+  final void Function(String categoryId) onToggle;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(compact ? 2 : 8, 0, compact ? 2 : 8, 6),
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pick the event categories you want Vennuzo to prioritize.',
+            style: context.text.titleMedium?.copyWith(
+              color: VennuzoTheme.textPrimary,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            selectedCategoryIds.isEmpty
+                ? 'Choose none for a broad feed across every event type.'
+                : '${selectedCategoryIds.length} selected',
+            style: context.text.bodyMedium?.copyWith(
+              color: VennuzoTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: EventTaxonomy.categories.map((category) {
+              final selected = selectedCategoryIds.contains(category.id);
+              return _PreferenceChip(
+                category: category,
+                selected: selected,
+                onTap: () => onToggle(category.id),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationPreferenceSlide extends StatelessWidget {
+  const _NotificationPreferenceSlide({
+    required this.cityController,
+    required this.marketingOptIn,
+    required this.promotionalPushEnabled,
+    required this.onMarketingChanged,
+    required this.onPushChanged,
+    required this.compact,
+  });
+
+  final TextEditingController cityController;
+  final bool marketingOptIn;
+  final bool promotionalPushEnabled;
+  final ValueChanged<bool> onMarketingChanged;
+  final ValueChanged<bool> onPushChanged;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(compact ? 2 : 8, 0, compact ? 2 : 8, 6),
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set your default city and promo rules.',
+            style: context.text.titleMedium?.copyWith(
+              color: VennuzoTheme.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: cityController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Primary city',
+              hintText: 'Accra',
+            ),
+          ),
+          const SizedBox(height: 14),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: marketingOptIn,
+            onChanged: onMarketingChanged,
+            title: const Text('Allow promotional campaigns'),
+            subtitle: const Text(
+              'Only for matching categories, creator audiences, and opted-in lists.',
+            ),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: promotionalPushEnabled,
+            onChanged: marketingOptIn ? onPushChanged : null,
+            title: const Text('Allow promotional push alerts'),
+            subtitle: const Text(
+              'Push campaigns stay filtered by your event preferences.',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreferenceChip extends StatelessWidget {
+  const _PreferenceChip({
+    required this.category,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final VennuzoEventCategory category;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      selected: selected,
+      onSelected: (_) => onTap(),
+      showCheckmark: false,
+      avatar: Icon(category.icon, size: 18),
+      label: Text(category.shortLabel),
+      labelStyle: context.text.labelMedium?.copyWith(
+        color: selected ? Colors.white : VennuzoTheme.textPrimary,
+        fontWeight: FontWeight.w800,
+      ),
+      selectedColor: VennuzoTheme.primaryStart,
+      backgroundColor: VennuzoTheme.surfaceElevated,
+      side: BorderSide(
+        color: selected ? VennuzoTheme.primaryStart : VennuzoTheme.borderBright,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
     );
   }
 }
@@ -583,6 +904,8 @@ class _OnboardingSlideData {
     required this.body,
     required this.statLabel,
     required this.statValue,
+    required this.imagePath,
+    required this.caption,
     required this.accent,
     required this.icon,
   });
@@ -592,6 +915,8 @@ class _OnboardingSlideData {
   final String body;
   final String statLabel;
   final String statValue;
+  final String imagePath;
+  final String caption;
   final _SlideAccent accent;
   final IconData icon;
 

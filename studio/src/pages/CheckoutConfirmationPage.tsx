@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore'
 
-import { app } from '../firebaseApp'
+import { trackEvent } from '../lib/analytics'
 import { formatMoney } from '../lib/formatters'
 
-const db = getFirestore(app)
+const FUNCTIONS_REGION = 'us-central1'
+const FIREBASE_PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'eventora-10063'
+const FUNCTIONS_ORIGIN = (import.meta.env.VITE_FIREBASE_FUNCTIONS_ORIGIN || '').replace(/\/+$/, '')
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -13,28 +14,64 @@ interface IssuedTicket {
   ticketId: string
   orderId: string
   eventId: string
-  tierId: string
+  tierId?: string
   tierName: string
   qrToken: string
   status: string
   attendeeName: string
   price: number
-  issuedAt: number
-  issuedAtIso: string
+  issuedAt?: number
+  issuedAtIso?: string
 }
 
 interface OrderDoc {
   eventId: string
   eventTitle: string
   buyerName: string
-  buyerEmail: string
-  buyerPhone: string
+  buyerEmail?: string
+  buyerPhone?: string
   totalAmount: number
   currency: string
-  status: string
+  status?: string
   paymentStatus: string
   source: string
-  tickets?: Record<string, IssuedTicket>
+  tickets?: IssuedTicket[]
+}
+
+interface PublicTicketResponse extends OrderDoc {
+  orderId: string
+  tickets: IssuedTicket[]
+}
+
+class PublicTicketLookupError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+function publicTicketLookupUrl(orderId: string) {
+  const origin = FUNCTIONS_ORIGIN || `https://${FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net`
+  const params = new URLSearchParams({ orderId })
+  return `${origin}/getPublicTicket?${params.toString()}`
+}
+
+async function fetchPublicTicket(orderId: string, signal?: AbortSignal): Promise<PublicTicketResponse> {
+  const response = await fetch(publicTicketLookupUrl(orderId), { signal })
+  const payload = await response.json().catch(() => ({})) as { error?: string }
+
+  if (!response.ok) {
+    throw new PublicTicketLookupError(payload.error || 'Ticket lookup failed.', response.status)
+  }
+
+  const data = payload as PublicTicketResponse
+  return {
+    ...data,
+    orderId,
+    tickets: Array.isArray(data.tickets) ? data.tickets : [],
+  }
 }
 
 // ── QR code via public API ─────────────────────────────────────────────────────
@@ -57,7 +94,7 @@ function QRCode({ value, size = 200 }: { value: string; size?: number }) {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 type Phase =
-  | 'loading'      // Initial Firestore fetch
+  | 'loading'      // Initial public ticket lookup
   | 'pending'      // Order exists, payment not yet confirmed
   | 'cancelled'    // Payment cancelled / failed
   | 'issued'       // Tickets have been issued
@@ -67,66 +104,103 @@ export function CheckoutConfirmationPage() {
   const { orderId } = useParams<{ orderId: string }>()
   const [searchParams] = useSearchParams()
   const hubtelStatus = searchParams.get('status') ?? 'success'
+  const hubtelReturnedCancelled = hubtelStatus === 'cancelled' || hubtelStatus === 'failed'
 
-  const [phase, setPhase] = useState<Phase>('loading')
+  const [phase, setPhase] = useState<Phase>(() =>
+    !orderId ? 'error' : hubtelReturnedCancelled ? 'cancelled' : 'loading',
+  )
   const [order, setOrder] = useState<OrderDoc | null>(null)
   const [tickets, setTickets] = useState<IssuedTicket[]>([])
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(() =>
+    orderId ? null : 'No order ID found in the URL.',
+  )
+  const trackedReturnRef = useRef<Set<string>>(new Set())
   // How many seconds we've been waiting for ticket issuance
   const [waitSecs, setWaitSecs] = useState(0)
 
+  const trackPurchaseReturn = useCallback((status: 'issued' | 'cancelled', data: OrderDoc, ticketCount: number) => {
+    if (!orderId) return
+    const trackingKey = `${orderId}:${status}`
+    if (trackedReturnRef.current.has(trackingKey)) return
+    trackedReturnRef.current.add(trackingKey)
+    void trackEvent('ticket_purchase_returned', {
+      payment_status: data.paymentStatus || data.status || status,
+      source: data.source || 'web',
+      status,
+      ticket_count: ticketCount,
+      value: data.totalAmount || 0,
+    }, {
+      area: 'checkout',
+    })
+  }, [orderId])
+
   useEffect(() => {
     if (!orderId) {
-      setPhase('error')
-      setErrorMsg('No order ID found in the URL.')
-      return
+      return undefined
     }
 
-    // If Hubtel told us the payment was cancelled, show that immediately
-    // (but still subscribe so we can recover if it flips to paid)
-    if (hubtelStatus === 'cancelled' || hubtelStatus === 'failed') {
-      setPhase('cancelled')
-    }
+    let timeoutId: number | undefined
+    const abortController = new AbortController()
 
-    const orderRef = doc(db, 'event_ticket_orders', orderId)
-    const unsub = onSnapshot(
-      orderRef,
-      (snap) => {
-        if (!snap.exists()) {
-          setPhase('error')
-          setErrorMsg('Order not found. It may still be processing — please check back shortly.')
-          return
+    async function loadTicket() {
+      try {
+        const data = await fetchPublicTicket(orderId!, abortController.signal)
+        const normalizedOrder: OrderDoc = {
+          eventId: data.eventId,
+          eventTitle: data.eventTitle,
+          buyerName: data.buyerName,
+          buyerEmail: data.buyerEmail,
+          buyerPhone: data.buyerPhone,
+          totalAmount: data.totalAmount,
+          currency: data.currency,
+          status: data.status,
+          paymentStatus: data.paymentStatus,
+          source: data.source || 'public_ticket',
+          tickets: data.tickets,
         }
+        setOrder(normalizedOrder)
 
-        const data = snap.data() as OrderDoc
-        setOrder(data)
-
-        const issued = data.tickets ? Object.values(data.tickets) : []
+        const issued = data.tickets.map((ticket) => ({
+          ...ticket,
+          orderId: ticket.orderId || orderId!,
+          eventId: ticket.eventId || data.eventId,
+        }))
 
         if (issued.length > 0) {
           setTickets(issued)
           setPhase('issued')
+          trackPurchaseReturn('issued', normalizedOrder, issued.length)
           return
         }
 
         // No tickets yet — determine phase from payment status
         const ps = data.paymentStatus ?? data.status
-        if (ps === 'failed' || ps === 'cancelled') {
+        if (ps === 'failed' || ps === 'cancelled' || hubtelReturnedCancelled) {
           setPhase('cancelled')
+          trackPurchaseReturn('cancelled', normalizedOrder, 0)
         } else {
-          // Still pending — waiting for Hubtel callback to issue tickets
           setPhase('pending')
+          timeoutId = window.setTimeout(loadTicket, 3000)
         }
-      },
-      (err) => {
-        console.error('Firestore snapshot error:', err)
+      } catch (err) {
+        if (abortController.signal.aborted) return
+        console.error('Public ticket lookup error:', err)
         setPhase('error')
-        setErrorMsg('Could not load your order. Please contact support with your order ID.')
-      },
-    )
+        if (err instanceof PublicTicketLookupError && err.status === 404) {
+          setErrorMsg('Order not found. It may still be processing — please check back shortly.')
+        } else {
+          setErrorMsg('Could not load your order. Please contact support with your order ID.')
+        }
+      }
+    }
 
-    return unsub
-  }, [orderId, hubtelStatus])
+    void loadTicket()
+
+    return () => {
+      abortController.abort()
+      if (timeoutId) window.clearTimeout(timeoutId)
+    }
+  }, [hubtelReturnedCancelled, orderId, trackPurchaseReturn])
 
   // Increment wait counter while pending so we can show helpful messaging
   useEffect(() => {

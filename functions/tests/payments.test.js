@@ -1,8 +1,10 @@
 "use strict";
 
 /**
- * Unit tests for payment business logic extracted from event_payments.js.
- * These test pure functions in isolation — no Firebase SDK calls needed.
+ * Unit tests for payment business logic in event_payments.js.
+ * These import the REAL helpers (via the NODE_ENV==="test" export hook) so the
+ * tests track the shipped code instead of a copy. No real Firebase calls happen —
+ * the SDKs are stubbed below.
  */
 
 // ── Minimal stubs so the module can be imported without real Firebase ────────
@@ -22,56 +24,28 @@ jest.mock("firebase-admin", () => ({
   initializeApp: () => {},
   firestore: Object.assign(() => ({}), {
     FieldValue: { serverTimestamp: () => ({}), increment: (n) => ({ _inc: n }) },
+    Timestamp: { fromDate: () => ({}), fromMillis: () => ({}) },
   }),
 }));
 
-jest.mock("./rate_limiter", () => ({ checkRateLimit: async () => {} }), { virtual: true });
 jest.mock("../rate_limiter", () => ({ checkRateLimit: async () => {} }));
 jest.mock("../logger", () => ({
   info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, critical: () => {},
 }));
 jest.mock("../event_notifications", () => ({ notifySuperAdmins: async () => {} }));
 
-// ── Helpers under test (copied / re-exported as pure functions) ───────────────
-
+const crypto = require("crypto");
 const { HttpsError } = require("firebase-functions/v2/https");
 
-// Re-implement the pure helpers locally so tests don't depend on module internals
-function safeString(value, fallback = "") {
-  return String(value || "").trim() || fallback;
-}
-
-const MAX_QUANTITY_PER_TIER = 50;
-const MAX_PRICE_PER_TIER_GHS = 10_000;
-const MAX_ORDER_TOTAL_GHS = 100_000;
-
-function buildOrderSelections(selectedTiers) {
-  const cleanedSelections = [];
-  let totalAmount = 0;
-
-  for (const rawSelection of Array.isArray(selectedTiers) ? selectedTiers : []) {
-    const quantity = Number(rawSelection.quantity || 0);
-    if (quantity <= 0) continue;
-    if (!Number.isInteger(quantity) || quantity > MAX_QUANTITY_PER_TIER) {
-      throw new HttpsError("invalid-argument",
-        `Quantity must be a whole number between 1 and ${MAX_QUANTITY_PER_TIER} per tier.`);
-    }
-    const price = Number(rawSelection.price || rawSelection.amount || 0);
-    if (!Number.isFinite(price) || price < 0 || price > MAX_PRICE_PER_TIER_GHS) {
-      throw new HttpsError("invalid-argument",
-        `Ticket price must be between 0 and ${MAX_PRICE_PER_TIER_GHS} GHS.`);
-    }
-    const tierId = safeString(rawSelection.tierId);
-    if (!tierId) continue;
-    cleanedSelections.push({ tierId, name: safeString(rawSelection.name, "General"), price, quantity });
-    totalAmount += price * quantity;
-  }
-
-  if (totalAmount > MAX_ORDER_TOTAL_GHS) {
-    throw new HttpsError("invalid-argument", `Order total cannot exceed ${MAX_ORDER_TOTAL_GHS} GHS.`);
-  }
-  return { selectedTiers: cleanedSelections, totalAmount };
-}
+// Import the REAL helpers from the shipped module (test-only exports).
+const {
+  buildOrderSelections,
+  safeString,
+  isWithdrawableTicketOrder,
+  verifyHubtelSignature,
+  confirmHubtelStatusFromProvider,
+  escapeHtml,
+} = require("../event_payments");
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -108,7 +82,6 @@ describe("buildOrderSelections", () => {
     expect(() =>
       buildOrderSelections([{ tierId: "t1", quantity: 51, price: 10 }])
     ).toThrow(HttpsError);
-
     try {
       buildOrderSelections([{ tierId: "t1", quantity: 51, price: 10 }]);
     } catch (e) {
@@ -135,16 +108,13 @@ describe("buildOrderSelections", () => {
   });
 
   test("throws when order total exceeds MAX_ORDER_TOTAL_GHS", () => {
-    // 50 tickets × GHS 10,000 = GHS 500,000 > limit
     expect(() =>
       buildOrderSelections([{ tierId: "t1", quantity: 50, price: 10_000 }])
     ).toThrow(HttpsError);
   });
 
   test("accepts free tickets (price = 0)", () => {
-    const result = buildOrderSelections([
-      { tierId: "free", quantity: 3, price: 0 },
-    ]);
+    const result = buildOrderSelections([{ tierId: "free", quantity: 3, price: 0 }]);
     expect(result.totalAmount).toBe(0);
     expect(result.selectedTiers[0].price).toBe(0);
   });
@@ -156,17 +126,112 @@ describe("buildOrderSelections", () => {
 });
 
 describe("safeString", () => {
-  test("trims whitespace", () => {
-    expect(safeString("  hello  ")).toBe("hello");
-  });
-  test("returns fallback for empty string", () => {
-    expect(safeString("", "default")).toBe("default");
-  });
+  test("trims whitespace", () => expect(safeString("  hello  ")).toBe("hello"));
+  test("returns fallback for empty string", () => expect(safeString("", "default")).toBe("default"));
   test("returns fallback for null/undefined", () => {
     expect(safeString(null, "fb")).toBe("fb");
     expect(safeString(undefined, "fb")).toBe("fb");
   });
-  test("converts numbers to string", () => {
-    expect(safeString(42)).toBe("42");
+  test("converts numbers to string", () => expect(safeString(42)).toBe("42"));
+});
+
+describe("isWithdrawableTicketOrder (payout-theft guard)", () => {
+  const base = { paymentStatus: "paid", paymentProvider: "hubtel", totalAmount: 100 };
+
+  test("a paid Hubtel order WITHOUT settlementEligible is NOT withdrawable (forged-order guard)", () => {
+    expect(isWithdrawableTicketOrder({ ...base })).toBe(false);
+    expect(isWithdrawableTicketOrder({ ...base, status: "paid" })).toBe(false);
+  });
+
+  test("only counts when the server-set settlementEligible flag is true", () => {
+    expect(isWithdrawableTicketOrder({ ...base, settlementEligible: true })).toBe(true);
+    expect(isWithdrawableTicketOrder({ ...base, settlementEligible: "true" })).toBe(false);
+    expect(isWithdrawableTicketOrder({ ...base, settlementEligible: 1 })).toBe(false);
+  });
+
+  test("requires Hubtel provider and a positive amount even when eligible", () => {
+    expect(isWithdrawableTicketOrder({ settlementEligible: true, paymentStatus: "paid", paymentProvider: "cash_at_gate", totalAmount: 100 })).toBe(false);
+    expect(isWithdrawableTicketOrder({ settlementEligible: true, paymentStatus: "paid", paymentProvider: "hubtel", totalAmount: 0 })).toBe(false);
+    expect(isWithdrawableTicketOrder({ settlementEligible: true, paymentStatus: "pending", paymentProvider: "hubtel", totalAmount: 100 })).toBe(false);
+  });
+});
+
+describe("verifyHubtelSignature (callback authenticity)", () => {
+  const secret = "shared_callback_secret";
+  const payload = { Data: { ClientReference: "evt_abc", Status: "success", Amount: 50 } };
+  const validSig = crypto.createHmac("sha256", secret).update(JSON.stringify(payload)).digest("hex");
+
+  test("accepts a correctly-signed payload", () => {
+    expect(verifyHubtelSignature(secret, payload, validSig)).toBe(true);
+  });
+
+  test("rejects a wrong signature", () => {
+    expect(verifyHubtelSignature(secret, payload, "deadbeef")).toBe(false);
+  });
+
+  test("rejects a missing/empty signature", () => {
+    expect(verifyHubtelSignature(secret, payload, "")).toBe(false);
+    expect(verifyHubtelSignature(secret, payload, undefined)).toBe(false);
+  });
+
+  test("rejects a valid signature over a TAMPERED body (amount changed)", () => {
+    const tampered = { Data: { ClientReference: "evt_abc", Status: "success", Amount: 999999 } };
+    expect(verifyHubtelSignature(secret, tampered, validSig)).toBe(false);
+  });
+});
+
+describe("escapeHtml (return-page XSS guard)", () => {
+  test("escapes HTML metacharacters", () => {
+    expect(escapeHtml("<img src=x onerror=alert(1)>")).toBe("&lt;img src=x onerror=alert(1)&gt;");
+    expect(escapeHtml("\"&'<>")).toBe("&quot;&amp;&#39;&lt;&gt;");
+  });
+  test("handles null/undefined", () => {
+    expect(escapeHtml(null)).toBe("");
+    expect(escapeHtml(undefined)).toBe("");
+  });
+});
+
+describe("confirmHubtelStatusFromProvider (forged-callback defense)", () => {
+  const config = { apiKey: "k", apiSecret: "s", merchantAccount: "M123" };
+  const realFetch = global.fetch;
+  afterEach(() => { global.fetch = realFetch; });
+
+  test("returns ok:false when reference is missing (never trusts empty ref)", async () => {
+    const result = await confirmHubtelStatusFromProvider("", config);
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("unknown");
+  });
+
+  test("confirms paid only when Hubtel returns responseCode 0000 + paid data", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      status: 200,
+      json: async () => ({ responseCode: "0000", data: { status: "Paid" } }),
+    });
+    const result = await confirmHubtelStatusFromProvider("evt_abc", config);
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("paid");
+  });
+
+  test("does NOT confirm when Hubtel responseCode is not 0000 (forged callback)", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      status: 200,
+      json: async () => ({ responseCode: "2001", data: null }),
+    });
+    const result = await confirmHubtelStatusFromProvider("evt_forged", config);
+    expect(result.ok).toBe(false);
+  });
+
+  test("fails closed (ok:false) when the provider call throws", async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("network down"));
+    const result = await confirmHubtelStatusFromProvider("evt_abc", config);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("fetch_failed");
+  });
+
+  test("fails closed when server IP is not whitelisted (403)", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ status: 403, json: async () => ({}) });
+    const result = await confirmHubtelStatusFromProvider("evt_abc", config);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("ip_not_whitelisted");
   });
 });

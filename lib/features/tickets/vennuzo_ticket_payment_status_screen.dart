@@ -71,9 +71,7 @@ class _VennuzoTicketPaymentStatusScreenState
         .doc(widget.orderId)
         .snapshots()
         .listen((snapshot) {
-          final remoteOrder = VennuzoPaymentService.orderFromDocument(
-            snapshot,
-          );
+          final remoteOrder = VennuzoPaymentService.orderFromDocument(snapshot);
           if (remoteOrder == null) {
             return;
           }
@@ -335,12 +333,17 @@ class _VennuzoTicketPaymentStatusScreenState
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  ticket.tierName,
-                                  style: context.text.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
+                                Expanded(
+                                  child: Text(
+                                    ticket.tierName,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: context.text.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
+                                const SizedBox(width: 10),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
@@ -370,7 +373,9 @@ class _VennuzoTicketPaymentStatusScreenState
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.08),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.08,
+                                      ),
                                       blurRadius: 12,
                                       offset: const Offset(0, 4),
                                     ),
@@ -388,6 +393,8 @@ class _VennuzoTicketPaymentStatusScreenState
                             Center(
                               child: Text(
                                 'For: ${ticket.attendeeName}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: context.text.bodyMedium,
                               ),
                             ),
@@ -475,9 +482,9 @@ class _HeroPill extends StatelessWidget {
 String _paymentStatusLabel(TicketPaymentStatus status) => switch (status) {
   TicketPaymentStatus.initiated => 'Initiated',
   TicketPaymentStatus.pending => 'Pending',
-  TicketPaymentStatus.paid => 'Paid',
+  TicketPaymentStatus.paid => '✓ Paid',
   TicketPaymentStatus.cashAtGate => 'Cash at gate',
-  TicketPaymentStatus.cashAtGatePaid => 'Gate settled',
+  TicketPaymentStatus.cashAtGatePaid => '✓ Gate settled',
   TicketPaymentStatus.complimentary => 'Complimentary',
   TicketPaymentStatus.failed => 'Failed',
 };

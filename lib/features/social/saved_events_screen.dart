@@ -6,14 +6,12 @@ import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/event_models.dart';
 // EventMoodPalette extension provides `.colors` on EventMood
 import '../../widgets/empty_state_card.dart';
+import '../account/auth_prompt_sheet.dart';
 import '../events/event_detail_screen.dart';
 import 'social_service.dart';
 
 class SavedEventsScreen extends StatelessWidget {
-  const SavedEventsScreen({
-    super.key,
-    required this.userId,
-  });
+  const SavedEventsScreen({super.key, required this.userId});
 
   final String userId;
   static final _socialService = SocialService();
@@ -21,12 +19,20 @@ class SavedEventsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (userId.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24),
           child: EmptyStateCard(
             title: 'Sign in to see saved events',
+            body:
+                'Saved events sync to your account so they are ready when you come back.',
             icon: Icons.bookmark_outline,
+            actionLabel: 'Sign in',
+            onAction: () => showAuthPromptSheet(
+              context,
+              title: 'Sign in for saved events',
+              body: 'Saved events need an account.',
+            ),
           ),
         ),
       );
@@ -88,7 +94,9 @@ class _SavedEventsList extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Text(
           'Loading saved events…',
-          style: context.text.bodyMedium?.copyWith(color: context.palette.slate),
+          style: context.text.bodyMedium?.copyWith(
+            color: context.palette.slate,
+          ),
         ),
       );
     }
@@ -96,7 +104,7 @@ class _SavedEventsList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       itemCount: events.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final event = events[index];
         return _SavedEventCard(

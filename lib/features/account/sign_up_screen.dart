@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _imagePicker = ImagePicker();
   XFile? _selectedProfileImage;
   Uint8List? _selectedProfileImageBytes;
+  bool _submitted = false;
 
   @override
   void initState() {
@@ -57,72 +59,79 @@ class _SignUpScreenState extends State<SignUpScreen> {
       appBar: AppBar(title: const Text('Create account')),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: ListView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-            children: [
-              _AuthIntro(
-                title: 'Create your Vennuzo account',
-                body:
-                    'Save tickets, RSVP faster, and keep your plans in one place. Add your date of birth now, and include a contact number if you want hosts to have it.',
-              ),
-              const SizedBox(height: 22),
-              Form(
-                key: _formKey,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        _ProfileImagePicker(
-                          imageBytes: _selectedProfileImageBytes,
-                          onPick: _pickProfileImage,
-                          onRemove: _selectedProfileImageBytes == null
-                              ? null
-                              : _removeProfileImage,
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+          children: [
+            _AuthIntro(
+              title: 'Create your Vennuzo account',
+              body:
+                  'Save tickets, RSVP faster, and keep your plans in one place. Add your date of birth now, and include a contact number if you want hosts to have it.',
+            ),
+            const SizedBox(height: 22),
+            Form(
+              key: _formKey,
+              autovalidateMode: _submitted
+                  ? AutovalidateMode.onUserInteraction
+                  : AutovalidateMode.disabled,
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _ProfileImagePicker(
+                        imageBytes: _selectedProfileImageBytes,
+                        onPick: _pickProfileImage,
+                        onRemove: _selectedProfileImageBytes == null
+                            ? null
+                            : _removeProfileImage,
+                      ),
+                      const SizedBox(height: 18),
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Display name',
                         ),
-                        const SizedBox(height: 18),
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Display name',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().length < 2) {
-                              return 'Add the name you want people to see.';
-                            }
-                            return null;
-                          },
+                        onChanged: (_) => _validateAfterSubmit(),
+                        validator: (value) {
+                          if ((value ?? '').trim().length < 2) {
+                            return 'Add the name you want people to see.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        onChanged: (_) => _validateAfterSubmit(),
+                        validator: (value) {
+                          final trimmed = value?.trim() ?? '';
+                          if (trimmed.isEmpty || !trimmed.contains('@')) {
+                            return 'Enter a valid email address.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Contact number (optional)',
                         ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(labelText: 'Email'),
-                          validator: (value) {
-                            final trimmed = value?.trim() ?? '';
-                            if (trimmed.isEmpty || !trimmed.contains('@')) {
-                              return 'Enter a valid email address.';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            labelText: 'Contact number (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
+                      ),
+                      const SizedBox(height: 14),
+                      Semantics(
+                        button: true,
+                        label: 'Date of birth',
+                        value: _dobController.text.isEmpty
+                            ? 'Not selected'
+                            : _dobController.text,
+                        hint: 'Opens date picker',
+                        onTap: _pickDateOfBirth,
+                        child: TextFormField(
                           controller: _dobController,
                           readOnly: true,
                           decoration: const InputDecoration(
@@ -138,85 +147,108 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Password',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').length < 6) {
-                              return 'Use at least 6 characters.';
-                            }
-                            return null;
-                          },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
                         ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          controller: _confirmPasswordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Confirm password',
-                          ),
-                          validator: (value) {
-                            if (value != _passwordController.text) {
-                              return 'Passwords do not match yet.';
-                            }
-                            return null;
-                          },
+                        onChanged: (_) => _validateAfterSubmit(),
+                        validator: (value) {
+                          if ((value ?? '').length < 6) {
+                            return 'Use at least 6 characters.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Confirm password',
                         ),
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: session.isProcessing ? null : _submit,
-                            child: Text(
-                              session.isProcessing
-                                  ? 'Creating your account...'
-                                  : 'Create account',
-                            ),
+                        onChanged: (_) => _validateAfterSubmit(),
+                        validator: (value) {
+                          final text = value ?? '';
+                          if (text.isEmpty) {
+                            return 'Confirm your password.';
+                          }
+                          if (text != _passwordController.text) {
+                            return 'Passwords do not match yet.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: session.isProcessing ? null : _submit,
+                          child: Text(
+                            session.isProcessing
+                                ? 'Creating your account...'
+                                : 'Create account',
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        const _SocialDivider(),
-                        const SizedBox(height: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      const _SocialDivider(),
+                      const SizedBox(height: 12),
+                      _SocialAuthButton(
+                        label: 'Continue with Google',
+                        icon: const Text(
+                          'G',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        onPressed: session.isProcessing
+                            ? null
+                            : _signUpWithGoogle,
+                      ),
+                      const SizedBox(height: 10),
+                      _SocialAuthButton(
+                        label: 'Continue with G+',
+                        icon: const Text(
+                          'G+',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        onPressed: session.isProcessing
+                            ? null
+                            : _signUpWithGPlus,
+                      ),
+                      if (_showAppleButton) ...[
+                        const SizedBox(height: 10),
                         _SocialAuthButton(
-                          label: 'Continue with Google',
-                          icon: const Text(
-                            'G',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                          label: 'Continue with Apple',
+                          icon: const Icon(Icons.apple, size: 20),
                           onPressed: session.isProcessing
                               ? null
-                              : _signUpWithGoogle,
+                              : _signUpWithApple,
                         ),
-                        if (_showAppleButton) ...[
-                          const SizedBox(height: 10),
-                          _SocialAuthButton(
-                            label: 'Continue with Apple',
-                            icon: const Icon(Icons.apple, size: 20),
-                            onPressed: session.isProcessing
-                                ? null
-                                : _signUpWithApple,
-                          ),
-                        ],
                       ],
-                    ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Future<void> _submit() async {
+    if (!_submitted) {
+      setState(() => _submitted = true);
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -256,6 +288,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final navigator = Navigator.of(context);
     try {
       await session.signInWithGoogle();
+      await session.waitForAuthenticatedSession();
+      if (!mounted) {
+        return;
+      }
+      navigator.pop(true);
+    } on VennuzoAuthFailure catch (error) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _signUpWithGPlus() async {
+    final session = context.read<VennuzoSessionController>();
+    final navigator = Navigator.of(context);
+    try {
+      await session.signInWithGPlus();
       await session.waitForAuthenticatedSession();
       if (!mounted) {
         return;
@@ -329,6 +378,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _selectedDateOfBirth = DateTime(picked.year, picked.month, picked.day);
       _dobController.text = formatDate(_selectedDateOfBirth!);
     });
+    _validateAfterSubmit();
+  }
+
+  void _validateAfterSubmit() {
+    if (_submitted) {
+      _formKey.currentState?.validate();
+    }
   }
 }
 
@@ -423,10 +479,17 @@ class _SocialAuthButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: icon,
-        label: Text(label),
+      child: Semantics(
+        button: true,
+        enabled: onPressed != null,
+        label: label,
+        child: ExcludeSemantics(
+          child: OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: icon,
+            label: Text(label),
+          ),
+        ),
       ),
     );
   }
@@ -447,10 +510,16 @@ class _AuthIntro extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
-          colors: [palette.coral, palette.ink],
+          colors: [
+            palette.coral.withValues(alpha: 0.60),
+            VennuzoTheme.surfaceElevated,
+            VennuzoTheme.surface,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        border: Border.all(color: VennuzoTheme.borderBright),
+        boxShadow: VennuzoTheme.shadowElevated,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

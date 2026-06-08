@@ -1,2 +1,8 @@
 node_modules/
 .firebase/
+
+# Never commit local secrets (Hubtel SMS creds, etc.)
+.env
+.env.*
+!.env.example
+.runtimeconfig.json

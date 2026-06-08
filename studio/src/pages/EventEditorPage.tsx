@@ -1,9 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import {
+  ArrowLeft,
+  CalendarClock,
+  CircleCheck,
+  CircleDashed,
+  Eye,
+  Globe2,
+  ImagePlus,
+  Megaphone,
+  Plus,
+  Save,
+  Shield,
+  Trash2,
+  Upload,
+} from 'lucide-react'
 
 import { collection, doc } from 'firebase/firestore'
 import { db } from '../firebaseDb'
+import { trackEvent } from '../lib/analytics'
 import { copy } from '../lib/copy'
+import { EVENT_CATEGORIES } from '../lib/eventTaxonomy'
 import { formatMoney } from '../lib/formatters'
 import { getErrorMessage } from '../lib/errorMessages'
 import {
@@ -18,6 +35,8 @@ import type { PortalEvent, PortalTicketTier } from '../lib/types'
 export function EventEditorPage() {
   const { eventId } = useParams()
   const navigate = useNavigate()
+  const coverUploadId = useId()
+  const coverReplaceId = useId()
   const session = usePortalSession()
   const [eventDraft, setEventDraft] = useState<PortalEvent | null>(null)
   const [tagsInput, setTagsInput] = useState('')
@@ -101,6 +120,8 @@ export function EventEditorPage() {
   }, [eventDraft])
 
   const completedChecks = readinessChecks.filter((item) => item.complete).length
+  const readinessPercent =
+    readinessChecks.length > 0 ? Math.round((completedChecks / readinessChecks.length) * 100) : 0
   const totalCapacity = (eventDraft?.tiers ?? []).reduce(
     (sum, tier) => sum + tier.maxQuantity,
     0,
@@ -109,7 +130,6 @@ export function EventEditorPage() {
     (sum, tier) => sum + tier.price * tier.maxQuantity,
     0,
   )
-
   if (!session.user) {
     return <Navigate replace to="/" />
   }
@@ -127,6 +147,27 @@ export function EventEditorPage() {
     setIsSaving(true)
     try {
       const savedId = await saveOrganizerEvent(currentDraft)
+      void trackEvent('event_saved', {
+        status: currentDraft.status,
+        ticketing_enabled: currentDraft.ticketingEnabled,
+        tier_count: currentDraft.tiers.length,
+        visibility: currentDraft.visibility,
+        was_new: !eventId,
+      }, {
+        area: 'studio',
+        organizationId: session.organizationId,
+      })
+      if (currentDraft.status === 'published') {
+        void trackEvent('event_published', {
+          ticketing_enabled: currentDraft.ticketingEnabled,
+          tier_count: currentDraft.tiers.length,
+          visibility: currentDraft.visibility,
+          was_new: !eventId,
+        }, {
+          area: 'studio',
+          organizationId: session.organizationId,
+        })
+      }
       navigate(`/studio/events/${savedId}/edit`)
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, copy.eventSaveFailed))
@@ -137,7 +178,7 @@ export function EventEditorPage() {
 
   return (
     <div className="dashboard-stack">
-      <section className="page-hero page-hero--editor">
+      <section className="page-hero page-hero--editor page-hero--creator">
         <div className="page-hero__content">
           <p className="eyebrow">{eventId ? 'Edit event' : 'Create event'}</p>
           <h2>Shape the public event page before guests ever see it.</h2>
@@ -146,7 +187,10 @@ export function EventEditorPage() {
             summary rail to check what is still missing before you publish.
           </p>
           <div className="hero-chip-row">
-            <span>{eventDraft.visibility} visibility</span>
+            <span>
+              {eventDraft.visibility === 'public' ? <Globe2 size={14} aria-hidden /> : <Shield size={14} aria-hidden />}
+              {eventDraft.visibility} visibility
+            </span>
             <span>{eventDraft.status} status</span>
             <span>
               {eventDraft.ticketingEnabled ? `${eventDraft.tiers.length} ticket tiers` : 'No ticketing'}
@@ -164,16 +208,19 @@ export function EventEditorPage() {
           </p>
           <div className="hero-actions">
             <button className="button button--secondary" onClick={() => navigate('/studio/events')} type="button">
+              <ArrowLeft size={15} aria-hidden />
               Back to events
             </button>
             {eventId ? (
               <Link className="button button--secondary" to={`/studio/promote?eventId=${eventId}`}>
+                <Megaphone size={15} aria-hidden />
                 Promote event
               </Link>
             ) : null}
             {eventId && eventDraft.status === 'published' ? (
               <Link className="button button--secondary" to={`/events/${eventId}`} target="_blank" rel="noopener noreferrer">
-                View public page ↗
+                <Eye size={15} aria-hidden />
+                View public page
               </Link>
             ) : null}
             <button
@@ -182,9 +229,44 @@ export function EventEditorPage() {
               onClick={handleSave}
               type="button"
             >
+              <Save size={15} aria-hidden />
               {isSaving ? 'Saving...' : 'Save event'}
             </button>
           </div>
+        </div>
+      </section>
+
+      <section className="editor-command-bar">
+        <div className="editor-command-bar__status">
+          <span className="editor-command-bar__icon" aria-hidden>
+            {readinessPercent === 100 ? <CircleCheck size={18} /> : <CircleDashed size={18} />}
+          </span>
+          <div>
+            <strong>{readinessPercent}% ready to publish</strong>
+            <span>{completedChecks}/{readinessChecks.length} setup checks complete</span>
+          </div>
+        </div>
+        <div className="readiness-meter">
+          <div className="readiness-meter__track">
+            <span style={{ width: `${readinessPercent}%` }} />
+          </div>
+        </div>
+        <div className="editor-command-bar__actions">
+          {eventDraft.startAt ? (
+            <span className="editor-command-bar__time">
+              <CalendarClock size={15} aria-hidden />
+              {new Date(eventDraft.startAt).toLocaleString()}
+            </span>
+          ) : null}
+          <button
+            className="button button--primary"
+            disabled={isSaving || !eventDraft.title.trim() || !eventDraft.venue.trim()}
+            onClick={handleSave}
+            type="button"
+          >
+            <Save size={15} aria-hidden />
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
         </div>
       </section>
 
@@ -202,12 +284,14 @@ export function EventEditorPage() {
                 <div className="cover-upload-preview">
                   <img src={eventDraft.coverImageUrl} alt="Event cover" />
                   <div className="cover-upload-preview__actions">
-                    <label className="button button--secondary cover-upload-btn">
+                    <label className="button button--secondary cover-upload-btn" htmlFor={coverReplaceId}>
+                      <Upload size={15} aria-hidden />
                       {isUploadingCover ? 'Uploading...' : 'Replace image'}
                       <input
                         accept="image/*"
                         disabled={isUploadingCover}
                         hidden
+                        id={coverReplaceId}
                         onChange={handleCoverImageChange}
                         type="file"
                       />
@@ -217,21 +301,29 @@ export function EventEditorPage() {
                       onClick={() => setEventDraft((d) => d ? { ...d, coverImageUrl: '' } : d)}
                       type="button"
                     >
+                      <Trash2 size={15} aria-hidden />
                       Remove
                     </button>
                   </div>
                 </div>
               ) : (
-                <label className={`cover-upload-drop${isUploadingCover ? ' cover-upload-drop--uploading' : ''}`}>
+                <label
+                  aria-label="Upload event cover image"
+                  className={`cover-upload-drop${isUploadingCover ? ' cover-upload-drop--uploading' : ''}`}
+                  htmlFor={coverUploadId}
+                >
                   <div className="cover-upload-drop__inner">
-                    <span className="cover-upload-drop__icon">+</span>
+                    <span className="cover-upload-drop__icon" aria-hidden>
+                      <ImagePlus size={22} />
+                    </span>
                     <strong>{isUploadingCover ? 'Uploading…' : 'Upload cover image'}</strong>
-                    <span>JPG, PNG or WebP · portrait, square, or landscape</span>
+                    <span>JPG, PNG or WebP · 16:9 recommended</span>
                   </div>
                   <input
                     accept="image/*"
                     disabled={isUploadingCover}
                     hidden
+                    id={coverUploadId}
                     onChange={handleCoverImageChange}
                     type="file"
                   />
@@ -269,6 +361,16 @@ export function EventEditorPage() {
                 rows={5}
                 value={eventDraft.description}
                 wide
+              />
+              <SelectField
+                label="Event category"
+                onChange={(value) =>
+                  setEventDraft((current) =>
+                    current ? { ...current, categoryId: value } : current,
+                  )
+                }
+                options={EVENT_CATEGORIES.map((category) => [category.id, category.label])}
+                value={eventDraft.categoryId}
               />
               <SelectField
                 label="Visual mood"
@@ -475,6 +577,7 @@ export function EventEditorPage() {
                           }
                           type="button"
                         >
+                          <Trash2 size={15} aria-hidden />
                           Remove tier
                         </button>
                       </div>
@@ -542,6 +645,7 @@ export function EventEditorPage() {
                   }
                   type="button"
                 >
+                  <Plus size={16} aria-hidden />
                   Add ticket tier
                 </button>
               </>
@@ -599,7 +703,7 @@ export function EventEditorPage() {
           </section>
         </div>
 
-        <aside className="editor-sidebar">
+        <aside className={`editor-sidebar editor-sidebar--${eventDraft.mood || 'night'}`}>
           <section className="editor-card editor-card--summary">
             <p className="eyebrow">Summary rail</p>
             <h3>{eventDraft.title.trim() || 'Untitled event draft'}</h3>
@@ -608,6 +712,21 @@ export function EventEditorPage() {
                 ? `${eventDraft.venue}, ${eventDraft.city}`
                 : 'Venue details will appear here once you add them.'}
             </p>
+
+            <div className="editor-public-preview">
+              <div className="editor-public-preview__media">
+                {eventDraft.coverImageUrl ? <img src={eventDraft.coverImageUrl} alt="" /> : null}
+                <span>{eventDraft.title.trim().slice(0, 1).toUpperCase() || 'V'}</span>
+              </div>
+              <div className="editor-public-preview__body">
+                <strong>{eventDraft.title.trim() || 'Your event title'}</strong>
+                <span>{eventDraft.venue.trim() || 'Venue'} · {eventDraft.city.trim() || 'City'}</span>
+                <div className="hero-chip-row hero-chip-row--compact">
+                  <span>{eventDraft.mood}</span>
+                  <span>{eventDraft.visibility}</span>
+                </div>
+              </div>
+            </div>
 
             <div className="summary-stat-grid">
               <article className="summary-stat">
@@ -656,6 +775,7 @@ export function EventEditorPage() {
                 onClick={() => navigate('/studio/events')}
                 type="button"
               >
+                <ArrowLeft size={15} aria-hidden />
                 Back to events
               </button>
               {eventId && eventDraft.status === 'published' ? (
@@ -665,7 +785,8 @@ export function EventEditorPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  View public page ↗
+                  <Eye size={15} aria-hidden />
+                  View public page
                 </Link>
               ) : null}
               <button
@@ -674,6 +795,7 @@ export function EventEditorPage() {
                 onClick={handleSave}
                 type="button"
               >
+                <Save size={15} aria-hidden />
                 {isSaving ? 'Saving...' : 'Save event'}
               </button>
             </div>
@@ -796,20 +918,33 @@ function ToggleField({
   checked,
   label,
   description,
+  disabled = false,
   onChange,
 }: {
   checked: boolean
   label: string
   description: string
+  disabled?: boolean
   onChange: (value: boolean) => void
 }) {
+  const inputId = useId()
   return (
-    <label className="toggle-card">
+    <label
+      aria-label={label}
+      className={disabled ? 'toggle-card toggle-card--disabled' : 'toggle-card'}
+      htmlFor={inputId}
+    >
       <div>
         <strong>{label}</strong>
         <p>{description}</p>
       </div>
-      <input checked={checked} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
+      <input
+        checked={checked}
+        disabled={disabled}
+        id={inputId}
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
     </label>
   )
 }

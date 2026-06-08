@@ -2,16 +2,33 @@ import { useEffect, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 
 import { functions } from '../firebaseFunctions'
+import { canPerformAdminAction } from '../lib/adminRoles'
 import { copy } from '../lib/copy'
 import { getErrorMessage } from '../lib/errorMessages'
+import { trackEvent } from '../lib/analytics'
+import { usePortalSession } from '../lib/portalSession'
 
 const getAdminPricingConfig = httpsCallable<
   void,
-  { defaultSmsRateGhs: number; smsMarginMultiplier: number; platformServiceFeePercent: number }
+  {
+    defaultSmsRateGhs: number
+    smsMarginMultiplier: number
+    platformPushUnitPriceGhs: number
+    featuredPlacementPriceGhs: number
+    announcementPlacementPriceGhs: number
+    platformServiceFeePercent: number
+  }
 >(functions, 'getAdminPricingConfig')
 
 const setAdminPricingConfig = httpsCallable<
-  { defaultSmsRateGhs: number; smsMarginMultiplier: number; platformServiceFeePercent: number },
+  {
+    defaultSmsRateGhs: number
+    smsMarginMultiplier: number
+    platformPushUnitPriceGhs: number
+    featuredPlacementPriceGhs: number
+    announcementPlacementPriceGhs: number
+    platformServiceFeePercent: number
+  },
   { success: boolean }
 >(functions, 'setAdminPricingConfig')
 
@@ -26,6 +43,9 @@ const listAdminPromoPackages = httpsCallable<
       order: number
       defaultSmsRateGhs: number
       smsMarginMultiplier: number
+      platformPushUnitPriceGhs: number
+      featuredPlacementPriceGhs: number
+      announcementPlacementPriceGhs: number
       minSpend?: number
     }[]
   }
@@ -40,12 +60,23 @@ const setAdminPromoPackage = httpsCallable<
     order: number
     defaultSmsRateGhs: number
     smsMarginMultiplier: number
+    platformPushUnitPriceGhs: number
+    featuredPlacementPriceGhs: number
+    announcementPlacementPriceGhs: number
     minSpend?: number
   },
   { success: boolean; id: string }
 >(functions, 'setAdminPromoPackage')
 
+function numberOr(value: string, fallback: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 export function SuperadminPricingPage() {
+  const session = usePortalSession()
+  const canManagePricing = canPerformAdminAction(session.adminRole, 'manage_pricing')
+  const canManagePromoPackages = canPerformAdminAction(session.adminRole, 'manage_promo_packages')
   const [packages, setPackages] = useState<Array<{
     id: string
     name: string
@@ -54,6 +85,9 @@ export function SuperadminPricingPage() {
     order: number
     defaultSmsRateGhs: number
     smsMarginMultiplier: number
+    platformPushUnitPriceGhs: number
+    featuredPlacementPriceGhs: number
+    announcementPlacementPriceGhs: number
     minSpend?: number
   }>>([])
   const [loading, setLoading] = useState(true)
@@ -61,15 +95,25 @@ export function SuperadminPricingPage() {
   const [savingPackage, setSavingPackage] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [pricingForm, setPricingForm] = useState({ defaultSmsRateGhs: '0.05', smsMarginMultiplier: '1.5', platformServiceFeePercent: '0.05' })
+  const [pricingForm, setPricingForm] = useState({
+    defaultSmsRateGhs: '0.04',
+    smsMarginMultiplier: '1.5',
+    platformPushUnitPriceGhs: '0.02',
+    featuredPlacementPriceGhs: '150',
+    announcementPlacementPriceGhs: '300',
+    platformServiceFeePercent: '0.05',
+  })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [packageForm, setPackageForm] = useState({
     name: '',
     description: '',
     active: true,
     order: 0,
-    defaultSmsRateGhs: '0.05',
+    defaultSmsRateGhs: '0.04',
     smsMarginMultiplier: '1.5',
+    platformPushUnitPriceGhs: '0.02',
+    featuredPlacementPriceGhs: '150',
+    announcementPlacementPriceGhs: '300',
     minSpend: '',
   })
 
@@ -85,6 +129,9 @@ export function SuperadminPricingPage() {
           setPricingForm({
             defaultSmsRateGhs: String(config.defaultSmsRateGhs),
             smsMarginMultiplier: String(config.smsMarginMultiplier),
+            platformPushUnitPriceGhs: String(config.platformPushUnitPriceGhs ?? 0.02),
+            featuredPlacementPriceGhs: String(config.featuredPlacementPriceGhs ?? 150),
+            announcementPlacementPriceGhs: String(config.announcementPlacementPriceGhs ?? 300),
             platformServiceFeePercent: String(config.platformServiceFeePercent ?? 0.05),
           })
           setPackages(list)
@@ -101,10 +148,15 @@ export function SuperadminPricingPage() {
 
   async function handleSavePricing(e: React.FormEvent) {
     e.preventDefault()
+    if (!canManagePricing) return
+
     setError(null)
     setNotice(null)
     const defaultSmsRateGhs = Number(pricingForm.defaultSmsRateGhs)
     const smsMarginMultiplier = Number(pricingForm.smsMarginMultiplier)
+    const platformPushUnitPriceGhs = Number(pricingForm.platformPushUnitPriceGhs)
+    const featuredPlacementPriceGhs = Number(pricingForm.featuredPlacementPriceGhs)
+    const announcementPlacementPriceGhs = Number(pricingForm.announcementPlacementPriceGhs)
     const platformServiceFeePercent = Number(pricingForm.platformServiceFeePercent)
     if (!Number.isFinite(defaultSmsRateGhs) || defaultSmsRateGhs < 0) {
       setError(copy.defaultSmsRateInvalid)
@@ -114,14 +166,45 @@ export function SuperadminPricingPage() {
       setError(copy.smsMarginInvalid)
       return
     }
+    if (!Number.isFinite(platformPushUnitPriceGhs) || platformPushUnitPriceGhs < 0) {
+      setError('Push unit price must be a non-negative number.')
+      return
+    }
+    if (!Number.isFinite(featuredPlacementPriceGhs) || featuredPlacementPriceGhs < 0) {
+      setError('Featured placement price must be a non-negative number.')
+      return
+    }
+    if (!Number.isFinite(announcementPlacementPriceGhs) || announcementPlacementPriceGhs < 0) {
+      setError('Announcement placement price must be a non-negative number.')
+      return
+    }
     if (!Number.isFinite(platformServiceFeePercent) || platformServiceFeePercent < 0 || platformServiceFeePercent > 1) {
       setError('Platform service fee must be between 0 and 1 (e.g. 0.05 for 5%).')
       return
     }
     setSavingPricing(true)
     try {
-      await setAdminPricingConfig({ defaultSmsRateGhs, smsMarginMultiplier, platformServiceFeePercent })
+      await setAdminPricingConfig({
+        defaultSmsRateGhs,
+        smsMarginMultiplier,
+        platformPushUnitPriceGhs,
+        featuredPlacementPriceGhs,
+        announcementPlacementPriceGhs,
+        platformServiceFeePercent,
+      })
       setNotice(copy.saved)
+      void trackEvent('admin_action', {
+        action: 'pricing_updated',
+        default_sms_rate: defaultSmsRateGhs,
+        sms_margin: smsMarginMultiplier,
+        push_unit_price: platformPushUnitPriceGhs,
+        featured_placement_price: featuredPlacementPriceGhs,
+        announcement_placement_price: announcementPlacementPriceGhs,
+        service_fee_percent: platformServiceFeePercent,
+      }, {
+        area: 'admin',
+        role: session.adminRole,
+      })
     } catch (e) {
       setError(getErrorMessage(e, copy.pricingSaveFailed))
     } finally {
@@ -130,6 +213,8 @@ export function SuperadminPricingPage() {
   }
 
   function openEdit(pkg: typeof packages[0]) {
+    if (!canManagePromoPackages) return
+
     setEditingId(pkg.id)
     setPackageForm({
       name: pkg.name,
@@ -138,25 +223,35 @@ export function SuperadminPricingPage() {
       order: pkg.order,
       defaultSmsRateGhs: String(pkg.defaultSmsRateGhs),
       smsMarginMultiplier: String(pkg.smsMarginMultiplier),
+      platformPushUnitPriceGhs: String(pkg.platformPushUnitPriceGhs ?? 0.02),
+      featuredPlacementPriceGhs: String(pkg.featuredPlacementPriceGhs ?? 150),
+      announcementPlacementPriceGhs: String(pkg.announcementPlacementPriceGhs ?? 300),
       minSpend: pkg.minSpend != null ? String(pkg.minSpend) : '',
     })
   }
 
   function openNew() {
+    if (!canManagePromoPackages) return
+
     setEditingId('')
     setPackageForm({
       name: '',
       description: '',
       active: true,
       order: packages.length,
-      defaultSmsRateGhs: '0.05',
+      defaultSmsRateGhs: '0.04',
       smsMarginMultiplier: '1.5',
+      platformPushUnitPriceGhs: '0.02',
+      featuredPlacementPriceGhs: '150',
+      announcementPlacementPriceGhs: '300',
       minSpend: '',
     })
   }
 
   async function handleSavePackage(e: React.FormEvent) {
     e.preventDefault()
+    if (!canManagePromoPackages) return
+
     setError(null)
     setNotice(null)
     if (!packageForm.name.trim()) {
@@ -165,17 +260,30 @@ export function SuperadminPricingPage() {
     }
     setSavingPackage(true)
     try {
+      const wasNewPackage = !editingId
       const result = await setAdminPromoPackage({
         id: editingId || undefined,
         name: packageForm.name.trim(),
         description: packageForm.description.trim() || undefined,
         active: packageForm.active,
         order: packageForm.order,
-        defaultSmsRateGhs: Number(packageForm.defaultSmsRateGhs) || 0.05,
-        smsMarginMultiplier: Number(packageForm.smsMarginMultiplier) || 1.5,
+        defaultSmsRateGhs: numberOr(packageForm.defaultSmsRateGhs, 0.04),
+        smsMarginMultiplier: numberOr(packageForm.smsMarginMultiplier, 1.5),
+        platformPushUnitPriceGhs: numberOr(packageForm.platformPushUnitPriceGhs, 0.02),
+        featuredPlacementPriceGhs: numberOr(packageForm.featuredPlacementPriceGhs, 150),
+        announcementPlacementPriceGhs: numberOr(packageForm.announcementPlacementPriceGhs, 300),
         minSpend: packageForm.minSpend ? Number(packageForm.minSpend) : undefined,
       })
       setNotice(copy.saved)
+      void trackEvent('admin_action', {
+        action: 'promo_package_saved',
+        package_active: packageForm.active,
+        was_new: wasNewPackage,
+        min_spend_set: Boolean(packageForm.minSpend),
+      }, {
+        area: 'admin',
+        role: session.adminRole,
+      })
       if (!editingId) {
         setPackages((prev) => [
           ...prev,
@@ -185,8 +293,11 @@ export function SuperadminPricingPage() {
             description: packageForm.description.trim(),
             active: packageForm.active,
             order: packageForm.order,
-            defaultSmsRateGhs: Number(packageForm.defaultSmsRateGhs) || 0.05,
-            smsMarginMultiplier: Number(packageForm.smsMarginMultiplier) || 1.5,
+            defaultSmsRateGhs: numberOr(packageForm.defaultSmsRateGhs, 0.04),
+            smsMarginMultiplier: numberOr(packageForm.smsMarginMultiplier, 1.5),
+            platformPushUnitPriceGhs: numberOr(packageForm.platformPushUnitPriceGhs, 0.02),
+            featuredPlacementPriceGhs: numberOr(packageForm.featuredPlacementPriceGhs, 150),
+            announcementPlacementPriceGhs: numberOr(packageForm.announcementPlacementPriceGhs, 300),
             minSpend: packageForm.minSpend ? Number(packageForm.minSpend) : undefined,
           },
         ])
@@ -200,8 +311,11 @@ export function SuperadminPricingPage() {
                   description: packageForm.description.trim(),
                   active: packageForm.active,
                   order: packageForm.order,
-                  defaultSmsRateGhs: Number(packageForm.defaultSmsRateGhs) || 0.05,
-                  smsMarginMultiplier: Number(packageForm.smsMarginMultiplier) || 1.5,
+                  defaultSmsRateGhs: numberOr(packageForm.defaultSmsRateGhs, 0.04),
+                  smsMarginMultiplier: numberOr(packageForm.smsMarginMultiplier, 1.5),
+                  platformPushUnitPriceGhs: numberOr(packageForm.platformPushUnitPriceGhs, 0.02),
+                  featuredPlacementPriceGhs: numberOr(packageForm.featuredPlacementPriceGhs, 150),
+                  announcementPlacementPriceGhs: numberOr(packageForm.announcementPlacementPriceGhs, 300),
                   minSpend: packageForm.minSpend ? Number(packageForm.minSpend) : undefined,
                 }
               : p
@@ -224,7 +338,7 @@ export function SuperadminPricingPage() {
     <>
       <section className="status-card superadmin-card">
         <div className="status-card__header">
-          <p className="eyebrow">Superadmin</p>
+          <p className="eyebrow">Pricing</p>
           <h1>Pricing & packages</h1>
         </div>
         <p>Default SMS pricing applies when no package is selected. Promo packages override rate and margin for organizers who choose them.</p>
@@ -268,10 +382,11 @@ export function SuperadminPricingPage() {
             <label className="input-group">
               <span className="input-group__label">Default SMS rate (GHS per message)</span>
               <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={pricingForm.defaultSmsRateGhs}
+	                type="number"
+	                step="0.01"
+	                min="0"
+	                disabled={!canManagePricing || savingPricing}
+	                value={pricingForm.defaultSmsRateGhs}
                 onChange={(e) => setPricingForm((f) => ({ ...f, defaultSmsRateGhs: e.target.value }))}
               />
             </label>
@@ -279,10 +394,44 @@ export function SuperadminPricingPage() {
               <span className="input-group__label">SMS margin multiplier (e.g. 1.5 = 50% margin)</span>
               <input
                 type="number"
-                step="0.1"
-                min="1"
-                value={pricingForm.smsMarginMultiplier}
+	                step="0.1"
+	                min="1"
+	                disabled={!canManagePricing || savingPricing}
+	                value={pricingForm.smsMarginMultiplier}
                 onChange={(e) => setPricingForm((f) => ({ ...f, smsMarginMultiplier: e.target.value }))}
+              />
+            </label>
+            <label className="input-group">
+              <span className="input-group__label">Push unit price (GHS per delivered push)</span>
+              <input
+                type="number"
+	                step="0.01"
+	                min="0"
+	                disabled={!canManagePricing || savingPricing}
+	                value={pricingForm.platformPushUnitPriceGhs}
+                onChange={(e) => setPricingForm((f) => ({ ...f, platformPushUnitPriceGhs: e.target.value }))}
+              />
+            </label>
+            <label className="input-group">
+              <span className="input-group__label">Featured placement price (GHS)</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                disabled={!canManagePricing || savingPricing}
+                value={pricingForm.featuredPlacementPriceGhs}
+                onChange={(e) => setPricingForm((f) => ({ ...f, featuredPlacementPriceGhs: e.target.value }))}
+              />
+            </label>
+            <label className="input-group">
+              <span className="input-group__label">Fullscreen announcement price (GHS)</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                disabled={!canManagePricing || savingPricing}
+                value={pricingForm.announcementPlacementPriceGhs}
+                onChange={(e) => setPricingForm((f) => ({ ...f, announcementPlacementPriceGhs: e.target.value }))}
               />
             </label>
             <label className="input-group">
@@ -290,22 +439,30 @@ export function SuperadminPricingPage() {
               <input
                 type="number"
                 step="0.01"
-                min="0"
-                max="1"
-                value={pricingForm.platformServiceFeePercent}
+	                min="0"
+	                max="1"
+	                disabled={!canManagePricing || savingPricing}
+	                value={pricingForm.platformServiceFeePercent}
                 onChange={(e) => setPricingForm((f) => ({ ...f, platformServiceFeePercent: e.target.value }))}
               />
             </label>
-            <button type="submit" className="button button--primary" disabled={savingPricing}>
-              {savingPricing ? 'Saving…' : 'Save pricing'}
-            </button>
-          </form>
-        </article>
+	            {canManagePricing ? (
+	              <button type="submit" className="button button--primary" disabled={savingPricing}>
+	                {savingPricing ? 'Saving…' : 'Save pricing'}
+	              </button>
+	            ) : (
+	              <p className="text-subtle">Your role can view pricing but cannot change platform fees.</p>
+	            )}
+	          </form>
+	        </article>
 
         <article className="superadmin-admin-card" style={{ marginTop: '1.5rem' }}>
           <strong>Promo packages</strong>
           <p className="superadmin-admin-card__intro">Organizers can select a package on the Promote page. Only active packages are shown.</p>
-          {editingId !== null ? (
+	          {!canManagePromoPackages ? (
+	            <p className="text-subtle">Your role can view promo packages but cannot change them.</p>
+	          ) : null}
+	          {editingId !== null && canManagePromoPackages ? (
             <form onSubmit={handleSavePackage} className="superadmin-admin-form" style={{ marginBottom: '1rem' }}>
               <input type="hidden" value={editingId} readOnly />
               <label className="input-group">
@@ -353,6 +510,36 @@ export function SuperadminPricingPage() {
                 />
               </label>
               <label className="input-group">
+                <span className="input-group__label">Push unit price (GHS)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={packageForm.platformPushUnitPriceGhs}
+                  onChange={(e) => setPackageForm((f) => ({ ...f, platformPushUnitPriceGhs: e.target.value }))}
+                />
+              </label>
+              <label className="input-group">
+                <span className="input-group__label">Featured placement price (GHS)</span>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={packageForm.featuredPlacementPriceGhs}
+                  onChange={(e) => setPackageForm((f) => ({ ...f, featuredPlacementPriceGhs: e.target.value }))}
+                />
+              </label>
+              <label className="input-group">
+                <span className="input-group__label">Fullscreen announcement price (GHS)</span>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={packageForm.announcementPlacementPriceGhs}
+                  onChange={(e) => setPackageForm((f) => ({ ...f, announcementPlacementPriceGhs: e.target.value }))}
+                />
+              </label>
+              <label className="input-group">
                 <span className="input-group__label">Min spend (GHS, optional)</span>
                 <input
                   type="number"
@@ -378,11 +565,11 @@ export function SuperadminPricingPage() {
                 </button>
               </div>
             </form>
-          ) : (
-            <button type="button" className="button button--secondary" onClick={openNew} style={{ marginBottom: '1rem' }}>
-              Add package
-            </button>
-          )}
+	          ) : canManagePromoPackages ? (
+	            <button type="button" className="button button--secondary" onClick={openNew} style={{ marginBottom: '1rem' }}>
+	              Add package
+	            </button>
+	          ) : null}
           <div className="superadmin-admin-list">
             {packages.map((pkg) => (
               <article className="superadmin-admin-list__item" key={pkg.id}>
@@ -390,13 +577,15 @@ export function SuperadminPricingPage() {
                   <strong>{pkg.name}</strong>
                   {!pkg.active && <span className="text-subtle"> (inactive)</span>}
                   <p className="superadmin-admin-list__meta">
-                    Order {pkg.order} · Rate {pkg.defaultSmsRateGhs} GHS · Margin ×{pkg.smsMarginMultiplier}
+                    Order {pkg.order} · SMS base {pkg.defaultSmsRateGhs} GHS · Margin ×{pkg.smsMarginMultiplier} · Push {pkg.platformPushUnitPriceGhs} GHS · Featured {pkg.featuredPlacementPriceGhs} GHS · Announcement {pkg.announcementPlacementPriceGhs} GHS
                     {pkg.minSpend != null && ` · Min spend ${pkg.minSpend} GHS`}
                   </p>
                 </div>
-                <button type="button" className="button button--ghost" onClick={() => openEdit(pkg)}>
-                  Edit
-                </button>
+	                {canManagePromoPackages ? (
+	                  <button type="button" className="button button--ghost" onClick={() => openEdit(pkg)}>
+	                    Edit
+	                  </button>
+	                ) : null}
               </article>
             ))}
             {packages.length === 0 && editingId === null && <p className="text-subtle">No packages yet. Add one to offer tiered pricing.</p>}

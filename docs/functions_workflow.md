@@ -1,6 +1,6 @@
 # Vennuzo Firebase Functions Workflow
 
-Vennuzo is linked to Firebase project `eventora-10063`, so Cloud Functions can be managed directly from the repo root.
+Vennuzo Cloud Functions can be managed directly from the repo root.
 
 ## Root commands
 

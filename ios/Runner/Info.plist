@@ -41,7 +41,7 @@
 			<string>google-signin</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.872808273884-foqs1970kq12flua89mbg56jvuqh4hqe</string>
+				<string>com.googleusercontent.apps.872808273884-l0tustbueqbtc69k3n59unv9j6cjq61a</string>
 			</array>
 		</dict>
 	</array>
@@ -55,6 +55,8 @@
 	<string>Vennuzo uses your location to show nearby events and help you place events accurately on the map.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Vennuzo uses your location to show nearby events and help you place events accurately on the map.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vennuzo uses the camera so event teams can scan ticket QR codes at entry.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Vennuzo uses your photo library so you can choose an optional profile picture.</string>
 	<key>UIApplicationSceneManifest</key>

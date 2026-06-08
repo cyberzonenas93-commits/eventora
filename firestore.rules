@@ -27,8 +27,53 @@ service cloud.firestore {
         ).data.status == 'active';
     }
 
+    function ownsOrganizerApplication(organizationId) {
+      return isSignedIn()
+        && organizationId is string
+        && exists(/databases/$(database)/documents/organizer_applications/$(request.auth.uid))
+        && get(/databases/$(database)/documents/organizer_applications/$(request.auth.uid)).data.organizationId == organizationId;
+    }
+
     function isEventManager(organizationId) {
-      return isAdmin() || isOrgOwner(organizationId) || isOrgMember(organizationId);
+      return isAdmin() || isOrgOwner(organizationId) || isOrgMember(organizationId) || ownsOrganizerApplication(organizationId);
+    }
+
+    function organizationBillingFields() {
+      return ['billing', 'billingPlanId', 'planId', 'subscription', 'entitlements'];
+    }
+
+    function validPlaceSubscription(subscriptionId) {
+      return isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.placeId is string
+        && request.resource.data.placeId.size() > 0
+        && subscriptionId == request.auth.uid + '_' + request.resource.data.placeId
+        && exists(/databases/$(database)/documents/places/$(request.resource.data.placeId))
+        && request.resource.data.status in ['active', 'unsubscribed']
+        && (!request.resource.data.keys().hasAny(['channels'])
+          || (
+            request.resource.data.channels is list
+            && request.resource.data.channels.hasOnly([
+              'events',
+              'menu_specials',
+              'reservation_alerts',
+              'announcements',
+            ])
+          ))
+        && (!request.resource.data.keys().hasAny(['email'])
+          || request.resource.data.email == request.auth.token.email)
+        && request.resource.data.keys().hasOnly([
+          'placeId',
+          'userId',
+          'userName',
+          'phone',
+          'email',
+          'channels',
+          'prefs',
+          'status',
+          'createdAt',
+          'updatedAt',
+        ]);
     }
 
     function canWriteOwnOrganizerApplication(applicationId) {
@@ -54,9 +99,182 @@ service cloud.firestore {
         );
     }
 
+    function validOwnUserProfileUpdate(userId) {
+      return isSignedIn()
+        && request.auth.uid == userId
+        // Existing role fields may remain on the document, but clients may not
+        // change them through ordinary profile updates.
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles', 'adminRole'])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['displayName'])
+          || (request.resource.data.displayName is string && request.resource.data.displayName.size() > 0)
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organizerApplicationStatus'])
+          || request.resource.data.organizerApplicationStatus in ['notStarted', 'draft', 'submitted']
+        );
+    }
+
+    function validBuyerPaymentFailureUpdate() {
+      return isSignedIn()
+        && request.auth.uid == resource.data.buyerId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'paymentStatus',
+          'paymentError',
+          'updatedAt',
+        ])
+        && request.resource.data.paymentStatus == 'failed';
+    }
+
+    // Clients may create their own pending ticket order, but may NEVER set the
+    // server-controlled settlement/issuance fields or self-declare a paid state.
+    // Payment confirmation, ticket issuance and admission all happen server-side
+    // (admin SDK bypasses rules). This is what makes the server-only
+    // `settlementEligible` flag — the basis for organizer payouts — unforgeable.
+    function validBuyerTicketOrderCreate() {
+      return isSignedIn()
+        && request.resource.data.buyerId == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['status'])
+          || request.resource.data.status in ['pending', 'initiated'])
+        && (!request.resource.data.keys().hasAny(['paymentStatus'])
+          || request.resource.data.paymentStatus in ['pending', 'initiated', 'cash_at_gate', 'cashAtGate'])
+        // The server-only settlement flag (the basis for organizer payouts) can
+        // NEVER be set by a client — this is what makes the payout balance
+        // unforgeable even though clients may still create their own orders.
+        && !request.resource.data.keys().hasAny([
+          'settlementEligible',
+          'tickets',
+          'paidAt',
+          'paymentConfirmedAt',
+          'callbackReceivedAt',
+          'hubtelCallbackPayload',
+          'admittedAt',
+          'admittedBy',
+        ]);
+    }
+
+    function validSupportTicketCreate() {
+      return isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'userId',
+          'createdBy',
+          'name',
+          'email',
+          'phone',
+          'topic',
+          'subject',
+          'status',
+          'priority',
+          'source',
+          'latestMessage',
+          'adminUnreadCount',
+          'userUnreadCount',
+          'createdAt',
+          'updatedAt',
+          'lastMessageAt',
+          'lastCustomerMessageAt',
+        ])
+        && request.resource.data.keys().hasAll([
+          'userId',
+          'createdBy',
+          'name',
+          'email',
+          'topic',
+          'subject',
+          'status',
+          'priority',
+          'source',
+          'latestMessage',
+          'adminUnreadCount',
+          'userUnreadCount',
+          'createdAt',
+          'updatedAt',
+          'lastMessageAt',
+          'lastCustomerMessageAt',
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 160
+        && request.resource.data.email is string
+        && request.resource.data.email.size() >= 5
+        && request.resource.data.email.size() <= 240
+        && (!request.resource.data.keys().hasAny(['phone'])
+          || (request.resource.data.phone is string && request.resource.data.phone.size() <= 80))
+        && request.resource.data.topic is string
+        && request.resource.data.topic.size() >= 2
+        && request.resource.data.topic.size() <= 120
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() >= 2
+        && request.resource.data.subject.size() <= 240
+        && request.resource.data.latestMessage is string
+        && request.resource.data.latestMessage.size() >= 10
+        && request.resource.data.latestMessage.size() <= 4000
+        && request.resource.data.status == 'open'
+        && request.resource.data.priority in ['normal', 'high', 'urgent']
+        && request.resource.data.source in ['mobile_app', 'web_app']
+        && request.resource.data.adminUnreadCount == 0
+        && request.resource.data.userUnreadCount == 0;
+    }
+
+    function ownsSupportTicket(ticketId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/support_tickets/$(ticketId))
+        && get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid;
+    }
+
+    function validOwnSupportTicketUpdate() {
+      return isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'userUnreadCount',
+          'lastUserReadAt',
+          'updatedAt',
+        ])
+        && request.resource.data.userUnreadCount == 0;
+    }
+
+    function validSupportMessageBody() {
+      return request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 4000
+        && (!request.resource.data.keys().hasAny(['senderName'])
+          || (request.resource.data.senderName is string && request.resource.data.senderName.size() <= 160));
+    }
+
+    function validUserSupportMessageCreate(ticketId) {
+      return ownsSupportTicket(ticketId)
+        && request.resource.data.keys().hasOnly([
+          'senderType',
+          'senderId',
+          'senderName',
+          'body',
+          'createdAt',
+        ])
+        && request.resource.data.senderType == 'user'
+        && request.resource.data.senderId == request.auth.uid
+        && validSupportMessageBody();
+    }
+
+    function validAdminSupportMessageCreate() {
+      return isAdmin()
+        && request.resource.data.keys().hasOnly([
+          'senderType',
+          'senderId',
+          'senderName',
+          'body',
+          'createdAt',
+        ])
+        && request.resource.data.senderType == 'admin'
+        && request.resource.data.senderId == request.auth.uid
+        && validSupportMessageBody();
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create, update: if validOwnUserProfile(userId);
+      allow create: if validOwnUserProfile(userId);
+      allow update: if validOwnUserProfileUpdate(userId);
       allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 
@@ -73,7 +291,13 @@ service cloud.firestore {
 
     match /organizations/{organizationId} {
       allow read: if isEventManager(organizationId);
-      allow create, update: if isEventManager(organizationId);
+      allow create: if isEventManager(organizationId)
+        && (isAdmin() || !request.resource.data.keys().hasAny(organizationBillingFields()));
+      allow update: if isEventManager(organizationId)
+        && (
+          isAdmin()
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(organizationBillingFields())
+        );
     }
 
     match /organization_members/{membershipId} {
@@ -90,15 +314,18 @@ service cloud.firestore {
       allow read: if resource.data.visibility == 'public'
         || isEventManager(resource.data.organizationId);
       allow create: if isEventManager(request.resource.data.organizationId);
+      // Only the current owner may update, and ownership cannot be reassigned —
+      // prevents hijacking an event by repointing organizationId at your own org.
       allow update: if isEventManager(resource.data.organizationId)
-        || isEventManager(request.resource.data.organizationId);
+        && request.resource.data.organizationId == resource.data.organizationId;
     }
 
     match /event_occurrences/{occurrenceId} {
       allow read: if resource.data.visibility == 'public'
         || isEventManager(resource.data.organizationId);
-      allow create, update: if isEventManager(request.resource.data.organizationId)
-        || isEventManager(resource.data.organizationId);
+      allow create: if isEventManager(request.resource.data.organizationId);
+      allow update: if isEventManager(resource.data.organizationId)
+        && request.resource.data.organizationId == resource.data.organizationId;
     }
 
     match /event_rsvps/{rsvpId} {
@@ -115,23 +342,34 @@ service cloud.firestore {
     }
 
     match /event_ticket_orders/{orderId} {
-      allow read: if (isSignedIn() && (
+      // Web guest orders are read through the server-side getPublicTicket endpoint
+      // (the random orderId is the buyer's capability), not by direct client reads.
+      allow read: if isSignedIn() && (
           request.auth.uid == resource.data.buyerId
           || isEventManager(resource.data.organizationId)
-        ))
-        // Web checkout orders are readable by anyone who knows the orderId —
-        // the orderId is a random Firestore ID only returned to the buyer's browser
-        // via the Hubtel post-payment redirect URL, so it is effectively a secret.
-        || resource.data.source == 'web';
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
-      allow update: if isEventManager(resource.data.organizationId)
-        || isEventManager(request.resource.data.organizationId);
+        );
+      allow create: if validBuyerTicketOrderCreate();
+      // Buyers may mark their own order failed; event managers may update their own
+      // org's orders (e.g. gate admission / cash collection) but may never set the
+      // server-only `settlementEligible` flag or reassign ownership. The Hubtel
+      // confirmation that sets `settlementEligible` is server-only (admin SDK).
+      allow update: if (
+          validBuyerPaymentFailureUpdate()
+          || (
+            isEventManager(resource.data.organizationId)
+            && request.resource.data.organizationId == resource.data.organizationId
+          )
+        )
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['settlementEligible']);
     }
 
     match /event_ticket_lookups/{lookupId} {
-      allow read, update: if isEventManager(resource.data.organizationId)
-        || isEventManager(request.resource.data.organizationId);
+      allow read: if isEventManager(resource.data.organizationId);
+      // Only an event's own managers may create/admit its ticket lookups, and the
+      // owning org cannot be reassigned. (Lookups never feed payout balances.)
       allow create: if isEventManager(request.resource.data.organizationId);
+      allow update: if isEventManager(resource.data.organizationId)
+        && request.resource.data.organizationId == resource.data.organizationId;
     }
 
     match /event_reminders/{reminderId} {
@@ -156,24 +394,315 @@ service cloud.firestore {
         // Prevent clients from writing arbitrary extra fields
         && request.resource.data.keys().hasOnly(['eventId', 'eventTitle', 'reason', 'details', 'createdAt']);
       allow read: if isAdmin();
+      // Admins (Trust & Safety moderation queue) may set review/status fields only.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'reviewedBy', 'reviewedByEmail', 'reviewedAt', 'reviewNotes', 'updatedAt'
+        ])
+        && request.resource.data.status in ['open', 'reviewing', 'resolved', 'dismissed'];
+    }
+
+    match /support_tickets/{ticketId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if validSupportTicketCreate();
+      allow update: if isAdmin() || validOwnSupportTicketUpdate();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAdmin() || ownsSupportTicket(ticketId);
+        allow create: if validUserSupportMessageCreate(ticketId)
+          || validAdminSupportMessageCreate();
+        allow update, delete: if false;
+      }
+    }
+
+    match /admin_notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /event_saves/{userId}/saved/{eventId} {
+      allow read, create, update, delete: if isSignedIn()
+        && request.auth.uid == userId;
+    }
+
+    match /event_reactions/{eventId}/reactions/{userId} {
+      allow read: if true;
+      allow create, update: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.eventId == eventId;
+      allow delete: if isSignedIn()
+        && request.auth.uid == userId;
+    }
+
+    match /event_reviews/{eventId}/reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.eventId == eventId;
+      allow update, delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /event_posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && (
+          resource.data.userId == request.auth.uid
+          || (
+            // Non-owners may only nudge the denormalised counters by ±1 each —
+            // prevents arbitrary like/comment-count forgery.
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'commentCount'])
+            && request.resource.data.likeCount is int
+            && request.resource.data.commentCount is int
+            && request.resource.data.likeCount >= 0
+            && request.resource.data.commentCount >= 0
+            && request.resource.data.likeCount >= resource.data.likeCount - 1
+            && request.resource.data.likeCount <= resource.data.likeCount + 1
+            && request.resource.data.commentCount >= resource.data.commentCount - 1
+            && request.resource.data.commentCount <= resource.data.commentCount + 1
+          )
+        );
+      allow delete: if isSignedIn()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /gplus_events/{eventId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /gplus_profiles/{profileId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /gplus_media_gallery/{mediaId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /gplus_sync_status/{syncId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /gelo_content_queue/{itemId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /gelo_event_launch_drafts/{draftId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /gelo_website_features/{featureId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    match /post_likes/{postId}/likes/{userId} {
+      allow read: if true;
+      allow create, update: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && request.auth.uid == userId;
+    }
+
+    match /post_comments/{postId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.postId == postId;
+      allow update, delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /social_follows/{followerId}/following/{followingId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.auth.uid == followerId
+        && request.resource.data.followerId == request.auth.uid
+        && request.resource.data.followingId == followingId;
+      allow delete: if isSignedIn()
+        && request.auth.uid == followerId;
     }
 
     match /payout_requests/{requestId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.organizationId is string
+          && isEventManager(resource.data.organizationId)
+        );
       allow create, update, delete: if false;
     }
 
     match /share_links/{shareLinkId} {
       allow read: if resource.data.status == 'active'
         || isEventManager(resource.data.organizationId);
-      allow create, update: if isEventManager(request.resource.data.organizationId)
-        || isEventManager(resource.data.organizationId);
+      allow create: if isEventManager(request.resource.data.organizationId);
+      allow update: if isEventManager(resource.data.organizationId)
+        && request.resource.data.organizationId == resource.data.organizationId;
     }
 
     match /promotion_campaigns/{campaignId} {
-      allow read: if isEventManager(resource.data.organizationId);
-      allow create, update: if isEventManager(request.resource.data.organizationId)
+      allow read: if isEventManager(resource.data.organizationId)
+        || (
+          resource.data.status == 'live'
+          && resource.data.channels is list
+          && resource.data.channels.hasAny(['featured', 'announcement'])
+        );
+      allow create: if isEventManager(request.resource.data.organizationId);
+      allow update: if isEventManager(resource.data.organizationId)
+        && request.resource.data.organizationId == resource.data.organizationId;
+    }
+
+    match /places/{placeId} {
+      allow read: if resource.data.status == 'active'
         || isEventManager(resource.data.organizationId);
+      allow create: if isEventManager(request.resource.data.organizationId);
+      allow update: if isEventManager(resource.data.organizationId)
+        && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if isAdmin();
+    }
+
+    match /place_menu_sections/{sectionId} {
+      allow read: if resource.data.visible != false
+        || (
+          resource.data.placeId is string
+          && exists(/databases/$(database)/documents/places/$(resource.data.placeId))
+          && isEventManager(get(/databases/$(database)/documents/places/$(resource.data.placeId)).data.organizationId)
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /place_menu_items/{itemId} {
+      allow read: if resource.data.status != 'hidden'
+        || (
+          resource.data.placeId is string
+          && exists(/databases/$(database)/documents/places/$(resource.data.placeId))
+          && isEventManager(get(/databases/$(database)/documents/places/$(resource.data.placeId)).data.organizationId)
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /place_reservations/{reservationId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.userId
+          || isEventManager(resource.data.organizationId)
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /place_subscriptions/{subscriptionId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.userId
+          || (
+            resource.data.placeId is string
+            && exists(/databases/$(database)/documents/places/$(resource.data.placeId))
+            && isEventManager(get(/databases/$(database)/documents/places/$(resource.data.placeId)).data.organizationId)
+          )
+        );
+      allow create, update: if validPlaceSubscription(subscriptionId);
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.userId;
+    }
+
+    match /place_verifications/{requestId} {
+      allow read: if isSignedIn()
+        && (
+          resource.data.requestedBy == request.auth.uid
+          || isAdmin()
+          || (
+            resource.data.organizationId is string
+            && isEventManager(resource.data.organizationId)
+          )
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /audience_contacts/{contactId} {
+      allow read: if isEventManager(resource.data.organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /event_ops_configs/{configId} {
+      allow read: if isAdmin() || isEventManager(resource.data.organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /event_inventory_items/{itemId} {
+      allow read: if isAdmin() || isEventManager(resource.data.organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /event_ops_staff/{staffId} {
+      allow read: if isAdmin() || isEventManager(resource.data.organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /event_ops_staff_sessions/{sessionId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /event_ops_tabs/{tabId} {
+      allow read: if isAdmin() || isEventManager(resource.data.organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /event_ops_reports/{reportId} {
+      allow read: if isAdmin() || isEventManager(resource.data.organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /event_ops_onboarding_visuals/{visualId} {
+      allow read: if isAdmin() || isEventManager(resource.data.organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /event_ops_access_codes/{codeId} {
+      allow read, write: if false;
+    }
+
+    match /production_monitor_alerts/{alertId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /creative_brand_configs/{organizationId} {
+      allow read: if isEventManager(organizationId);
+      allow create, update, delete: if false;
+    }
+
+    match /flyer_jobs/{jobId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.uid
+          || isEventManager(resource.data.organizationId)
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /flyer_video_jobs/{jobId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.uid
+          || isEventManager(resource.data.organizationId)
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /flyer_sessions/{sessionId} {
+      allow read: if isSignedIn()
+        && (
+          request.auth.uid == resource.data.uid
+          || isEventManager(resource.data.organizationId)
+        );
+      allow create, update, delete: if false;
     }
 
     match /notification_jobs/{jobId} {
@@ -185,13 +714,14 @@ service cloud.firestore {
     }
 
     match /advertiser_wallets/{walletId} {
-      allow read: if isOrgOwner(walletId);
+      allow read: if isEventManager(walletId);
       allow create, update, delete: if false;
     }
 
     match /wallet_transactions/{transactionId} {
       allow read: if isSignedIn()
-        && resource.data.walletId == 'org_' + request.auth.uid;
+        && resource.data.walletId is string
+        && isEventManager(resource.data.walletId);
       allow create, update, delete: if false;
     }
 

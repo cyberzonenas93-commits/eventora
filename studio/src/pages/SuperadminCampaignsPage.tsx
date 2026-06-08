@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 
 import { functions } from '../firebaseFunctions'
+import { canPerformAdminAction } from '../lib/adminRoles'
 import { copy } from '../lib/copy'
 import { getErrorMessage } from '../lib/errorMessages'
 import { formatDateTime, formatMoney } from '../lib/formatters'
+import { usePortalSession } from '../lib/portalSession'
 
 const listAdminCampaigns = httpsCallable<
   { limit?: number; status?: string },
@@ -28,6 +30,8 @@ const listAdminCampaigns = httpsCallable<
 >(functions, 'listAdminCampaigns')
 
 export function SuperadminCampaignsPage() {
+  const session = usePortalSession()
+  const canReadCampaigns = canPerformAdminAction(session.adminRole, 'read_campaigns')
   const [campaigns, setCampaigns] = useState<Array<{
     id: string
     eventId: string
@@ -48,28 +52,47 @@ export function SuperadminCampaignsPage() {
   const [statusFilter, setStatusFilter] = useState('')
 
   useEffect(() => {
+    if (!canReadCampaigns) {
+      setCampaigns([])
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
-    setLoading(true)
-    listAdminCampaigns({ limit: 50, status: statusFilter || undefined })
-      .then((r) => {
-        if (!cancelled) setCampaigns(r.data.campaigns)
-      })
-      .catch((e) => {
+
+    async function loadCampaigns() {
+      setLoading(true)
+      setError(null)
+      try {
+        const result = await listAdminCampaigns({ limit: 50, status: statusFilter || undefined })
+        if (!cancelled) setCampaigns(result.data.campaigns)
+      } catch (e) {
         if (!cancelled) setError(getErrorMessage(e, copy.campaignsLoadFailed))
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false)
-      })
+      }
+    }
+
+    void loadCampaigns()
     return () => { cancelled = true }
-  }, [statusFilter])
+  }, [canReadCampaigns, statusFilter])
 
   if (loading) return <div className="page-loader">{copy.loading}</div>
+
+  if (!canReadCampaigns) {
+    return (
+      <div className="page-loader">
+        <p>This admin role cannot use campaign reports.</p>
+        <p className="text-subtle">Choose another work area from the admin sidebar.</p>
+      </div>
+    )
+  }
 
   return (
     <>
       <section className="status-card superadmin-card">
         <div className="status-card__header">
-          <p className="eyebrow">Superadmin</p>
+	          <p className="eyebrow">Campaigns</p>
           <h1>Campaigns</h1>
         </div>
         <p>All promotion campaigns across organizers. Organizers can schedule from the Promote page.</p>

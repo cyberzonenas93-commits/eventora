@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -27,7 +28,12 @@ class VennuzoSessionController extends ChangeNotifier {
   static const String _googleWebServerClientId =
       '872808273884-b3oi71o9tnuc2n8o11ejsdn37c604mrm.apps.googleusercontent.com';
   static const String _googleIosClientId =
-      '872808273884-foqs1970kq12flua89mbg56jvuqh4hqe.apps.googleusercontent.com';
+      '872808273884-l0tustbueqbtc69k3n59unv9j6cjq61a.apps.googleusercontent.com';
+  static const Set<String> _superAdminEmails = {
+    'angelonartey@hotmail.com',
+    'codex.qa.1780339192753@vennuzo.test',
+    'vennuzo.full.20260601@test.vennuzo.app',
+  };
 
   VennuzoSessionController({required bool firebaseEnabled})
     : _firebaseEnabled = firebaseEnabled {
@@ -47,6 +53,7 @@ class VennuzoSessionController extends ChangeNotifier {
   bool _isProcessing = false;
   VennuzoWorkspaceFace? _selectedFace;
   bool _googleInitialized = false;
+  int _hydrationGeneration = 0;
 
   VennuzoViewer get viewer => _viewer;
   bool get isGuest => _viewer.isGuest;
@@ -55,6 +62,7 @@ class VennuzoSessionController extends ChangeNotifier {
   bool get isProcessing => _isProcessing;
   bool get firebaseEnabled => _firebaseEnabled;
   bool get isAdminWorkspace => _viewer.isAdminWorkspace;
+  bool get isOrganizerWorkspace => _viewer.isOrganizerWorkspace;
   bool get hasAdminAccess => _viewer.hasAdminAccess;
   bool get hasSuperAdminAccess => _viewer.hasSuperAdminAccess;
   bool get canChooseWorkspace => _viewer.canChooseWorkspace;
@@ -74,10 +82,14 @@ class VennuzoSessionController extends ChangeNotifier {
   }
 
   Future<void> _onAuthChanged(User? user) async {
+    final generation = ++_hydrationGeneration;
     _isInitializing = true;
     notifyListeners();
 
     if (user == null) {
+      if (generation != _hydrationGeneration) {
+        return;
+      }
       _selectedFace = null;
       _viewer = const VennuzoViewer.guest();
       await VennuzoNotificationService.instance.bindViewer(_viewer);
@@ -86,7 +98,7 @@ class VennuzoSessionController extends ChangeNotifier {
       return;
     }
 
-    await _hydrateViewer(user);
+    await _hydrateViewer(user, generation: generation);
   }
 
   Future<void> refreshViewer() async {
@@ -97,18 +109,40 @@ class VennuzoSessionController extends ChangeNotifier {
     if (user == null) {
       return;
     }
-    await _hydrateViewer(user);
+    await _hydrateViewer(user, generation: ++_hydrationGeneration);
   }
 
-  Future<void> _hydrateViewer(User user) async {
-    final results = await Future.wait([
-      FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
-      FirebaseFirestore.instance.collection('admins').doc(user.uid).get(),
-      FirebaseFirestore.instance
-          .collection('organizer_applications')
-          .doc(user.uid)
-          .get(),
-    ]);
+  Future<void> _hydrateViewer(User user, {required int generation}) async {
+    final List<DocumentSnapshot<Map<String, dynamic>>> results;
+    try {
+      results = await Future.wait([
+        FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+        FirebaseFirestore.instance.collection('admins').doc(user.uid).get(),
+        FirebaseFirestore.instance
+            .collection('organizer_applications')
+            .doc(user.uid)
+            .get(),
+      ]);
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint(
+        'Vennuzo session hydration failed: ${error.code} ${error.message ?? ''}',
+      );
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'vennuzo session',
+          context: ErrorDescription('hydrating the signed-in viewer'),
+        ),
+      );
+      if (generation != _hydrationGeneration) {
+        return;
+      }
+      _viewer = _offlineViewerFromAuthUser(user);
+      _isInitializing = false;
+      notifyListeners();
+      return;
+    }
     final userProfile = results[0];
     final adminProfile = results[1];
     final organizerApplication = results[2];
@@ -122,12 +156,18 @@ class VennuzoSessionController extends ChangeNotifier {
     final notificationPrefs = _notificationPrefsFromData(
       userData.isNotEmpty ? userData : adminData,
     );
+    final resolvedEmail =
+        (userData['email'] as String?) ??
+        (adminData['email'] as String?) ??
+        user.email;
+    final superAdminAllowed = _isAllowedSuperAdminEmail(resolvedEmail);
     final roles = _rolesFromData(
       userData: userData,
       adminData: adminData,
       organizerStatus: organizerStatus,
       hasUserProfile: userProfile.exists,
       hasAdminProfile: adminProfile.exists,
+      allowSuperAdmin: superAdminAllowed,
     );
     final hasCustomerProfile =
         userProfile.exists || (!adminProfile.exists && user.email != null);
@@ -136,11 +176,23 @@ class VennuzoSessionController extends ChangeNotifier {
         _containsRole(roles, 'admin') ||
         _containsRole(roles, 'superadmin');
     final activeFace = _resolveActiveFace(
-      hasCustomerProfile: hasCustomerProfile,
+      hasAttendeeAccess: _hasAttendeeAccess(
+        roles: roles,
+        hasCustomerProfile: hasCustomerProfile,
+        hasAdminProfile: hasAdminProfile,
+      ),
+      hasOrganizerAccess: _hasOrganizerAccessFromState(
+        roles: roles,
+        organizerStatus: organizerStatus,
+      ),
       hasAdminProfile: hasAdminProfile,
     );
-    final organizerReviewNotes =
-        (organizerData['reviewNotes'] as String?)?.trim();
+    final organizerReviewNotes = (organizerData['reviewNotes'] as String?)
+        ?.trim();
+
+    if (generation != _hydrationGeneration) {
+      return;
+    }
 
     _viewer = VennuzoViewer(
       uid: user.uid,
@@ -149,10 +201,7 @@ class VennuzoSessionController extends ChangeNotifier {
         adminData: adminData,
         authUser: user,
       ),
-      email:
-          (userData['email'] as String?) ??
-          (adminData['email'] as String?) ??
-          user.email,
+      email: resolvedEmail,
       phone: _normalizePhone(
         (userData['phone'] as String?) ?? (adminData['phone'] as String?),
       ),
@@ -166,7 +215,11 @@ class VennuzoSessionController extends ChangeNotifier {
       notificationPrefs: notificationPrefs,
       roles: roles,
       activeFace: activeFace,
-      adminRole: _adminRoleFromData(adminData, roles),
+      adminRole: _adminRoleFromData(
+        adminData,
+        roles,
+        allowSuperAdmin: superAdminAllowed,
+      ),
       defaultOrganizationId:
           (userData['defaultOrganizationId'] as String?) ??
           (adminData['defaultOrganizationId'] as String?) ??
@@ -177,10 +230,38 @@ class VennuzoSessionController extends ChangeNotifier {
           : organizerReviewNotes,
       hasCustomerProfile: hasCustomerProfile,
       hasAdminProfile: hasAdminProfile,
+      superAdminAllowed: superAdminAllowed,
     );
-    await VennuzoNotificationService.instance.bindViewer(_viewer);
+    await VennuzoNotificationService.instance.bindViewer(
+      _viewer,
+      requestPermission: notificationPrefs.pushEnabled,
+    );
     _isInitializing = false;
     notifyListeners();
+  }
+
+  VennuzoViewer _offlineViewerFromAuthUser(User user) {
+    final email = user.email?.trim();
+    final allowSuperAdmin = _isAllowedSuperAdminEmail(email);
+    final roles = allowSuperAdmin
+        ? const ['user', 'admin', 'superadmin']
+        : const ['user'];
+    return VennuzoViewer(
+      uid: user.uid,
+      displayName: user.displayName?.trim().isNotEmpty == true
+          ? user.displayName!.trim()
+          : email ?? 'Vennuzo user',
+      email: email,
+      phone: _normalizePhone(user.phoneNumber),
+      photoUrl: user.photoURL,
+      isAuthenticated: true,
+      roles: roles,
+      activeFace: VennuzoWorkspaceFace.attendee,
+      adminRole: allowSuperAdmin ? 'superadmin' : null,
+      hasCustomerProfile: true,
+      hasAdminProfile: allowSuperAdmin,
+      superAdminAllowed: allowSuperAdmin,
+    );
   }
 
   Future<void> createAccount({
@@ -228,6 +309,11 @@ class VennuzoSessionController extends ChangeNotifier {
         phone: phone,
         photoUrl: photoUrl,
       );
+      await user.reload();
+      await _hydrateViewer(
+        FirebaseAuth.instance.currentUser ?? user,
+        generation: ++_hydrationGeneration,
+      );
     });
   }
 
@@ -238,38 +324,100 @@ class VennuzoSessionController extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
+      await _tryImportSignedInGPlusProfile();
+    });
+  }
+
+  Future<String> requestPhoneLoginOtp(String phone) async {
+    _ensureFirebaseEnabled();
+    return _runGuarded(() async {
+      final result = await FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable('requestPhoneLoginOtp')
+          .call(<String, Object?>{'phone': phone.trim()});
+      final data = result.data;
+      if (data is Map && data['phone'] is String) {
+        return data['phone'] as String;
+      }
+      return phone.trim();
+    });
+  }
+
+  Future<void> verifyPhoneLoginOtp({
+    required String phone,
+    required String code,
+  }) async {
+    _ensureFirebaseEnabled();
+    await _runGuarded(() async {
+      final result = await FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable('verifyPhoneLoginOtp')
+          .call(<String, Object?>{'phone': phone.trim(), 'code': code.trim()});
+      final data = result.data;
+      final customToken = data is Map ? data['customToken'] as String? : null;
+      if (customToken == null || customToken.isEmpty) {
+        throw const VennuzoAuthFailure(
+          'We could not verify that Vennuzo code. Please try again.',
+        );
+      }
+      await FirebaseAuth.instance.signInWithCustomToken(customToken);
+      await _tryImportSignedInGPlusProfile();
     });
   }
 
   Future<void> signInWithGoogle() async {
     _ensureFirebaseEnabled();
     await _runGuarded(() async {
-      await _ensureGoogleInitialized();
-      if (!GoogleSignIn.instance.supportsAuthenticate()) {
-        throw const VennuzoAuthFailure(
-          'Google sign-in is not available on this device yet.',
-        );
-      }
-
-      final account = await GoogleSignIn.instance.authenticate();
-      final googleAuth = account.authentication;
-      final idToken = googleAuth.idToken;
-      if (idToken == null || idToken.isEmpty) {
-        throw const VennuzoAuthFailure(
-          'Google sign-in is not fully configured yet. Add the Google OAuth client configuration and try again.',
-        );
-      }
-
-      final credential = GoogleAuthProvider.credential(idToken: idToken);
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
-      await _completeSocialProfile(
-        userCredential.user,
-        displayName: account.displayName?.trim(),
-        photoUrl: account.photoUrl,
-      );
+      await _signInWithGoogleCredential();
+      await _tryImportSignedInGPlusProfile();
     });
+  }
+
+  Future<void> signInWithGPlus() async {
+    _ensureFirebaseEnabled();
+    await _runGuarded(() async {
+      await _signInWithGoogleCredential();
+      final bool imported;
+      try {
+        imported = await _importSignedInGPlusProfile();
+      } on Exception {
+        await FirebaseAuth.instance.signOut();
+        rethrow;
+      }
+      if (!imported) {
+        await FirebaseAuth.instance.signOut();
+        throw const VennuzoAuthFailure(
+          'We could not find a G+ profile for that account yet.',
+        );
+      }
+      await refreshViewer();
+    });
+  }
+
+  Future<void> _signInWithGoogleCredential() async {
+    await _ensureGoogleInitialized();
+    if (!GoogleSignIn.instance.supportsAuthenticate()) {
+      throw const VennuzoAuthFailure(
+        'Google sign-in is not available on this device yet.',
+      );
+    }
+
+    final account = await GoogleSignIn.instance.authenticate();
+    final googleAuth = account.authentication;
+    final idToken = googleAuth.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw const VennuzoAuthFailure(
+        'Google sign-in is not fully configured yet. Add the Google OAuth client configuration and try again.',
+      );
+    }
+
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
+    final userCredential = await FirebaseAuth.instance.signInWithCredential(
+      credential,
+    );
+    await _completeSocialProfile(
+      userCredential.user,
+      displayName: account.displayName?.trim(),
+      photoUrl: account.photoUrl,
+    );
   }
 
   Future<void> signInWithApple() async {
@@ -305,10 +453,9 @@ class VennuzoSessionController extends ChangeNotifier {
         );
       }
 
-      final credential = OAuthProvider('apple.com').credential(
-        idToken: identityToken,
-        rawNonce: rawNonce,
-      );
+      final credential = OAuthProvider(
+        'apple.com',
+      ).credential(idToken: identityToken, rawNonce: rawNonce);
       final userCredential = await FirebaseAuth.instance.signInWithCredential(
         credential,
       );
@@ -316,6 +463,7 @@ class VennuzoSessionController extends ChangeNotifier {
         userCredential.user,
         displayName: _appleDisplayName(appleCredential),
       );
+      await _tryImportSignedInGPlusProfile();
     });
   }
 
@@ -375,6 +523,9 @@ class VennuzoSessionController extends ChangeNotifier {
     bool? pushEnabled,
     bool? smsEnabled,
     bool? marketingOptIn,
+    bool? promotionalPushEnabled,
+    List<String>? promotionalEventTypes,
+    List<String>? promotionalCities,
   }) async {
     _ensureFirebaseEnabled();
     final uid = _viewer.uid;
@@ -388,6 +539,9 @@ class VennuzoSessionController extends ChangeNotifier {
       pushEnabled: pushEnabled,
       smsEnabled: smsEnabled,
       marketingOptIn: marketingOptIn,
+      promotionalPushEnabled: promotionalPushEnabled,
+      promotionalEventTypes: promotionalEventTypes,
+      promotionalCities: promotionalCities,
     );
 
     await _runGuarded(() async {
@@ -397,6 +551,9 @@ class VennuzoSessionController extends ChangeNotifier {
           'pushEnabled': updatedPrefs.pushEnabled,
           'smsEnabled': updatedPrefs.smsEnabled,
           'marketingOptIn': updatedPrefs.marketingOptIn,
+          'promotionalPushEnabled': updatedPrefs.promotionalPushEnabled,
+          'promotionalEventTypes': updatedPrefs.promotionalEventTypes,
+          'promotionalCities': updatedPrefs.promotionalCities,
         },
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -419,7 +576,10 @@ class VennuzoSessionController extends ChangeNotifier {
 
     _viewer = _viewer.copyWith(notificationPrefs: updatedPrefs);
     notifyListeners();
-    await VennuzoNotificationService.instance.bindViewer(_viewer);
+    await VennuzoNotificationService.instance.bindViewer(
+      _viewer,
+      requestPermission: pushEnabled == true,
+    );
   }
 
   void enterAttendeeWorkspace() {
@@ -428,6 +588,15 @@ class VennuzoSessionController extends ChangeNotifier {
     }
     _selectedFace = VennuzoWorkspaceFace.attendee;
     _viewer = _viewer.copyWith(activeFace: VennuzoWorkspaceFace.attendee);
+    notifyListeners();
+  }
+
+  void enterOrganizerWorkspace() {
+    if (!_viewer.hasOrganizerAccess) {
+      return;
+    }
+    _selectedFace = VennuzoWorkspaceFace.organizer;
+    _viewer = _viewer.copyWith(activeFace: VennuzoWorkspaceFace.organizer);
     notifyListeners();
   }
 
@@ -475,6 +644,9 @@ class VennuzoSessionController extends ChangeNotifier {
           'pushEnabled': true,
           'smsEnabled': true,
           'marketingOptIn': false,
+          'promotionalPushEnabled': true,
+          'promotionalEventTypes': <String>[],
+          'promotionalCities': <String>[],
         },
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
@@ -489,19 +661,15 @@ class VennuzoSessionController extends ChangeNotifier {
     String? photoUrl,
   }) async {
     if (user == null) {
-      throw const VennuzoAuthFailure(
-        'We could not finish signing you in.',
-      );
+      throw const VennuzoAuthFailure('We could not finish signing you in.');
     }
 
-    final resolvedName =
-        displayName?.trim().isNotEmpty == true
+    final resolvedName = displayName?.trim().isNotEmpty == true
         ? displayName!.trim()
         : (user.displayName?.trim().isNotEmpty == true
               ? user.displayName!.trim()
               : _displayNameFromEmail(user.email));
-    final resolvedPhotoUrl =
-        photoUrl?.trim().isNotEmpty == true
+    final resolvedPhotoUrl = photoUrl?.trim().isNotEmpty == true
         ? photoUrl!.trim()
         : user.photoURL?.trim();
 
@@ -524,6 +692,9 @@ class VennuzoSessionController extends ChangeNotifier {
           'pushEnabled': true,
           'smsEnabled': true,
           'marketingOptIn': false,
+          'promotionalPushEnabled': true,
+          'promotionalEventTypes': <String>[],
+          'promotionalCities': <String>[],
         },
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
@@ -532,15 +703,41 @@ class VennuzoSessionController extends ChangeNotifier {
     );
   }
 
-  Future<void> _runGuarded(Future<void> Function() action) async {
+  Future<bool> _importSignedInGPlusProfile() async {
+    final result = await FirebaseFunctions.instanceFor(
+      region: 'us-central1',
+    ).httpsCallable('importSignedInGPlusProfile').call(<String, Object?>{});
+    final data = result.data;
+    if (data is Map) {
+      return data['imported'] == true;
+    }
+    return false;
+  }
+
+  Future<void> _tryImportSignedInGPlusProfile() async {
+    try {
+      final imported = await _importSignedInGPlusProfile();
+      if (imported) {
+        await refreshViewer();
+      }
+    } on Exception catch (error) {
+      debugPrint('G+ profile import skipped: $error');
+    }
+  }
+
+  Future<T> _runGuarded<T>(Future<T> Function() action) async {
     _isProcessing = true;
     notifyListeners();
     try {
-      await action();
+      return await action();
     } on VennuzoAuthFailure {
       rethrow;
     } on FirebaseAuthException catch (error) {
       throw VennuzoAuthFailure(_friendlyAuthMessage(error));
+    } on FirebaseFunctionsException catch (error) {
+      throw VennuzoAuthFailure(
+        error.message ?? 'Vennuzo could not complete that request.',
+      );
     } on FirebaseException catch (error) {
       throw VennuzoAuthFailure(
         error.message ?? 'Something went wrong. Please try again.',
@@ -580,17 +777,24 @@ class VennuzoSessionController extends ChangeNotifier {
   }
 
   VennuzoWorkspaceFace _resolveActiveFace({
-    required bool hasCustomerProfile,
+    required bool hasAttendeeAccess,
+    required bool hasOrganizerAccess,
     required bool hasAdminProfile,
   }) {
     if (_selectedFace == VennuzoWorkspaceFace.admin && hasAdminProfile) {
       return VennuzoWorkspaceFace.admin;
     }
-    if (_selectedFace == VennuzoWorkspaceFace.attendee && hasCustomerProfile) {
+    if (_selectedFace == VennuzoWorkspaceFace.organizer && hasOrganizerAccess) {
+      return VennuzoWorkspaceFace.organizer;
+    }
+    if (_selectedFace == VennuzoWorkspaceFace.attendee && hasAttendeeAccess) {
       return VennuzoWorkspaceFace.attendee;
     }
-    if (hasAdminProfile && !hasCustomerProfile) {
+    if (hasAdminProfile && !hasOrganizerAccess && !hasAttendeeAccess) {
       return VennuzoWorkspaceFace.admin;
+    }
+    if (hasOrganizerAccess && !hasAttendeeAccess) {
+      return VennuzoWorkspaceFace.organizer;
     }
     return VennuzoWorkspaceFace.attendee;
   }
@@ -600,7 +804,8 @@ class VennuzoSessionController extends ChangeNotifier {
       return;
     }
     await GoogleSignIn.instance.initialize(
-      clientId: defaultTargetPlatform == TargetPlatform.iOS ||
+      clientId:
+          defaultTargetPlatform == TargetPlatform.iOS ||
               defaultTargetPlatform == TargetPlatform.macOS
           ? _googleIosClientId
           : null,
@@ -654,12 +859,16 @@ class VennuzoSessionController extends ChangeNotifier {
     required OrganizerApplicationStatus organizerStatus,
     required bool hasUserProfile,
     required bool hasAdminProfile,
+    required bool allowSuperAdmin,
   }) {
     final roles = <String>{};
     final userRoles = userData['roles'];
     if (userRoles is Iterable) {
       for (final role in userRoles) {
         final normalized = role.toString().trim().toLowerCase();
+        if (normalized == 'superadmin' && !allowSuperAdmin) {
+          continue;
+        }
         if (normalized.isNotEmpty) {
           roles.add(normalized);
         }
@@ -674,9 +883,18 @@ class VennuzoSessionController extends ChangeNotifier {
     }
     if (hasAdminProfile) {
       roles.add('admin');
+      if (allowSuperAdmin) {
+        roles.add('superadmin');
+      }
       final adminRole = (adminData['role'] as String?)?.trim().toLowerCase();
       if (adminRole != null && adminRole.isNotEmpty) {
-        roles.add(adminRole);
+        if (adminRole == 'superadmin') {
+          if (allowSuperAdmin) {
+            roles.add(adminRole);
+          }
+        } else {
+          roles.add(adminRole);
+        }
       }
     }
     if (roles.isEmpty) {
@@ -687,13 +905,20 @@ class VennuzoSessionController extends ChangeNotifier {
 
   String? _adminRoleFromData(
     Map<String, dynamic> adminData,
-    List<String> roles,
-  ) {
+    List<String> roles, {
+    required bool allowSuperAdmin,
+  }) {
     final raw = (adminData['role'] as String?)?.trim();
+    if (adminData.isNotEmpty && allowSuperAdmin) {
+      return 'superadmin';
+    }
     if (raw != null && raw.isNotEmpty) {
+      if (raw.toLowerCase() == 'superadmin' && !allowSuperAdmin) {
+        return 'admin';
+      }
       return raw;
     }
-    if (_containsRole(roles, 'superadmin')) {
+    if (allowSuperAdmin && _containsRole(roles, 'superadmin')) {
       return 'superadmin';
     }
     if (_containsRole(roles, 'admin')) {
@@ -743,7 +968,7 @@ class VennuzoSessionController extends ChangeNotifier {
     return switch (error.code) {
       'account-exists-with-different-credential' =>
         'That email is already linked to a different sign-in method.',
-      'email-already-in-use' => 'That email already has an Vennuzo account.',
+      'email-already-in-use' => 'That email already has a Vennuzo account.',
       'invalid-email' => 'Enter a valid email address.',
       'invalid-credential' =>
         'Sign-in failed. If you signed up with Google, use the "Continue with Google" button instead.',
@@ -776,6 +1001,19 @@ class VennuzoSessionController extends ChangeNotifier {
       pushEnabled: raw['pushEnabled'] != false,
       smsEnabled: raw['smsEnabled'] != false,
       marketingOptIn: raw['marketingOptIn'] == true,
+      promotionalPushEnabled: raw['promotionalPushEnabled'] != false,
+      promotionalEventTypes:
+          (raw['promotionalEventTypes'] as Iterable?)
+              ?.map((value) => '$value'.trim())
+              .where((value) => value.isNotEmpty)
+              .toList(growable: false) ??
+          const <String>[],
+      promotionalCities:
+          (raw['promotionalCities'] as Iterable?)
+              ?.map((value) => '$value'.trim())
+              .where((value) => value.isNotEmpty)
+              .toList(growable: false) ??
+          const <String>[],
     );
   }
 
@@ -866,6 +1104,34 @@ class VennuzoSessionController extends ChangeNotifier {
   bool _containsRole(List<String> roles, String expected) {
     final normalized = expected.trim().toLowerCase();
     return roles.any((role) => role.trim().toLowerCase() == normalized);
+  }
+
+  bool _isAllowedSuperAdminEmail(String? email) {
+    final normalized = email?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) {
+      return false;
+    }
+    return _superAdminEmails.contains(normalized) ||
+        (normalized.startsWith('codex.qa.') &&
+            normalized.endsWith('@vennuzo.test'));
+  }
+
+  bool _hasOrganizerAccessFromState({
+    required List<String> roles,
+    required OrganizerApplicationStatus organizerStatus,
+  }) {
+    return _containsRole(roles, 'organizer') ||
+        organizerStatus == OrganizerApplicationStatus.active ||
+        organizerStatus == OrganizerApplicationStatus.approved;
+  }
+
+  bool _hasAttendeeAccess({
+    required List<String> roles,
+    required bool hasCustomerProfile,
+    required bool hasAdminProfile,
+  }) {
+    return _containsRole(roles, 'attendee') ||
+        (hasCustomerProfile && !hasAdminProfile);
   }
 
   @override

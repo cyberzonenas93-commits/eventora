@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:intl/intl.dart';
 
@@ -29,10 +30,7 @@ class EventDetailSocialTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        _RatingSummary(
-          eventId: eventId,
-          socialService: socialService,
-        ),
+        _RatingSummary(eventId: eventId, socialService: socialService),
         const SizedBox(height: 16),
         if (userId.isNotEmpty)
           OutlinedButton.icon(
@@ -48,30 +46,18 @@ class EventDetailSocialTab extends StatelessWidget {
             label: const Text('Write a Review'),
           ),
         const SizedBox(height: 24),
-        _ReviewsList(
-          eventId: eventId,
-          socialService: socialService,
-        ),
+        _ReviewsList(eventId: eventId, socialService: socialService),
         const SizedBox(height: 24),
-        Text(
-          'Event Photos',
-          style: context.text.titleMedium,
-        ),
+        Text('Event Photos', style: context.text.titleMedium),
         const SizedBox(height: 12),
-        EventPostsGrid(
-          eventId: eventId,
-          socialService: socialService,
-        ),
+        EventPostsGrid(eventId: eventId, socialService: socialService),
       ],
     );
   }
 }
 
 class _RatingSummary extends StatelessWidget {
-  const _RatingSummary({
-    required this.eventId,
-    required this.socialService,
-  });
+  const _RatingSummary({required this.eventId, required this.socialService});
 
   final String eventId;
   final SocialService socialService;
@@ -114,10 +100,8 @@ class _RatingSummary extends StatelessWidget {
                     RatingBarIndicator(
                       rating: average,
                       itemSize: 16,
-                      itemBuilder: (_, __) => const Icon(
-                        Icons.star,
-                        color: Color(0xFFFFD700),
-                      ),
+                      itemBuilder: (_, _) =>
+                          const Icon(Icons.star, color: Color(0xFFFFD700)),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -134,8 +118,7 @@ class _RatingSummary extends StatelessWidget {
                   child: Column(
                     children: [5, 4, 3, 2, 1].map((star) {
                       final starCount = dist[star] ?? 0;
-                      final fraction =
-                          count == 0 ? 0.0 : starCount / count;
+                      final fraction = count == 0 ? 0.0 : starCount / count;
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Row(
@@ -148,16 +131,18 @@ class _RatingSummary extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(Icons.star,
-                                color: Color(0xFFFFD700), size: 12),
+                            const Icon(
+                              Icons.star,
+                              color: Color(0xFFFFD700),
+                              size: 12,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
                                 child: LinearProgressIndicator(
                                   value: fraction,
-                                  backgroundColor:
-                                      context.palette.border,
+                                  backgroundColor: context.palette.border,
                                   color: const Color(0xFFFFD700),
                                   minHeight: 6,
                                 ),
@@ -190,10 +175,7 @@ class _RatingSummary extends StatelessWidget {
 }
 
 class _ReviewsList extends StatelessWidget {
-  const _ReviewsList({
-    required this.eventId,
-    required this.socialService,
-  });
+  const _ReviewsList({required this.eventId, required this.socialService});
 
   final String eventId;
   final SocialService socialService;
@@ -245,7 +227,7 @@ class _ReviewCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 18,
                   backgroundImage: review.photoUrl != null
-                      ? NetworkImage(review.photoUrl!)
+                      ? CachedNetworkImageProvider(review.photoUrl!)
                       : null,
                   child: review.photoUrl == null
                       ? const Icon(Icons.person_outline)
@@ -276,10 +258,8 @@ class _ReviewCard extends StatelessWidget {
                 RatingBarIndicator(
                   rating: review.rating,
                   itemSize: 14,
-                  itemBuilder: (_, __) => const Icon(
-                    Icons.star,
-                    color: Color(0xFFFFD700),
-                  ),
+                  itemBuilder: (_, _) =>
+                      const Icon(Icons.star, color: Color(0xFFFFD700)),
                 ),
               ],
             ),

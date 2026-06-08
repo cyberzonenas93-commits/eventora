@@ -10,41 +10,44 @@ class VennuzoShareLinkService {
       FirebaseFunctions.instanceFor(region: 'us-central1');
 
   static String fallbackEventLink(String eventId) =>
-      'https://vennuzo.app/e/${Uri.encodeComponent(eventId)}';
+      'https://vennuzo.web.app/events/${Uri.encodeComponent(eventId)}';
 
   static Future<String> createEventLink({required EventModel event}) async {
     try {
-      final result = await _functions.httpsCallable('createShareLink').call({
-        'type': 'event',
-        'targetId': event.id,
-        'metadata': {
-          'title': event.title,
-          'description': event.description,
-          'visibility': event.isPrivate ? 'private' : 'public',
-          'ticketing': {
-            'requireTicket': event.ticketing.requireTicket,
-            'currency': event.ticketing.currency,
-            'tiers': event.ticketing.tiers
-                .map(
-                  (tier) => {
-                    'tierId': tier.tierId,
-                    'name': tier.name,
-                    'price': tier.price,
-                    'maxQuantity': tier.maxQuantity,
-                    'sold': tier.sold,
-                    'description': tier.description,
-                  },
-                )
-                .toList(),
-          },
-          'distribution': {'allowSharing': event.allowSharing},
-          'venue': event.venue,
-          'city': event.city,
-          'startAt': event.startDate.toIso8601String(),
-          'endAt': event.endDate?.toIso8601String(),
-          'timezone': 'Africa/Accra',
-        },
-      });
+      final result = await _functions
+          .httpsCallable('createShareLink')
+          .call({
+            'type': 'event',
+            'targetId': event.id,
+            'metadata': {
+              'title': event.title,
+              'description': event.description,
+              'visibility': event.isPrivate ? 'private' : 'public',
+              'ticketing': {
+                'requireTicket': event.ticketing.requireTicket,
+                'currency': event.ticketing.currency,
+                'tiers': event.ticketing.tiers
+                    .map(
+                      (tier) => {
+                        'tierId': tier.tierId,
+                        'name': tier.name,
+                        'price': tier.price,
+                        'maxQuantity': tier.maxQuantity,
+                        'sold': tier.sold,
+                        'description': tier.description,
+                      },
+                    )
+                    .toList(),
+              },
+              'distribution': {'allowSharing': event.allowSharing},
+              'venue': event.venue,
+              'city': event.city,
+              'startAt': event.startDate.toIso8601String(),
+              'endAt': event.endDate?.toIso8601String(),
+              'timezone': 'Africa/Accra',
+            },
+          })
+          .timeout(const Duration(seconds: 4));
 
       final data = result.data;
       if (data is Map) {

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, type ReactNode, useContext } from 'react'
 
 import { useTheme } from '../hooks/useTheme'

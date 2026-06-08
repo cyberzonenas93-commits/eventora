@@ -1,12 +1,17 @@
 import '../../domain/models/event_models.dart';
 import '../../domain/models/promotion_models.dart';
 import '../../domain/models/ticket_models.dart';
+import '../../domain/models/creator_models.dart';
+import '../../domain/models/place_models.dart';
 
 class MockSeed {
   static const organizerId = 'organizer_angel';
   static const organizerName = 'Angel Artey';
   static const organizerPhone = '+233 24 000 0000';
   static const organizerEmail = 'angel@vennuzo.app';
+  static const cultureCreatorId = 'creator_culture_loop';
+  static const cultureCreatorName = 'Culture Loop Accra';
+  static const gplusPlaceId = 'gplus_nightclub';
 
   static List<EventModel> events() {
     final now = DateTime.now();
@@ -47,6 +52,15 @@ class MockSeed {
                   'A free reservation option so you can test the RSVP and pay-at-door flow.',
             ),
           ],
+          discountVouchers: [
+            EventDiscountVoucher(
+              code: 'QA10',
+              type: EventDiscountVoucherType.percentage,
+              value: 10,
+              maxRedemptions: 50,
+              note: 'QA checkout discount',
+            ),
+          ],
         ),
         recurrence: const RecurrenceRule(),
         sendPushNotification: true,
@@ -58,6 +72,8 @@ class MockSeed {
         likesCount: 18,
         rsvpCount: 14,
         mood: EventMood.electric,
+        categoryId: 'tech_startup',
+        flyerAsset: 'assets/event_flyers/event_test_drive.png',
         tags: const ['Demo', 'Test Event', 'Optional Tickets'],
         location: const EventLocation(
           address: '4 Independence Avenue, Ridge, Accra',
@@ -109,6 +125,22 @@ class MockSeed {
                   'Backstage lounge, premium seating, and artist meet window.',
             ),
           ],
+          discountVouchers: [
+            EventDiscountVoucher(
+              code: 'PULSE25',
+              type: EventDiscountVoucherType.fixedAmount,
+              value: 25,
+              maxRedemptions: 100,
+              note: 'Launch week promo',
+            ),
+            EventDiscountVoucher(
+              code: 'VIP15',
+              type: EventDiscountVoucherType.percentage,
+              value: 15,
+              maxRedemptions: 40,
+              note: 'VIP guest list',
+            ),
+          ],
         ),
         recurrence: const RecurrenceRule(),
         sendPushNotification: true,
@@ -120,6 +152,8 @@ class MockSeed {
         likesCount: 412,
         rsvpCount: 190,
         mood: EventMood.night,
+        categoryId: 'nightlife',
+        flyerAsset: 'assets/event_flyers/event_after_dark.png',
         tags: const ['Ticketed', 'Featured', 'Music'],
         location: const EventLocation(
           address: 'Liberation Road, Airport City, Accra',
@@ -162,6 +196,14 @@ class MockSeed {
               description: 'Reserve now and settle at the entrance.',
             ),
           ],
+          discountVouchers: [
+            EventDiscountVoucher(
+              code: 'ROOFTOP5',
+              type: EventDiscountVoucherType.fixedAmount,
+              value: 5,
+              maxRedemptions: 25,
+            ),
+          ],
         ),
         recurrence: const RecurrenceRule(),
         sendPushNotification: true,
@@ -173,6 +215,8 @@ class MockSeed {
         likesCount: 129,
         rsvpCount: 246,
         mood: EventMood.sunrise,
+        categoryId: 'arts_culture_fashion',
+        flyerAsset: 'assets/event_flyers/event_rooftop.png',
         tags: const ['RSVP', 'Optional Tickets', 'Community'],
         location: const EventLocation(
           address: 'Ocean View Road, Osu, Accra',
@@ -191,7 +235,7 @@ class MockSeed {
         startDate: now.add(const Duration(days: 9, hours: 1)),
         endDate: now.add(const Duration(days: 9, hours: 7)),
         visibility: EventVisibility.publicEvent,
-        createdBy: organizerId,
+        createdBy: cultureCreatorId,
         createdAt: now.subtract(const Duration(days: 24)),
         ticketing: const EventTicketing(
           enabled: false,
@@ -213,6 +257,8 @@ class MockSeed {
         likesCount: 86,
         rsvpCount: 74,
         mood: EventMood.garden,
+        categoryId: 'marketing_sales',
+        flyerAsset: 'assets/event_flyers/event_market.png',
         tags: const ['Recurring', 'Market', 'Family Friendly'],
         location: const EventLocation(
           address: 'Cantonments Road, Cantonments, Accra',
@@ -258,6 +304,8 @@ class MockSeed {
         likesCount: 12,
         rsvpCount: 11,
         mood: EventMood.electric,
+        categoryId: 'private_invite',
+        flyerAsset: 'assets/event_flyers/event_private.png',
         tags: const ['Private', 'Invite Only'],
         location: const EventLocation(
           address: '3 Fifth Avenue, Cantonments, Accra',
@@ -265,6 +313,89 @@ class MockSeed {
           longitude: -0.1614,
           placeId: 'mock_embassy_house',
         ),
+      ),
+    ];
+  }
+
+  static List<CreatorProfile> creatorProfiles() {
+    final now = DateTime.now();
+    return [
+      CreatorProfile(
+        creatorId: organizerId,
+        displayName: 'Angel Artey Events',
+        bio:
+            'Premium Accra experiences, creator-led nights, private showcases, and ticketed culture moments.',
+        city: 'Accra',
+        avatarUrl: 'assets/photos/02_dj_booth_night.jpg',
+        coverUrl: 'assets/photos/01_hero_concert_crowd.jpg',
+        followerCount: 1280,
+        eventCount: 4,
+        photoCount: 3,
+        updatedAt: now,
+      ),
+      CreatorProfile(
+        creatorId: cultureCreatorId,
+        displayName: cultureCreatorName,
+        bio:
+            'Markets, art pop-ups, vendor showcases, and family-friendly city culture.',
+        city: 'Accra',
+        avatarUrl: 'assets/photos/10_gallery_culture_event.jpg',
+        coverUrl: 'assets/photos/06_rooftop_party.jpg',
+        followerCount: 642,
+        eventCount: 1,
+        photoCount: 2,
+        updatedAt: now,
+      ),
+    ];
+  }
+
+  static List<CreatorEventPhoto> creatorPhotos() {
+    final now = DateTime.now();
+    return [
+      CreatorEventPhoto(
+        id: 'creator_photo_after_dark_1',
+        creatorId: organizerId,
+        eventId: 'event_after_dark',
+        eventTitle: 'Pulse Summit After Dark',
+        imageUrl: 'assets/photos/03_festival_dusk.jpg',
+        caption: 'Main stage atmosphere from the last premium night.',
+        createdAt: now.subtract(const Duration(days: 4)),
+      ),
+      CreatorEventPhoto(
+        id: 'creator_photo_rooftop_1',
+        creatorId: organizerId,
+        eventId: 'event_rooftop',
+        eventTitle: 'Open Canvas Rooftop Jam',
+        imageUrl: 'assets/photos/06_rooftop_party.jpg',
+        caption: 'Rooftop setup, golden hour, and open mic soundcheck.',
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+      CreatorEventPhoto(
+        id: 'creator_photo_demo_1',
+        creatorId: organizerId,
+        eventId: 'event_test_drive',
+        eventTitle: 'Vennuzo Test Drive',
+        imageUrl: 'assets/photos/05_qr_entry.jpg',
+        caption: 'QR entry flow ready for test guests.',
+        createdAt: now.subtract(const Duration(hours: 18)),
+      ),
+      CreatorEventPhoto(
+        id: 'creator_photo_market_1',
+        creatorId: cultureCreatorId,
+        eventId: 'event_market',
+        eventTitle: 'Sunday Loop Market',
+        imageUrl: 'assets/photos/10_gallery_culture_event.jpg',
+        caption: 'Vendor previews and gallery corner for Sunday.',
+        createdAt: now.subtract(const Duration(days: 3)),
+      ),
+      CreatorEventPhoto(
+        id: 'creator_photo_market_2',
+        creatorId: cultureCreatorId,
+        eventId: 'event_market',
+        eventTitle: 'Sunday Loop Market',
+        imageUrl: 'assets/photos/04_friends_arriving.jpg',
+        caption: 'Guests arriving for the neighborhood loop.',
+        createdAt: now.subtract(const Duration(days: 1)),
       ),
     ];
   }
@@ -374,6 +505,323 @@ class MockSeed {
         guestCount: 3,
         bookTable: false,
         createdAt: now.subtract(const Duration(days: 1)),
+      ),
+    ];
+  }
+
+  static List<PlaceProfile> places() {
+    final now = DateTime.now();
+    return [
+      PlaceProfile(
+        id: gplusPlaceId,
+        name: 'G+Nightclub',
+        description:
+            'Nightclub and entertainment venue on UPSA Road with DJs, bottle service, VIP tables, and late-night events.',
+        city: 'Accra',
+        address: 'UPSA Road, Madina, Accra, Ghana',
+        googlePlaceId: 'gplus_nightclub_upsa_road_accra',
+        mapsUrl:
+            'https://maps.google.com/?q=G%2B%20Nightclub%20UPSA%20Road%20Accra%20Ghana',
+        phone: '+233 24 000 0000',
+        website: 'https://gplusnightclub.com/',
+        coverUrl:
+            'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0005.jpg',
+        logoUrl: 'assets/logo-transparent.png',
+        galleryUrls: const [
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0005.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0008.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0013.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0014.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0018.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0019.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0025.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0026.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0029.jpg',
+          'https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0036.jpg',
+        ],
+        categories: const ['Nightlife', 'Club', 'VIP tables', 'Live music'],
+        amenities: const [
+          'Bottle service',
+          'VIP lounge',
+          'DJ booth',
+          'Table reservations',
+          'Media gallery',
+        ],
+        openingHours: const [
+          'Thursday 8 PM - late',
+          'Friday 8 PM - late',
+          'Saturday 8 PM - late',
+        ],
+        rating: 4.7,
+        reviewCount: 186,
+        subscriberCount: 2400,
+        featured: true,
+        createdAt: now.subtract(const Duration(days: 30)),
+        updatedAt: now,
+      ),
+      PlaceProfile(
+        id: 'kukun_skydeck',
+        name: 'Kukun Skydeck',
+        description:
+            'Open-air rooftop space for creator nights, casual drinks, markets, and private socials.',
+        city: 'Accra',
+        address: 'Osu, Accra, Ghana',
+        coverUrl: 'assets/event_flyers/event_rooftop.png',
+        categories: const ['Rooftop', 'Food & Drink'],
+        amenities: const ['Outdoor seating', 'Cocktails', 'Private bookings'],
+        openingHours: const ['Daily 12 PM - 11 PM'],
+        rating: 4.4,
+        reviewCount: 48,
+        subscriberCount: 760,
+        featured: false,
+        createdAt: now.subtract(const Duration(days: 18)),
+        updatedAt: now,
+      ),
+      PlaceProfile(
+        id: 'labadi_beach_club',
+        name: 'Labadi Beach Club',
+        description:
+            'Beachfront hangout for sunset tables, coconut drinks, grills, and live percussion nights.',
+        city: 'Accra',
+        address: 'Labadi Beach, Accra, Ghana',
+        coverUrl: 'assets/places/labadi_beach_2025.jpg',
+        galleryUrls: const [
+          'assets/places/labadi_beach_2025.jpg',
+          'assets/places/labadi_beach_plate.jpg',
+          'assets/places/gplus_market_lifestyle.jpg',
+        ],
+        categories: const ['Beach', 'Food & Drink', 'Live music'],
+        amenities: const [
+          'Beach seating',
+          'Grill menu',
+          'Live drums',
+          'Private cabanas',
+        ],
+        openingHours: const ['Daily 10 AM - 1 AM'],
+        rating: 4.5,
+        reviewCount: 97,
+        subscriberCount: 1180,
+        featured: true,
+        createdAt: now.subtract(const Duration(days: 22)),
+        updatedAt: now,
+      ),
+      PlaceProfile(
+        id: 'makola_social_market',
+        name: 'Makola Social Market',
+        description:
+            'A high-energy marketplace stop for fashion pop-ups, food stalls, cultural walks, and weekend vendor showcases.',
+        city: 'Accra',
+        address: 'Makola, Accra Central, Ghana',
+        coverUrl: 'assets/places/makola_market_plate.jpg',
+        galleryUrls: const [
+          'assets/places/makola_market_plate.jpg',
+          'assets/places/makola_side_scroll_60s_contact.jpg',
+          'assets/places/gplus_market_home.jpg',
+        ],
+        categories: const ['Market', 'Fashion', 'Food & Drink'],
+        amenities: const [
+          'Vendor stalls',
+          'Fashion pop-ups',
+          'Street food',
+          'Group tours',
+        ],
+        openingHours: const ['Monday - Saturday 8 AM - 6 PM'],
+        rating: 4.3,
+        reviewCount: 58,
+        subscriberCount: 930,
+        createdAt: now.subtract(const Duration(days: 16)),
+        updatedAt: now,
+      ),
+      PlaceProfile(
+        id: 'jamestown_harbour_yard',
+        name: 'Jamestown Harbour Yard',
+        description:
+            'Harbour-side creative yard for boxing showcases, art walks, community film nights, and street culture events.',
+        city: 'Accra',
+        address: 'Jamestown, Accra, Ghana',
+        coverUrl: 'assets/places/jamestown_side_scroll_contact.jpg',
+        galleryUrls: const [
+          'assets/places/jamestown_side_scroll_contact.jpg',
+          'assets/places/jamestown_harbour_plate.jpg',
+          'assets/places/gplus_stage_section_hero.png',
+        ],
+        categories: const ['Culture', 'Arts', 'Outdoor'],
+        amenities: const [
+          'Outdoor yard',
+          'Community stage',
+          'Pop-up vendors',
+          'Photo walk routes',
+        ],
+        openingHours: const ['Friday - Sunday 12 PM - 10 PM'],
+        rating: 4.6,
+        reviewCount: 73,
+        subscriberCount: 840,
+        featured: true,
+        createdAt: now.subtract(const Duration(days: 12)),
+        updatedAt: now,
+      ),
+    ];
+  }
+
+  static List<PlaceMenuSection> placeMenuSections() => const [
+    PlaceMenuSection(
+      id: 'gplus_bottles',
+      placeId: gplusPlaceId,
+      name: 'Bottles',
+      description: 'Bottle service for tables and VIP reservations.',
+      sortOrder: 1,
+    ),
+    PlaceMenuSection(
+      id: 'gplus_cocktails',
+      placeId: gplusPlaceId,
+      name: 'Cocktails',
+      description: 'House cocktails and late-night drinks.',
+      sortOrder: 2,
+    ),
+    PlaceMenuSection(
+      id: 'gplus_packages',
+      placeId: gplusPlaceId,
+      name: 'Table Packages',
+      description: 'Reservation-ready packages for groups.',
+      sortOrder: 3,
+    ),
+    PlaceMenuSection(
+      id: 'labadi_grill',
+      placeId: 'labadi_beach_club',
+      name: 'Beach grill',
+      description: 'Sunset plates, sides, and beach drinks.',
+      sortOrder: 1,
+    ),
+    PlaceMenuSection(
+      id: 'makola_vendor_picks',
+      placeId: 'makola_social_market',
+      name: 'Vendor picks',
+      description: 'Popular market snacks and pop-up specials.',
+      sortOrder: 1,
+    ),
+    PlaceMenuSection(
+      id: 'jamestown_yard',
+      placeId: 'jamestown_harbour_yard',
+      name: 'Yard specials',
+      description: 'Community event bites and table bundles.',
+      sortOrder: 1,
+    ),
+  ];
+
+  static List<PlaceMenuItem> placeMenuItems() => const [
+    PlaceMenuItem(
+      id: 'gplus_hennessy_vip',
+      placeId: gplusPlaceId,
+      sectionId: 'gplus_bottles',
+      name: 'Hennessy VIP',
+      description: 'Premium bottle service with mixers.',
+      price: 1450,
+      featured: true,
+      options: ['Extra mixers', 'Sparkler service'],
+      sortOrder: 1,
+    ),
+    PlaceMenuItem(
+      id: 'gplus_moet_table',
+      placeId: gplusPlaceId,
+      sectionId: 'gplus_bottles',
+      name: 'Moet Table Set',
+      description: 'Champagne setup for VIP tables.',
+      price: 1800,
+      featured: true,
+      sortOrder: 2,
+    ),
+    PlaceMenuItem(
+      id: 'gplus_signature_cocktail',
+      placeId: gplusPlaceId,
+      sectionId: 'gplus_cocktails',
+      name: 'G+ Signature',
+      description: 'House cocktail with citrus and spice.',
+      price: 95,
+      sortOrder: 1,
+    ),
+    PlaceMenuItem(
+      id: 'gplus_birthday_package',
+      placeId: gplusPlaceId,
+      sectionId: 'gplus_packages',
+      name: 'Birthday Table Package',
+      description: 'Reserved table, welcome bottle, and host greeting.',
+      price: 2500,
+      featured: true,
+      tags: ['birthday', 'vip'],
+      sortOrder: 1,
+    ),
+    PlaceMenuItem(
+      id: 'labadi_grill_platter',
+      placeId: 'labadi_beach_club',
+      sectionId: 'labadi_grill',
+      name: 'Beach Grill Platter',
+      description: 'Charcoal grill mix with kelewele, salad, and sauces.',
+      price: 220,
+      imageUrl: 'assets/places/labadi_beach_plate.jpg',
+      featured: true,
+      tags: ['grill', 'beach'],
+      sortOrder: 1,
+    ),
+    PlaceMenuItem(
+      id: 'makola_vendor_bundle',
+      placeId: 'makola_social_market',
+      sectionId: 'makola_vendor_picks',
+      name: 'Market Taster Bundle',
+      description: 'Small plates and drink vouchers across featured vendors.',
+      price: 85,
+      imageUrl: 'assets/places/makola_market_plate.jpg',
+      featured: true,
+      tags: ['market', 'vendor'],
+      sortOrder: 1,
+    ),
+    PlaceMenuItem(
+      id: 'jamestown_yard_table',
+      placeId: 'jamestown_harbour_yard',
+      sectionId: 'jamestown_yard',
+      name: 'Harbour Yard Table',
+      description: 'Reserved outdoor table for four with welcome drinks.',
+      price: 360,
+      imageUrl: 'assets/places/jamestown_harbour_plate.jpg',
+      featured: true,
+      tags: ['table', 'outdoor'],
+      sortOrder: 1,
+    ),
+  ];
+
+  static List<PlaceReservation> placeReservations() {
+    final now = DateTime.now();
+    return [
+      PlaceReservation(
+        id: 'place_reservation_001',
+        placeId: gplusPlaceId,
+        placeName: 'G+Nightclub',
+        userId: organizerId,
+        guestName: organizerName,
+        phone: organizerPhone,
+        partySize: 6,
+        requestedAt: now.add(const Duration(days: 2, hours: 4)),
+        reservationType: PlaceReservationType.vipTable,
+        status: PlaceReservationStatus.confirmed,
+        note: 'VIP table close to DJ booth.',
+        selectedMenuItemIds: const ['gplus_hennessy_vip'],
+        createdAt: now.subtract(const Duration(hours: 8)),
+        updatedAt: now.subtract(const Duration(hours: 6)),
+      ),
+      PlaceReservation(
+        id: 'place_reservation_002',
+        placeId: 'labadi_beach_club',
+        placeName: 'Labadi Beach Club',
+        userId: organizerId,
+        guestName: 'Ama Beach Crew',
+        phone: '+233 24 555 0199',
+        partySize: 8,
+        requestedAt: now.add(const Duration(days: 3, hours: 2)),
+        reservationType: PlaceReservationType.privateBooking,
+        status: PlaceReservationStatus.pending,
+        note: 'Sunset cabana near the drums if available.',
+        selectedMenuItemIds: const ['labadi_grill_platter'],
+        createdAt: now.subtract(const Duration(hours: 5)),
+        updatedAt: now.subtract(const Duration(hours: 5)),
       ),
     ];
   }

@@ -31,10 +31,7 @@ class SectionHeading extends StatelessWidget {
           height: 18,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [
-                VennuzoTheme.primaryStart,
-                VennuzoTheme.primaryMid,
-              ],
+              colors: [VennuzoTheme.primaryStart, VennuzoTheme.primaryMid],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -49,7 +46,6 @@ class SectionHeading extends StatelessWidget {
               Text(
                 title,
                 style: context.text.titleMedium?.copyWith(
-                  letterSpacing: -0.2,
                   color: VennuzoTheme.textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
@@ -58,9 +54,7 @@ class SectionHeading extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle!,
-                  style: context.text.bodySmall?.copyWith(
-                    color: palette.slate,
-                  ),
+                  style: context.text.bodySmall?.copyWith(color: palette.slate),
                 ),
               ],
             ],

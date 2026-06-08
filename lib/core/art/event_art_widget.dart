@@ -27,12 +27,74 @@ class EventArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final seed = ArtSeed.combine(
-      event.id.hashCode,
-      ArtSeed.hash(event.title),
+    final flyerAsset = event.flyerAsset?.trim();
+    if (flyerAsset != null && flyerAsset.isNotEmpty) {
+      Widget flyer = flyerAsset.startsWith('http')
+          ? Image.network(
+              flyerAsset,
+              fit: BoxFit.cover,
+              width: width,
+              height: height,
+              errorBuilder: (_, _, _) => _GeneratedEventArt(
+                event: event,
+                width: width,
+                height: height,
+                intensity: intensity,
+              ),
+            )
+          : Image.asset(
+              flyerAsset,
+              fit: BoxFit.cover,
+              width: width,
+              height: height,
+              errorBuilder: (_, _, _) => _GeneratedEventArt(
+                event: event,
+                width: width,
+                height: height,
+                intensity: intensity,
+              ),
+            );
+
+      flyer = RepaintBoundary(child: flyer);
+      if (borderRadius != null) {
+        flyer = ClipRRect(borderRadius: borderRadius!, child: flyer);
+      }
+      return SizedBox(width: width, height: height, child: flyer);
+    }
+
+    Widget art = _GeneratedEventArt(
+      event: event,
+      width: width,
+      height: height,
+      intensity: intensity,
     );
 
-    Widget art = RepaintBoundary(
+    if (borderRadius != null) {
+      art = ClipRRect(borderRadius: borderRadius!, child: art);
+    }
+
+    return SizedBox(width: width, height: height, child: art);
+  }
+}
+
+class _GeneratedEventArt extends StatelessWidget {
+  const _GeneratedEventArt({
+    required this.event,
+    required this.height,
+    required this.intensity,
+    this.width,
+  });
+
+  final EventModel event;
+  final double height;
+  final double? width;
+  final double intensity;
+
+  @override
+  Widget build(BuildContext context) {
+    final seed = ArtSeed.combine(event.id.hashCode, ArtSeed.hash(event.title));
+
+    return RepaintBoundary(
       child: CustomPaint(
         size: Size(width ?? double.infinity, height),
         painter: GenerativeArtPainter(
@@ -41,16 +103,6 @@ class EventArtwork extends StatelessWidget {
           intensity: intensity,
         ),
       ),
-    );
-
-    if (borderRadius != null) {
-      art = ClipRRect(borderRadius: borderRadius!, child: art);
-    }
-
-    return SizedBox(
-      width: width,
-      height: height,
-      child: art,
     );
   }
 }
@@ -94,10 +146,6 @@ class GenerativeArt extends StatelessWidget {
       art = ClipRRect(borderRadius: borderRadius!, child: art);
     }
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: art,
-    );
+    return SizedBox(width: width, height: height, child: art);
   }
 }

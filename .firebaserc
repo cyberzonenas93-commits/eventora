@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "eventora-10063"
+    "default": "eventora-10063",
+    "vennuzo": "eventora-10063"
   },
   "targets": {
     "eventora-10063": {
@@ -9,10 +10,10 @@
           "vennuzo"
         ],
         "studio": [
-          "eventora-studio"
+          "vennuzo-studio"
         ],
         "admin": [
-          "eventora-admin"
+          "vennuzo-admin"
         ],
         "pages": [
           "vennuzo-pages"

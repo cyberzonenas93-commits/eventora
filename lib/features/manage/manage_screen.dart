@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
+import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/portal_links.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/account_models.dart';
 import '../../domain/models/event_models.dart';
@@ -13,6 +16,8 @@ import '../../widgets/event_card.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
+import '../creators/creator_profile_screen.dart';
+import '../creative/creative_services_screen.dart';
 import '../events/event_detail_screen.dart';
 import '../events/event_editor_screen.dart';
 import 'host_access_screen.dart';
@@ -50,7 +55,7 @@ class ManageScreen extends StatelessWidget {
         .length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
       children: [
         _ManageHero(
           organizerName: session.isGuest
@@ -59,6 +64,7 @@ class ManageScreen extends StatelessWidget {
           totalRevenue: totalRevenue,
           isGuest: session.isGuest,
           organizerReady: organizerReady,
+          organizerStatus: viewer.organizerApplicationStatus,
           organizerStatusLabel: viewer.organizerStatusLabel,
         ),
         if (organizerReady) ...[
@@ -94,6 +100,14 @@ class ManageScreen extends StatelessWidget {
             runSpacing: 14,
             children: [
               _HostPlacementCard(
+                title: 'Creator profile',
+                stat:
+                    '${repository.creatorProfileFor(repository.currentUserId).followerCount} followers',
+                icon: Icons.person_pin_circle_outlined,
+                actionLabel: 'Open profile',
+                onAction: () => _openCreatorProfile(context),
+              ),
+              _HostPlacementCard(
                 title: 'Featured banner',
                 stat: '$featuredCount campaigns',
                 icon: Icons.workspace_premium_outlined,
@@ -109,6 +123,23 @@ class ManageScreen extends StatelessWidget {
                 icon: Icons.open_in_full_outlined,
                 actionLabel: 'Launch campaign',
                 onAction: () => _launchGeneralCampaign(
+                  context,
+                  events.isNotEmpty ? events.first : null,
+                ),
+              ),
+              _HostPlacementCard(
+                title: 'Creative services',
+                stat: 'Flyers · Table packages',
+                icon: Icons.auto_awesome_outlined,
+                actionLabel: 'Open studio',
+                onAction: () => _openCreativeServices(context),
+              ),
+              _HostPlacementCard(
+                title: 'Event Ops',
+                stat: 'Inventory · Staff tabs',
+                icon: Icons.point_of_sale_outlined,
+                actionLabel: 'Open Event Ops',
+                onAction: () => _openEventOpsStudio(
                   context,
                   events.isNotEmpty ? events.first : null,
                 ),
@@ -145,7 +176,8 @@ class ManageScreen extends StatelessWidget {
         else if (!organizerReady && viewer.hasPendingOrganizerApplication)
           EmptyStateCard(
             title: 'Host setup is in review',
-            body: 'Once approved, you can create events and sell tickets from this tab.',
+            body:
+                'Once approved, you can create events and sell tickets from this tab.',
             icon: Icons.pending_actions_outlined,
             actionLabel: 'Review status',
             onAction: () => _openHostAccess(context),
@@ -155,7 +187,8 @@ class ManageScreen extends StatelessWidget {
                 OrganizerApplicationStatus.rejected)
           EmptyStateCard(
             title: 'Your host application needs an update',
-            body: 'Update your details and resubmit to get host access and create events.',
+            body:
+                'Update your details and resubmit to get host access and create events.',
             icon: Icons.feedback_outlined,
             actionLabel: 'Update now',
             onAction: () => _openHostAccess(context),
@@ -250,6 +283,40 @@ class ManageScreen extends StatelessWidget {
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const HostAccessScreen()));
   }
+
+  void _openCreativeServices(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const CreativeServicesScreen()),
+    );
+  }
+
+  Future<void> _openEventOpsStudio(BuildContext context, EventModel? event) async {
+    final url = event == null
+        ? '$vennuzoStudioUrl/studio/operations'
+        : '$vennuzoStudioUrl/studio/operations?eventId=${Uri.encodeComponent(event.id)}';
+    final launched = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open Event Ops Studio.')),
+      );
+    }
+  }
+
+  void _openCreatorProfile(BuildContext context) {
+    final creatorId = context.read<VennuzoRepository>().currentUserId;
+    if (creatorId.isEmpty) {
+      _promptForAccess(context);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CreatorProfileScreen(creatorId: creatorId),
+      ),
+    );
+  }
 }
 
 class _ManageHero extends StatelessWidget {
@@ -258,6 +325,7 @@ class _ManageHero extends StatelessWidget {
     required this.totalRevenue,
     required this.isGuest,
     required this.organizerReady,
+    required this.organizerStatus,
     required this.organizerStatusLabel,
   });
 
@@ -265,6 +333,7 @@ class _ManageHero extends StatelessWidget {
   final double totalRevenue;
   final bool isGuest;
   final bool organizerReady;
+  final OrganizerApplicationStatus organizerStatus;
   final String organizerStatusLabel;
 
   @override
@@ -277,29 +346,32 @@ class _ManageHero extends StatelessWidget {
         borderRadius: BorderRadius.circular(30),
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0.98),
-            palette.gold.withValues(alpha: 0.12),
+            VennuzoTheme.surfaceElevated,
+            palette.gold.withValues(alpha: 0.22),
+            VennuzoTheme.surface,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: const Color(0x1410212A)),
+        border: Border.all(color: VennuzoTheme.borderBright),
+        boxShadow: VennuzoTheme.shadowElevated,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Hosting hub',
-            style: context.text.titleLarge?.copyWith(fontSize: 20),
+            style: context.text.titleLarge?.copyWith(
+              fontSize: 20,
+              color: VennuzoTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
-            isGuest
-                ? 'Start hosting.'
-                : !organizerReady
-                ? 'Finish setup to publish.'
-                : 'Keep events moving, $organizerName.',
-            style: context.text.headlineSmall,
+            _headline(),
+            style: context.text.headlineSmall?.copyWith(
+              color: VennuzoTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -308,11 +380,26 @@ class _ManageHero extends StatelessWidget {
                 : !organizerReady
                 ? organizerStatusLabel
                 : formatMoney(totalRevenue),
-            style: context.text.bodyLarge?.copyWith(color: palette.slate),
+            style: context.text.bodyLarge?.copyWith(
+              color: VennuzoTheme.textSecondary,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  String _headline() {
+    if (isGuest) return 'Start hosting.';
+    if (organizerReady) return 'Keep events moving, $organizerName.';
+    if (organizerStatus == OrganizerApplicationStatus.submitted ||
+        organizerStatus == OrganizerApplicationStatus.underReview) {
+      return 'Host access is in review.';
+    }
+    if (organizerStatus == OrganizerApplicationStatus.rejected) {
+      return 'Update host application.';
+    }
+    return 'Finish setup to publish.';
   }
 }
 
@@ -334,9 +421,11 @@ class _HostPlacementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final availableWidth = MediaQuery.sizeOf(context).width - 40;
+    final cardWidth = availableWidth < 320 ? availableWidth : 320.0;
 
     return SizedBox(
-      width: 320,
+      width: cardWidth,
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(20),

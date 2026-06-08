@@ -74,6 +74,24 @@ export async function uploadPlaceVerificationFile(
   return getDownloadURL(storageRef)
 }
 
+/**
+ * Upload a place cover or gallery image to Firebase Storage and return its
+ * download URL. The backend only accepts Firebase Storage URLs for place media.
+ */
+export async function uploadPlaceMediaFile(
+  placeId: string,
+  kind: 'cover' | 'gallery',
+  file: File,
+): Promise<string> {
+  const extension = file.name.split('.').pop() || 'jpg'
+  const storageRef = ref(
+    storage,
+    `place-media/${placeId}/${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`,
+  )
+  await uploadBytes(storageRef, file)
+  return getDownloadURL(storageRef)
+}
+
 export async function saveOrganizerApplicationDraft(
   userId: string,
   payload: OrganizerApplication,
@@ -402,10 +420,12 @@ function normalizePlace(docSnap: QueryDocumentSnapshot<DocumentData>): PortalPla
     status: String(d.status ?? 'active'),
     verificationStatus: String(d.verificationStatus ?? 'unverified'),
     verified: d.verified === true || d.verificationStatus === 'verified',
+    verifiablePhone: String(d.verifiablePhone ?? ''),
     latestVerificationRequestId: String(d.latestVerificationRequestId ?? ''),
     featured: d.featured === true,
     coverUrl: String(d.coverUrl ?? d.imageUrl ?? ''),
     logoUrl: String(d.logoUrl ?? d.avatarUrl ?? ''),
+    galleryUrls: stringList(d.galleryUrls ?? d.gallery),
     mapsUrl: String(d.mapsUrl ?? d.googleMapsUrl ?? ''),
     googlePlaceId: String(d.googlePlaceId ?? ''),
     phone: String(d.phone ?? ''),

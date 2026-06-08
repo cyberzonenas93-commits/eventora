@@ -43,6 +43,8 @@ class PlaceProfile {
     this.subscriberCount = 0,
     this.featured = false,
     this.status = 'active',
+    this.verificationStatus = 'unverified',
+    this.verified = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -69,10 +71,18 @@ class PlaceProfile {
   final int subscriberCount;
   final bool featured;
   final String status;
+
+  /// Server-authoritative verification lifecycle:
+  /// 'unverified' | 'pending_review' | 'verified' | 'rejected' | 'suspended'.
+  final String verificationStatus;
+  final bool verified;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   bool get isActive => status != 'hidden' && status != 'disabled';
+
+  bool get isVerified => verified || verificationStatus == 'verified';
+  bool get isVerificationPending => verificationStatus == 'pending_review';
 
   IconData get icon {
     final text = [...categories, name, description].join(' ').toLowerCase();

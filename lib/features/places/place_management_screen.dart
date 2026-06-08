@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/repositories/vennuzo_repository.dart';
+import '../../data/services/vennuzo_places_service.dart';
 import '../../domain/models/place_models.dart';
 import '../../widgets/empty_state_card.dart';
+import '../../widgets/place_verification_badge.dart';
 import '../../widgets/section_heading.dart';
 
 class PlaceManagementScreen extends StatefulWidget {
@@ -33,14 +36,18 @@ class _PlaceManagementScreenState extends State<PlaceManagementScreen> {
         SectionHeading(
           title: 'Place manager',
           subtitle: 'Menus, reservations, subscribers, and paid push.',
+          actionLabel: 'Claim place',
+          onAction: () => _startClaimFlow(context),
         ),
         const SizedBox(height: 14),
         if (places.isEmpty)
-          const EmptyStateCard(
+          EmptyStateCard(
             title: 'No places assigned',
             icon: Icons.storefront_outlined,
             body:
-                'Claim or create a place profile before managing menus and reservations.',
+                'Claim a Google business listing or create a place profile before managing menus and reservations.',
+            actionLabel: 'Claim or create a place',
+            onAction: () => _startClaimFlow(context),
           )
         else ...[
           DropdownButtonFormField<String>(
@@ -58,6 +65,8 @@ class _PlaceManagementScreenState extends State<PlaceManagementScreen> {
           ),
           if (selected != null) ...[
             const SizedBox(height: 18),
+            _VerificationOps(place: selected),
+            const SizedBox(height: 22),
             _PlaceOpsSummary(place: selected),
             const SizedBox(height: 22),
             _MenuOps(place: selected),
@@ -69,6 +78,18 @@ class _PlaceManagementScreenState extends State<PlaceManagementScreen> {
         ],
       ],
     );
+  }
+
+  Future<void> _startClaimFlow(BuildContext context) async {
+    final claimedPlaceId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ClaimPlaceSheet(),
+    );
+    if (claimedPlaceId == null || !mounted) return;
+    setState(() => _selectedPlaceId = claimedPlaceId);
   }
 }
 
@@ -235,6 +256,7 @@ class _PushOps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final estimatedCost = place.subscriberCount * 0.02;
+    final verified = place.isVerified;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -257,13 +279,45 @@ class _PushOps extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             OutlinedButton.icon(
-              onPressed: () => _launchPlacePush(context, place),
+              onPressed: verified
+                  ? () => _launchPlacePush(context, place)
+                  : null,
               icon: const Icon(Icons.campaign_outlined),
               label: const Text('Plan place push'),
             ),
+            if (!verified) ...[
+              const SizedBox(height: 8),
+              _VerifyToUnlockNote(
+                message: 'Verify your place to unlock paid push.',
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Short inline explainer shown next to a disabled promotional action.
+class _VerifyToUnlockNote extends StatelessWidget {
+  const _VerifyToUnlockNote({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      children: [
+        Icon(Icons.lock_outline_rounded, size: 16, color: palette.warning),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            message,
+            style: context.text.bodySmall?.copyWith(color: palette.warning),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -423,4 +477,465 @@ Future<void> _launchPlacePush(BuildContext context, PlaceProfile place) async {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text('Place push queued for ${place.name}.')),
   );
+}
+
+class _VerificationOps extends StatelessWidget {
+  const _VerificationOps({required this.place});
+
+  final PlaceProfile place;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final verified = place.isVerified;
+    final pending = place.isVerificationPending;
+
+    final String body;
+    if (verified) {
+      body =
+          'This place is verified. Promotional tools like paid push are unlocked.';
+    } else if (pending) {
+      body =
+          'Verification is in review. We will unlock promotional tools once it is approved.';
+    } else {
+      body =
+          'Verify ownership to unlock promotional tools. Claim the Google listing to verify instantly by phone, or upload a document for free-form places.';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Verification', style: context.text.titleMedium),
+                ),
+                PlaceVerificationBadge(place: place),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(body, style: context.text.bodyMedium),
+            if (!verified) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => _startPhoneVerification(context, place),
+                    icon: const Icon(Icons.sms_outlined),
+                    label: const Text('Verify by phone'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: const Text('Upload a document'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Document verification is coming soon for places without a listed phone.',
+                style: context.text.bodySmall?.copyWith(color: palette.slate),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _startPhoneVerification(
+  BuildContext context,
+  PlaceProfile place,
+) async {
+  final verified = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _PhoneVerificationSheet(place: place),
+  );
+  if (verified != true || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('${place.name} is now verified.')),
+  );
+}
+
+/// Step 1 of the claim flow: search a Google listing (or create a free-form
+/// place) and call `claimOrCreatePlace`. Pops the new place id on success.
+class _ClaimPlaceSheet extends StatefulWidget {
+  const _ClaimPlaceSheet();
+
+  @override
+  State<_ClaimPlaceSheet> createState() => _ClaimPlaceSheetState();
+}
+
+class _ClaimPlaceSheetState extends State<_ClaimPlaceSheet> {
+  final _searchController = TextEditingController();
+  List<VennuzoPlaceSuggestion> _results = const <VennuzoPlaceSuggestion>[];
+  bool _searching = false;
+  bool _claiming = false;
+  String? _error;
+  int _searchToken = 0;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _runSearch(String query) async {
+    final trimmed = query.trim();
+    final token = ++_searchToken;
+    if (trimmed.length < 2) {
+      setState(() {
+        _results = const <VennuzoPlaceSuggestion>[];
+        _searching = false;
+        _error = null;
+      });
+      return;
+    }
+    setState(() {
+      _searching = true;
+      _error = null;
+    });
+    try {
+      final results = await VennuzoPlacesService.instance.search(trimmed);
+      if (!mounted || token != _searchToken) return;
+      setState(() {
+        _results = results;
+        _searching = false;
+      });
+    } catch (error) {
+      if (!mounted || token != _searchToken) return;
+      setState(() {
+        _searching = false;
+        _error = error is VennuzoPlacesFailure
+            ? error.message
+            : 'Search is unavailable right now. Please try again.';
+      });
+    }
+  }
+
+  Future<void> _claim(VennuzoPlaceSuggestion suggestion) async {
+    setState(() {
+      _claiming = true;
+      _error = null;
+    });
+    try {
+      final result = await VennuzoPlacesService.instance.claimOrCreatePlace(
+        googlePlaceId: suggestion.placeId,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(result.placeId);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _claiming = false;
+        _error = error is VennuzoPlacesFailure
+            ? error.message
+            : 'We could not claim this place. Please try again.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    return Container(
+      decoration: const BoxDecoration(
+        color: VennuzoTheme.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Claim a place', style: context.text.headlineSmall),
+            const SizedBox(height: 6),
+            Text(
+              'Search Google Business listings. Claiming a listing lets you verify by phone instantly.',
+              style: context.text.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _searchController,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                hintText: 'Search venue name or address',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+              onChanged: _runSearch,
+            ),
+            const SizedBox(height: 14),
+            if (_claiming)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_searching)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Text(
+                _error!,
+                style: context.text.bodyMedium?.copyWith(
+                  color: context.palette.error,
+                ),
+              )
+            else if (_results.isEmpty &&
+                _searchController.text.trim().length >= 2)
+              Text(
+                'No matching listings found.',
+                style: context.text.bodyMedium,
+              )
+            else
+              for (final suggestion in _results)
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.place_outlined),
+                    title: Text(
+                      suggestion.title.isEmpty
+                          ? suggestion.fullText
+                          : suggestion.title,
+                    ),
+                    subtitle: suggestion.subtitle.isEmpty
+                        ? null
+                        : Text(suggestion.subtitle),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _claim(suggestion),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Step 2 of the claim flow: send an SMS OTP via `startPlaceVerification`,
+/// collect the 6-digit code, and confirm via `confirmPlaceVerification`.
+class _PhoneVerificationSheet extends StatefulWidget {
+  const _PhoneVerificationSheet({required this.place});
+
+  final PlaceProfile place;
+
+  @override
+  State<_PhoneVerificationSheet> createState() =>
+      _PhoneVerificationSheetState();
+}
+
+class _PhoneVerificationSheetState extends State<_PhoneVerificationSheet> {
+  final _codeController = TextEditingController();
+  bool _starting = true;
+  bool _confirming = false;
+  bool _noPhone = false;
+  String? _maskedTarget;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    setState(() {
+      _starting = true;
+      _error = null;
+      _noPhone = false;
+    });
+    try {
+      final challenge = await VennuzoPlacesService.instance
+          .startPlaceVerification(placeId: widget.place.id);
+      if (!mounted) return;
+      setState(() {
+        _starting = false;
+        _maskedTarget = challenge.target;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is VennuzoPlacesFailure
+          ? error.message
+          : 'We could not start verification right now. Please try again.';
+      setState(() {
+        _starting = false;
+        // No verifiable phone (free-form places) → show the document path.
+        _noPhone = message.toLowerCase().contains('phone');
+        _error = message;
+      });
+    }
+  }
+
+  Future<void> _confirm() async {
+    final code = _codeController.text.trim();
+    if (code.length < 4) {
+      setState(() => _error = 'Enter the 6-digit code we sent.');
+      return;
+    }
+    setState(() {
+      _confirming = true;
+      _error = null;
+    });
+    try {
+      await VennuzoPlacesService.instance.confirmPlaceVerification(
+        placeId: widget.place.id,
+        code: code,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _confirming = false;
+        _error = error is VennuzoPlacesFailure
+            ? error.message
+            : 'That code did not match. Please try again.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    return Container(
+      decoration: const BoxDecoration(
+        color: VennuzoTheme.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Verify by phone', style: context.text.headlineSmall),
+            const SizedBox(height: 6),
+            Text(widget.place.name, style: context.text.bodyMedium),
+            const SizedBox(height: 16),
+            if (_starting)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_noPhone) ...[
+              _InfoCallout(
+                icon: Icons.upload_file_outlined,
+                message:
+                    'This place has no verifiable phone number. Document verification is coming soon — for now, claim the matching Google listing to verify by phone.',
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: context.text.bodySmall?.copyWith(
+                    color: context.palette.slate,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Close'),
+                ),
+              ),
+            ] else ...[
+              Text(
+                _maskedTarget == null || _maskedTarget!.isEmpty
+                    ? 'We sent a 6-digit code to the venue phone on file.'
+                    : 'We sent a 6-digit code to $_maskedTarget.',
+                style: context.text.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _codeController,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Verification code',
+                  counterText: '',
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: context.text.bodySmall?.copyWith(
+                    color: context.palette.error,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _confirming ? null : _confirm,
+                  child: _confirming
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        )
+                      : const Text('Confirm code'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _confirming ? null : _start,
+                child: const Text('Resend code'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoCallout extends StatelessWidget {
+  const _InfoCallout({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: VennuzoTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: VennuzoTheme.borderBright),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: context.palette.gold, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message, style: context.text.bodyMedium)),
+        ],
+      ),
+    );
+  }
 }

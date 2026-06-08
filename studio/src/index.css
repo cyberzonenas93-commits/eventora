@@ -7427,6 +7427,17 @@ textarea { resize: vertical; }
   font-weight: 800;
 }
 
+/* Phone OTP verification inset */
+.places-verify-phone {
+  display: grid;
+  gap: 0.85rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+}
+
 .places-command-center {
   display: grid;
   grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(150px, 0.7fr));

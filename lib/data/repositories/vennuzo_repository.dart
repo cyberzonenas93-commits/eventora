@@ -2096,6 +2096,9 @@ class VennuzoRepository extends ChangeNotifier {
           : (data['subscriberCount'] as num?)?.toInt() ?? 0,
       featured: data['featured'] == true,
       status: '${data['status'] ?? 'active'}'.trim(),
+      verificationStatus:
+          '${data['verificationStatus'] ?? 'unverified'}'.trim(),
+      verified: data['verified'] == true,
       createdAt: _dateFromValue(data['createdAt']) ?? DateTime.now(),
       updatedAt: _dateFromValue(data['updatedAt']) ?? DateTime.now(),
     );

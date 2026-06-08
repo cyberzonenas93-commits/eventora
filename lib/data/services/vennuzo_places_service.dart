@@ -59,6 +59,37 @@ class VennuzoPlacesFailure implements Exception {
   String toString() => message;
 }
 
+/// Result of [VennuzoPlacesService.claimOrCreatePlace].
+class VennuzoPlaceClaimResult {
+  const VennuzoPlaceClaimResult({
+    required this.placeId,
+    required this.verificationStatus,
+    required this.canVerifyByPhone,
+  });
+
+  final String placeId;
+  final String verificationStatus;
+  final bool canVerifyByPhone;
+
+  bool get isVerified => verificationStatus == 'verified';
+}
+
+/// Result of [VennuzoPlacesService.startPlaceVerification].
+class VennuzoPlaceVerificationChallenge {
+  const VennuzoPlaceVerificationChallenge({
+    required this.method,
+    required this.target,
+    required this.expiresInSeconds,
+  });
+
+  /// Verification method, e.g. `'phone'`.
+  final String method;
+
+  /// Masked delivery target (e.g. a masked phone number).
+  final String target;
+  final int expiresInSeconds;
+}
+
 class VennuzoPlacesService {
   VennuzoPlacesService._();
 
@@ -159,6 +190,148 @@ class VennuzoPlacesService {
       }
       throw const VennuzoPlacesFailure(
         'We could not match your current location to an address right now.',
+      );
+    }
+  }
+
+  /// Claims a Google venue (pass [googlePlaceId]) or creates a free-form place
+  /// (omit it and pass [name]/etc.). Returns the resulting Vennuzo place id and
+  /// its verification state.
+  Future<VennuzoPlaceClaimResult> claimOrCreatePlace({
+    String? googlePlaceId,
+    String? name,
+    String? address,
+    double? latitude,
+    double? longitude,
+    String? phone,
+    String? website,
+  }) async {
+    final payload = <String, Object?>{};
+    if (googlePlaceId != null && googlePlaceId.trim().isNotEmpty) {
+      payload['googlePlaceId'] = googlePlaceId.trim();
+    }
+    if (name != null && name.trim().isNotEmpty) {
+      payload['name'] = name.trim();
+    }
+    if (address != null && address.trim().isNotEmpty) {
+      payload['address'] = address.trim();
+    }
+    if (latitude != null) {
+      payload['latitude'] = latitude;
+    }
+    if (longitude != null) {
+      payload['longitude'] = longitude;
+    }
+    if (phone != null && phone.trim().isNotEmpty) {
+      payload['phone'] = phone.trim();
+    }
+    if (website != null && website.trim().isNotEmpty) {
+      payload['website'] = website.trim();
+    }
+
+    try {
+      final result = await _functions
+          .httpsCallable('claimOrCreatePlace')
+          .call(payload);
+      final data = result.data;
+      if (data is! Map) {
+        throw const VennuzoPlacesFailure(
+          'We could not set up this place right now. Please try again.',
+        );
+      }
+      final placeId = '${data['placeId'] ?? ''}'.trim();
+      if (placeId.isEmpty) {
+        throw const VennuzoPlacesFailure(
+          'We could not set up this place right now. Please try again.',
+        );
+      }
+      return VennuzoPlaceClaimResult(
+        placeId: placeId,
+        verificationStatus: '${data['verificationStatus'] ?? 'unverified'}'
+            .trim(),
+        canVerifyByPhone: data['canVerifyByPhone'] == true,
+      );
+    } on FirebaseFunctionsException catch (error) {
+      throw VennuzoPlacesFailure(
+        error.message ??
+            'We could not set up this place right now. Please try again.',
+      );
+    } catch (error) {
+      if (error is VennuzoPlacesFailure) {
+        rethrow;
+      }
+      throw const VennuzoPlacesFailure(
+        'We could not set up this place right now. Please try again.',
+      );
+    }
+  }
+
+  /// Starts phone-OTP verification for [placeId]. Sends an SMS code to the
+  /// venue's listed number and returns a masked target + expiry. Throws a
+  /// [VennuzoPlacesFailure] (carrying the server message) when the place has no
+  /// verifiable phone.
+  Future<VennuzoPlaceVerificationChallenge> startPlaceVerification({
+    required String placeId,
+    String method = 'phone',
+  }) async {
+    try {
+      final result = await _functions
+          .httpsCallable('startPlaceVerification')
+          .call(<String, Object?>{'placeId': placeId, 'method': method});
+      final data = result.data;
+      if (data is! Map) {
+        throw const VennuzoPlacesFailure(
+          'We could not start verification right now. Please try again.',
+        );
+      }
+      return VennuzoPlaceVerificationChallenge(
+        method: '${data['method'] ?? method}'.trim(),
+        target: '${data['target'] ?? ''}'.trim(),
+        expiresInSeconds: (data['expiresInSeconds'] as num?)?.toInt() ?? 0,
+      );
+    } on FirebaseFunctionsException catch (error) {
+      throw VennuzoPlacesFailure(
+        error.message ??
+            'We could not start verification right now. Please try again.',
+      );
+    } catch (error) {
+      if (error is VennuzoPlacesFailure) {
+        rethrow;
+      }
+      throw const VennuzoPlacesFailure(
+        'We could not start verification right now. Please try again.',
+      );
+    }
+  }
+
+  /// Confirms the 6-digit [code] for [placeId]. Returns the resolved
+  /// verification status (`'verified'` on success).
+  Future<String> confirmPlaceVerification({
+    required String placeId,
+    required String code,
+  }) async {
+    try {
+      final result = await _functions
+          .httpsCallable('confirmPlaceVerification')
+          .call(<String, Object?>{'placeId': placeId, 'code': code.trim()});
+      final data = result.data;
+      if (data is! Map) {
+        throw const VennuzoPlacesFailure(
+          'We could not confirm that code. Please try again.',
+        );
+      }
+      return '${data['verificationStatus'] ?? 'verified'}'.trim();
+    } on FirebaseFunctionsException catch (error) {
+      throw VennuzoPlacesFailure(
+        error.message ??
+            'We could not confirm that code. Please check it and try again.',
+      );
+    } catch (error) {
+      if (error is VennuzoPlacesFailure) {
+        rethrow;
+      }
+      throw const VennuzoPlacesFailure(
+        'We could not confirm that code. Please try again.',
       );
     }
   }

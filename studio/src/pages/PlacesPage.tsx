@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import {
   Bell,
   CheckCircle2,
   Clock,
   FileText,
+  ImagePlus,
   Lock,
   MapPin,
+  Phone,
   Plus,
+  Search,
   Send,
   ShieldCheck,
   Star,
   Store,
+  Trash2,
+  Upload,
   UploadCloud,
   Utensils,
   Users,
@@ -27,6 +32,7 @@ import {
   listPlaceMenuItems,
   listPlaceMenuSections,
   listPlaceReservations,
+  uploadPlaceMediaFile,
   uploadPlaceVerificationFile,
 } from '../lib/portalData'
 import { usePortalSession } from '../lib/portalSession'
@@ -51,9 +57,40 @@ const upsertPlaceProfile = httpsCallable<
     amenities?: string[]
     openingHours?: string[]
     status?: string
+    coverUrl?: string
+    logoUrl?: string
+    galleryUrls?: string[]
   },
   { ok: boolean; placeId: string; verificationStatus?: string }
 >(functions, 'upsertPlaceProfile')
+
+const claimOrCreatePlace = httpsCallable<
+  {
+    googlePlaceId?: string
+    name?: string
+    address?: string
+    latitude?: number
+    longitude?: number
+    phone?: string
+    website?: string
+  },
+  { ok: boolean; placeId: string; verificationStatus?: string; canVerifyByPhone?: boolean }
+>(functions, 'claimOrCreatePlace')
+
+const startPlaceVerification = httpsCallable<
+  { placeId: string; method: 'phone' },
+  { ok: boolean; method: string; target: string; expiresInSeconds: number }
+>(functions, 'startPlaceVerification')
+
+const confirmPlaceVerification = httpsCallable<
+  { placeId: string; code: string },
+  { ok: boolean; verificationStatus: string }
+>(functions, 'confirmPlaceVerification')
+
+const autocompleteEventPlaces = httpsCallable<
+  { query: string },
+  { suggestions: Array<{ placeId: string; title: string; subtitle: string; fullText: string }> }
+>(functions, 'autocompleteEventPlaces')
 
 const submitPlaceVerification = httpsCallable<
   {
@@ -161,6 +198,27 @@ export function PlacesPage() {
   const [activePlacesTab, setActivePlacesTab] = useState<'profile' | 'menu' | 'reservations' | 'subscribers' | 'verification'>('profile')
   const [reservationStatusFilter, setReservationStatusFilter] = useState('all')
 
+  // Claim a place from Google
+  const [claimQuery, setClaimQuery] = useState('')
+  const [claimSuggestions, setClaimSuggestions] = useState<
+    Array<{ placeId: string; title: string; subtitle: string; fullText: string }>
+  >([])
+  const [claimSearching, setClaimSearching] = useState(false)
+  const [claimingId, setClaimingId] = useState('')
+
+  // Phone OTP verification
+  const [otpSending, setOtpSending] = useState(false)
+  const [otpTarget, setOtpTarget] = useState('')
+  const [otpCode, setOtpCode] = useState('')
+  const [otpConfirming, setOtpConfirming] = useState(false)
+
+  // Media upload (cover + gallery)
+  const [coverUploading, setCoverUploading] = useState(false)
+  const [galleryUploading, setGalleryUploading] = useState(false)
+  const coverInputId = useId()
+  const coverReplaceId = useId()
+  const galleryInputId = useId()
+
   const selectedPlace = useMemo(
     () => places.find((place) => place.id === selectedPlaceId) ?? null,
     [places, selectedPlaceId],
@@ -172,12 +230,21 @@ export function PlacesPage() {
     ? reservations.filter((reservation) => reservation.placeId === selectedPlace.id).length
     : 0
   const verificationState = selectedPlace ? verificationLabel(selectedPlace) : 'New place profile'
+  const selectedPlaceVerified = Boolean(selectedPlace?.verified)
+  const canVerifyByPhone = Boolean(selectedPlace && !selectedPlaceVerified && selectedPlace.verifiablePhone)
+  const selectedGalleryUrls = selectedPlace?.galleryUrls ?? []
   const visibleReservations = reservations
     .filter((reservation) => reservationStatusFilter === 'all' || reservation.status === reservationStatusFilter)
     .sort((a, b) => new Date(a.requestedAt).getTime() - new Date(b.requestedAt).getTime())
 
   useEffect(() => {
     selectedPlaceIdRef.current = selectedPlaceId
+  }, [selectedPlaceId])
+
+  // Reset the phone OTP flow whenever the selected place changes.
+  useEffect(() => {
+    setOtpTarget('')
+    setOtpCode('')
   }, [selectedPlaceId])
 
   const refresh = useCallback(async (placeId?: string) => {
@@ -418,6 +485,153 @@ export function PlacesPage() {
     }
   }
 
+  async function searchPlacesToClaim(e: FormEvent) {
+    e.preventDefault()
+    const term = claimQuery.trim()
+    if (!term || claimSearching) return
+    setClaimSearching(true)
+    setError(null)
+    try {
+      const result = await autocompleteEventPlaces({ query: term })
+      setClaimSuggestions(result.data.suggestions ?? [])
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not search Google places.'))
+    } finally {
+      setClaimSearching(false)
+    }
+  }
+
+  async function claimPlace(googlePlaceId: string) {
+    if (!googlePlaceId || claimingId) return
+    setClaimingId(googlePlaceId)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await claimOrCreatePlace({ googlePlaceId })
+      setClaimQuery('')
+      setClaimSuggestions([])
+      await refresh(result.data.placeId)
+      setMessage(
+        result.data.canVerifyByPhone
+          ? 'Place claimed. Verify by phone to unlock paid tools.'
+          : 'Place claimed. Document verification is required to unlock paid tools.',
+      )
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not claim this place.'))
+    } finally {
+      setClaimingId('')
+    }
+  }
+
+  async function sendPhoneOtp() {
+    if (!selectedPlace || otpSending) return
+    setOtpSending(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await startPlaceVerification({ placeId: selectedPlace.id, method: 'phone' })
+      setOtpTarget(result.data.target)
+      setOtpCode('')
+      setMessage(`We sent a 6-digit code to ${result.data.target}.`)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not start phone verification.'))
+    } finally {
+      setOtpSending(false)
+    }
+  }
+
+  async function confirmPhoneOtp(e: FormEvent) {
+    e.preventDefault()
+    if (!selectedPlace || otpConfirming) return
+    const code = otpCode.trim()
+    if (code.length !== 6) return
+    setOtpConfirming(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await confirmPlaceVerification({ placeId: selectedPlace.id, code })
+      setOtpTarget('')
+      setOtpCode('')
+      await refresh(selectedPlace.id)
+      setMessage('Phone verified. This place is now verified.')
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not confirm the code.'))
+    } finally {
+      setOtpConfirming(false)
+    }
+  }
+
+  async function handleCoverUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !selectedPlace || !organizationId || coverUploading) return
+    setCoverUploading(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const coverUrl = await uploadPlaceMediaFile(selectedPlace.id, 'cover', file)
+      await savePlaceMedia({ coverUrl })
+      setMessage('Cover image updated.')
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not upload cover image.'))
+    } finally {
+      setCoverUploading(false)
+    }
+  }
+
+  async function handleGalleryUpload(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (files.length === 0 || !selectedPlace || !organizationId || galleryUploading) return
+    setGalleryUploading(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const uploaded = await Promise.all(
+        files.map((file) => uploadPlaceMediaFile(selectedPlace.id, 'gallery', file)),
+      )
+      await savePlaceMedia({ galleryUrls: [...selectedGalleryUrls, ...uploaded] })
+      setMessage(`Added ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} to the gallery.`)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not upload gallery images.'))
+    } finally {
+      setGalleryUploading(false)
+    }
+  }
+
+  async function removeGalleryImage(url: string) {
+    if (!selectedPlace || !organizationId) return
+    setError(null)
+    setMessage(null)
+    try {
+      await savePlaceMedia({ galleryUrls: selectedGalleryUrls.filter((item) => item !== url) })
+      setMessage('Photo removed from gallery.')
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not update gallery.'))
+    }
+  }
+
+  /**
+   * Persist place media via upsertPlaceProfile alongside the existing profile
+   * fields. The backend only accepts Firebase Storage URLs for coverUrl/galleryUrls.
+   */
+  async function savePlaceMedia(media: { coverUrl?: string; galleryUrls?: string[] }) {
+    if (!selectedPlace || !organizationId) return
+    const result = await upsertPlaceProfile({
+      placeId: selectedPlace.id,
+      organizationId,
+      name: selectedPlace.name,
+      description: selectedPlace.description,
+      city: selectedPlace.city || 'Accra',
+      address: selectedPlace.address,
+      phone: selectedPlace.phone,
+      website: selectedPlace.website,
+      coverUrl: media.coverUrl ?? selectedPlace.coverUrl,
+      galleryUrls: media.galleryUrls ?? selectedPlace.galleryUrls,
+    })
+    await refresh(result.data.placeId)
+  }
+
   if (loading) return <div className="page-loader">Loading...</div>
 
   return (
@@ -445,7 +659,7 @@ export function PlacesPage() {
           </label>
           <div className="places-hero-card">
             <strong>{selectedPlace?.name || 'Start a venue profile'}</strong>
-            <span>{verificationState}</span>
+            {selectedPlace ? <VerificationBadge place={selectedPlace} /> : <span>{verificationState}</span>}
             <div className="places-hero-card__stats">
               <span>{selectedPlaceMenuCount} menu</span>
               <span>{selectedPlaceReservationCount} reservations</span>
@@ -465,9 +679,11 @@ export function PlacesPage() {
             <h3>{selectedPlace ? selectedPlace.name : 'Create your first place'}</h3>
             <span>{selectedPlace?.address || selectedPlace?.city || 'Self-serve onboarding'}</span>
           </div>
-          <span className={`status-pill status-pill--${selectedPlace?.verified ? 'confirmed' : 'pending'}`}>
-            {selectedPlace?.verified ? 'verified' : 'unverified'}
-          </span>
+          {selectedPlace ? (
+            <VerificationBadge place={selectedPlace} />
+          ) : (
+            <span className="status-pill status-pill--draft">New</span>
+          )}
         </article>
         <article className="places-command-card">
           <ShieldCheck size={20} aria-hidden />
@@ -506,6 +722,61 @@ export function PlacesPage() {
       </nav>
 
       <section className="content-grid">
+        {activePlacesTab === 'profile' ? (
+        <article className="panel">
+          <div className="panel__header">
+            <div>
+              <p className="eyebrow">Claim a place</p>
+              <h3>Find your business on Google</h3>
+            </div>
+            <Search size={22} aria-hidden />
+          </div>
+          <p className="text-subtle">
+            Search Google for your venue and claim it. We import the name, address, and phone so you
+            can verify ownership.
+          </p>
+          <form className="form-grid form-grid--single" onSubmit={searchPlacesToClaim}>
+            <label>
+              <span>Business name or address</span>
+              <input
+                value={claimQuery}
+                onChange={(e) => setClaimQuery(e.target.value)}
+                placeholder="e.g. Skybar 25, Accra"
+              />
+            </label>
+            <button className="button button--secondary" disabled={claimSearching || !claimQuery.trim()} type="submit">
+              <Search size={16} aria-hidden />
+              {claimSearching ? 'Searching…' : 'Search Google'}
+            </button>
+          </form>
+          <div className="order-list">
+            {claimSuggestions.length === 0 ? (
+              <div className="empty-card">
+                <h4>No results yet</h4>
+                <p>Search for your business to claim it from Google, or create a profile manually below.</p>
+              </div>
+            ) : (
+              claimSuggestions.map((suggestion) => (
+                <div className="order-row" key={suggestion.placeId}>
+                  <div>
+                    <strong>{suggestion.title}</strong>
+                    <span>{suggestion.subtitle}</span>
+                  </div>
+                  <button
+                    className="button button--primary"
+                    disabled={Boolean(claimingId)}
+                    onClick={() => claimPlace(suggestion.placeId)}
+                    type="button"
+                  >
+                    {claimingId === suggestion.placeId ? 'Claiming…' : 'Claim'}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+        ) : null}
+
         {activePlacesTab === 'profile' ? (
         <article className="panel">
           <div className="panel__header">
@@ -554,6 +825,118 @@ export function PlacesPage() {
         </article>
         ) : null}
 
+        {activePlacesTab === 'profile' ? (
+        <article className="panel">
+          <div className="panel__header">
+            <div>
+              <p className="eyebrow">Photos</p>
+              <h3>Cover & gallery</h3>
+            </div>
+            <ImagePlus size={22} aria-hidden />
+          </div>
+          {!selectedPlace ? (
+            <div className="empty-card">
+              <h4>Create the place first</h4>
+              <p>Save a place profile to upload its cover image and gallery photos.</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-subtle">Cover image</p>
+              <div className="cover-upload-area">
+                {selectedPlace.coverUrl ? (
+                  <div className="cover-upload-preview">
+                    <img src={selectedPlace.coverUrl} alt={`${selectedPlace.name} cover`} />
+                    <div className="cover-upload-preview__actions">
+                      <label className="button button--secondary cover-upload-btn" htmlFor={coverReplaceId}>
+                        <Upload size={15} aria-hidden />
+                        {coverUploading ? 'Uploading…' : 'Replace cover'}
+                        <input
+                          accept="image/*"
+                          disabled={coverUploading}
+                          hidden
+                          id={coverReplaceId}
+                          onChange={handleCoverUpload}
+                          type="file"
+                        />
+                      </label>
+                      <button
+                        className="button button--ghost"
+                        disabled={coverUploading}
+                        onClick={() => void savePlaceMedia({ coverUrl: '' })}
+                        type="button"
+                      >
+                        <Trash2 size={15} aria-hidden />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    aria-label="Upload place cover image"
+                    className={`cover-upload-drop${coverUploading ? ' cover-upload-drop--uploading' : ''}`}
+                    htmlFor={coverInputId}
+                  >
+                    <div className="cover-upload-drop__inner">
+                      <span className="cover-upload-drop__icon" aria-hidden>
+                        <ImagePlus size={22} />
+                      </span>
+                      <strong>{coverUploading ? 'Uploading…' : 'Upload cover image'}</strong>
+                      <span>JPG, PNG or WebP · 16:9 recommended</span>
+                    </div>
+                    <input
+                      accept="image/*"
+                      disabled={coverUploading}
+                      hidden
+                      id={coverInputId}
+                      onChange={handleCoverUpload}
+                      type="file"
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-subtle">Gallery</p>
+              <div className="partner-feature-grid">
+                {selectedGalleryUrls.length === 0 ? (
+                  <div className="empty-card">
+                    <h4>No gallery photos yet</h4>
+                    <p>Add photos of your space, crowd, and menu to bring your profile to life.</p>
+                  </div>
+                ) : (
+                  selectedGalleryUrls.map((url) => (
+                    <div className="cover-upload-preview" key={url}>
+                      <img src={url} alt="Gallery" />
+                      <div className="cover-upload-preview__actions">
+                        <button
+                          className="button button--ghost"
+                          onClick={() => void removeGalleryImage(url)}
+                          type="button"
+                        >
+                          <Trash2 size={15} aria-hidden />
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <label className="button button--secondary cover-upload-btn" htmlFor={galleryInputId}>
+                <UploadCloud size={15} aria-hidden />
+                {galleryUploading ? 'Uploading…' : 'Add gallery photos'}
+                <input
+                  accept="image/*"
+                  disabled={galleryUploading}
+                  hidden
+                  id={galleryInputId}
+                  multiple
+                  onChange={handleGalleryUpload}
+                  type="file"
+                />
+              </label>
+            </>
+          )}
+        </article>
+        ) : null}
+
         {activePlacesTab === 'verification' ? (
         <article className="panel">
           <div className="panel__header">
@@ -570,8 +953,79 @@ export function PlacesPage() {
                 Anyone can create a profile. Verification unlocks paid subscriber push, official ownership signals, and featured placement requests.
               </span>
             </div>
-            {selectedPlace?.verified ? <span className="status-pill status-pill--confirmed">verified</span> : null}
+            {selectedPlace ? <VerificationBadge place={selectedPlace} /> : null}
           </div>
+
+          {selectedPlace && !selectedPlaceVerified ? (
+            canVerifyByPhone ? (
+              <div className="places-verify-phone">
+                <div className="order-row">
+                  <div>
+                    <strong>Verify by phone</strong>
+                    <span>
+                      We can send a 6-digit code to the business phone on file
+                      {selectedPlace.verifiablePhone ? ` (${maskPhone(selectedPlace.verifiablePhone)})` : ''}.
+                    </span>
+                  </div>
+                  <Phone size={18} aria-hidden />
+                </div>
+                {otpTarget ? (
+                  <form className="form-grid form-grid--single" onSubmit={confirmPhoneOtp}>
+                    <p className="text-subtle">Enter the 6-digit code sent to {otpTarget}.</p>
+                    <label>
+                      <span>Verification code</span>
+                      <input
+                        autoComplete="one-time-code"
+                        inputMode="numeric"
+                        maxLength={6}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="123456"
+                        value={otpCode}
+                      />
+                    </label>
+                    <div className="cover-upload-preview__actions">
+                      <button
+                        className="button button--primary"
+                        disabled={otpConfirming || otpCode.trim().length !== 6}
+                        type="submit"
+                      >
+                        <ShieldCheck size={16} aria-hidden />
+                        {otpConfirming ? 'Verifying…' : 'Confirm code'}
+                      </button>
+                      <button
+                        className="button button--ghost"
+                        disabled={otpSending}
+                        onClick={() => void sendPhoneOtp()}
+                        type="button"
+                      >
+                        {otpSending ? 'Sending…' : 'Resend code'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <button
+                    className="button button--primary"
+                    disabled={otpSending}
+                    onClick={() => void sendPhoneOtp()}
+                    type="button"
+                  >
+                    <Phone size={16} aria-hidden />
+                    {otpSending ? 'Sending code…' : 'Send code by phone'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="empty-card">
+                <h4><FileText size={16} aria-hidden /> Document verification required</h4>
+                <p>
+                  This place has no verifiable phone on file, so instant phone verification isn't
+                  available. Submit ownership documents below and our team will review them.
+                </p>
+              </div>
+            )
+          ) : null}
+
+          {selectedPlace && !selectedPlaceVerified ? (
           <form className="form-grid" onSubmit={requestVerification}>
             <label>
               <span>Verification method</span>
@@ -638,11 +1092,19 @@ export function PlacesPage() {
                 placeholder="Tell us how you are connected to this location."
               />
             </label>
-            <button className="button button--primary" disabled={!selectedPlace || selectedPlace.verified || saving} type="submit">
+            <button className="button button--primary" disabled={saving} type="submit">
               {verificationFile ? <UploadCloud size={16} aria-hidden /> : <FileText size={16} aria-hidden />}
               Submit verification
             </button>
           </form>
+          ) : null}
+
+          {selectedPlaceVerified ? (
+            <div className="empty-card">
+              <h4><ShieldCheck size={16} aria-hidden /> This place is verified</h4>
+              <p>Paid subscriber push and featured placement are unlocked for this location.</p>
+            </div>
+          ) : null}
         </article>
         ) : null}
 
@@ -660,22 +1122,32 @@ export function PlacesPage() {
             <Metric icon={Star} label="Rating" value={(selectedPlace?.rating ?? 0).toFixed(1)} />
             <Metric icon={Send} label="Fee estimate" value={formatMoney((selectedPlace?.subscriberCount ?? 0) * 0.02)} />
           </div>
-          {!selectedPlace?.verified ? (
+          {!selectedPlaceVerified ? (
             <div className="empty-card">
-              <h4><Lock size={16} aria-hidden /> Verification required</h4>
-              <p>Paid push is unlocked after this location is verified.</p>
+              <h4><Lock size={16} aria-hidden /> Verify this place to unlock</h4>
+              <p>Paid subscriber push and featured placement unlock once this location is verified.</p>
             </div>
           ) : null}
           <form className="form-grid form-grid--single" onSubmit={sendPlacePush}>
             <label>
               <span>Push title</span>
-              <input value={pushTitle} onChange={(e) => setPushTitle(e.target.value)} />
+              <input
+                value={pushTitle}
+                onChange={(e) => setPushTitle(e.target.value)}
+                disabled={!selectedPlaceVerified}
+              />
             </label>
             <label>
               <span>Message</span>
-              <textarea value={pushMessage} onChange={(e) => setPushMessage(e.target.value)} rows={4} required />
+              <textarea
+                value={pushMessage}
+                onChange={(e) => setPushMessage(e.target.value)}
+                rows={4}
+                required
+                disabled={!selectedPlaceVerified}
+              />
             </label>
-            <button className="button button--primary" disabled={!selectedPlace?.verified || saving} type="submit">
+            <button className="button button--primary" disabled={!selectedPlaceVerified || saving} type="submit">
               <Send size={16} aria-hidden />
               Send paid push
             </button>
@@ -850,10 +1322,41 @@ function slugify(input: string) {
     .slice(0, 80) || `place_${Date.now()}`
 }
 
+/** Mask all but the last 2 digits of a phone number for display. */
+function maskPhone(phone: string) {
+  const trimmed = phone.trim()
+  if (trimmed.length <= 2) return trimmed
+  const tail = trimmed.slice(-2)
+  return `${'•'.repeat(Math.min(trimmed.length - 2, 8))}${tail}`
+}
+
 function verificationLabel(place: PortalPlace) {
   if (place.verified || place.verificationStatus === 'verified') return 'Verified location owner'
   if (place.verificationStatus === 'verification_pending') return 'Verification pending'
   if (place.verificationStatus === 'rejected') return 'Verification rejected'
   if (place.verificationStatus === 'suspended') return 'Verification suspended'
   return 'Unverified location'
+}
+
+function verificationBadge(place: PortalPlace): { label: string; tone: string; icon: LucideIcon } {
+  if (place.verified || place.verificationStatus === 'verified') {
+    return { label: 'Verified', tone: 'active', icon: ShieldCheck }
+  }
+  if (place.verificationStatus === 'verification_pending') {
+    return { label: 'Pending review', tone: 'pending', icon: Clock }
+  }
+  if (place.verificationStatus === 'rejected' || place.verificationStatus === 'suspended') {
+    return { label: 'Unverified', tone: 'rejected', icon: XCircle }
+  }
+  return { label: 'Unverified', tone: 'draft', icon: XCircle }
+}
+
+function VerificationBadge({ place }: { place: PortalPlace }) {
+  const { label, tone, icon: Icon } = verificationBadge(place)
+  return (
+    <span className={`status-pill status-pill--${tone}`}>
+      <Icon size={13} aria-hidden />
+      {label}
+    </span>
+  )
 }

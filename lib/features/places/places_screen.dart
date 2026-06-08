@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,7 +9,9 @@ import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/place_models.dart';
 import '../../widgets/empty_state_card.dart';
+import '../../widgets/place_verification_badge.dart';
 import '../../widgets/section_heading.dart';
+import 'place_fullscreen_gallery.dart';
 
 class PlacesScreen extends StatefulWidget {
   const PlacesScreen({super.key});
@@ -389,7 +392,7 @@ class _HeroGalleryPreview extends StatelessWidget {
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: _PlaceImage(url: url),
+                child: _PlaceImage(url: url, thumbnail: true),
               ),
             ),
             if (url != gallery.last) const SizedBox(width: 8),
@@ -522,7 +525,10 @@ class _FeaturedPlaceCard extends StatelessWidget {
                                     ),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(12),
-                                      child: _PlaceImage(url: url),
+                                      child: _PlaceImage(
+                                        url: url,
+                                        thumbnail: true,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -537,7 +543,7 @@ class _FeaturedPlaceCard extends StatelessWidget {
                       runSpacing: 8,
                       children: [
                         const _Pill(label: 'Featured'),
-                        _Pill(label: '${place.rating.toStringAsFixed(1)} ★'),
+                        PlaceVerificationBadge(place: place, compact: true),
                         _Pill(label: '${place.galleryUrls.length} photos'),
                       ],
                     ),
@@ -620,7 +626,7 @@ class _PlaceRow extends StatelessWidget {
                           const SizedBox(width: 8),
                           if (place.featured) const _Pill(label: 'Featured'),
                           const Spacer(),
-                          _Pill(label: '${place.rating.toStringAsFixed(1)} ★'),
+                          PlaceVerificationBadge(place: place, compact: true),
                         ],
                       ),
                     ),
@@ -837,7 +843,9 @@ class PlaceDetailScreen extends StatelessWidget {
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
+                              PlaceVerificationBadge(place: place),
                               if (place.featured)
                                 const _Pill(label: 'Featured'),
                               _Pill(
@@ -922,7 +930,7 @@ class _PlaceHeaderMedia extends StatelessWidget {
                         aspectRatio: 1,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: _PlaceImage(url: url),
+                          child: _PlaceImage(url: url, thumbnail: true),
                         ),
                       ),
                     ),
@@ -1005,7 +1013,9 @@ class _PlaceProfileSummary extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      PlaceVerificationBadge(place: place, compact: true),
                       _Pill(label: place.city),
                       if (place.featured) const _Pill(label: 'Featured'),
                       _Pill(label: '${place.galleryUrls.length} media'),
@@ -1142,32 +1152,34 @@ class _PlaceMediaMosaic extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final first = urls.first;
-    final rest = urls.skip(1).take(8).toList();
+    final restCount = (urls.length - 1).clamp(0, 8);
     return Column(
       children: [
         AspectRatio(
           aspectRatio: 1.35,
-          child: ClipRRect(
+          child: _TappableGalleryImage(
+            urls: urls,
+            index: 0,
             borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
-            child: _PlaceImage(url: first),
           ),
         ),
-        if (rest.isNotEmpty) ...[
+        if (restCount > 0) ...[
           const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: rest.length,
+            itemCount: restCount,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
               childAspectRatio: 1.18,
             ),
-            itemBuilder: (context, index) => ClipRRect(
+            itemBuilder: (context, index) => _TappableGalleryImage(
+              urls: urls,
+              index: index + 1,
+              thumbnail: true,
               borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
-              child: _PlaceImage(url: rest[index]),
             ),
           ),
         ],
@@ -1327,9 +1339,11 @@ class _GalleryStrip extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemBuilder: (context, index) => AspectRatio(
               aspectRatio: 1.2,
-              child: ClipRRect(
+              child: _TappableGalleryImage(
+                urls: urls,
+                index: index,
+                thumbnail: true,
                 borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
-                child: _PlaceImage(url: urls[index]),
               ),
             ),
             separatorBuilder: (_, _) => const SizedBox(width: 10),
@@ -1387,7 +1401,7 @@ class _MenuSection extends StatelessWidget {
                                 : context.palette.teal,
                           ),
                         )
-                      : _PlaceImage(url: item.imageUrl),
+                      : _PlaceImage(url: item.imageUrl, thumbnail: true),
                 ),
                 Expanded(
                   child: Padding(
@@ -1685,29 +1699,96 @@ class _ReservationSheetState extends State<_ReservationSheet> {
 }
 
 class _PlaceImage extends StatelessWidget {
-  const _PlaceImage({required this.url});
+  const _PlaceImage({required this.url, this.thumbnail = false});
 
   final String? url;
+
+  /// When true, the network image is decoded/cached at a reduced width to keep
+  /// memory low for small thumbnails (gallery tiles, logos, list covers).
+  final bool thumbnail;
 
   @override
   Widget build(BuildContext context) {
     final raw = url ?? '';
     final value = raw.startsWith('/assets/') ? raw.substring(1) : raw;
     if (value.startsWith('http')) {
-      return Image.network(
-        value,
+      final cacheWidth = thumbnail ? 320 : null;
+      return CachedNetworkImage(
+        imageUrl: value,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const _PlaceImageFallback(),
+        memCacheWidth: cacheWidth,
+        maxWidthDiskCache: cacheWidth,
+        placeholder: (_, _) => const _PlaceImageLoading(),
+        errorWidget: (_, _, _) => const _PlaceImageFallback(),
       );
     }
     if (value.isNotEmpty) {
       return Image.asset(
         value,
         fit: BoxFit.cover,
+        cacheWidth: thumbnail ? 320 : null,
         errorBuilder: (_, _, _) => const _PlaceImageFallback(),
       );
     }
     return const _PlaceImageFallback();
+  }
+}
+
+class _PlaceImageLoading extends StatelessWidget {
+  const _PlaceImageLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(color: VennuzoTheme.surfaceElevated),
+      child: Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.2,
+            color: Colors.white70,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A gallery thumbnail that opens the full-screen, zoomable viewer on tap.
+class _TappableGalleryImage extends StatelessWidget {
+  const _TappableGalleryImage({
+    required this.urls,
+    required this.index,
+    required this.borderRadius,
+    this.thumbnail = false,
+  });
+
+  final List<String> urls;
+  final int index;
+  final BorderRadius borderRadius;
+  final bool thumbnail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'View photo ${index + 1} of ${urls.length}',
+      child: GestureDetector(
+        onTap: () => showPlaceFullscreenGallery(
+          context,
+          urls: urls,
+          initialIndex: index,
+        ),
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: _PlaceImage(
+            url: index < urls.length ? urls[index] : null,
+            thumbnail: thumbnail,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1749,7 +1830,7 @@ class _PlaceLogo extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: url == null
           ? Icon(place.icon, color: context.palette.teal)
-          : _PlaceImage(url: url),
+          : _PlaceImage(url: url, thumbnail: true),
     );
   }
 }

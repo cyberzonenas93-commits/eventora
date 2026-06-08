@@ -179,10 +179,12 @@ export interface PortalPlace {
   status: string
   verificationStatus: string
   verified: boolean
+  verifiablePhone: string
   latestVerificationRequestId: string
   featured: boolean
   coverUrl: string
   logoUrl: string
+  galleryUrls: string[]
   mapsUrl: string
   googlePlaceId: string
   phone: string

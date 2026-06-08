@@ -1,32 +1,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { httpsCallable } from 'firebase/functions'
-import {
-  Bell,
-  CheckCircle2,
-  Clock,
-  FileText,
-  ImagePlus,
-  Lock,
-  MapPin,
-  Phone,
-  Plus,
-  Search,
-  Send,
-  ShieldCheck,
-  Star,
-  Store,
-  Trash2,
-  Upload,
-  UploadCloud,
-  Utensils,
-  Users,
-  XCircle,
-  type LucideIcon,
-} from 'lucide-react'
+import { Clock, MapPin, ShieldCheck, Utensils } from 'lucide-react'
 
 import { functions } from '../firebaseFunctions'
 import { getErrorMessage } from '../lib/errorMessages'
-import { formatDateTime, formatMoney } from '../lib/formatters'
+import { formatMoney } from '../lib/formatters'
 import {
   listOrganizerPlaces,
   listPlaceMenuItems,
@@ -42,6 +20,15 @@ import type {
   PortalPlaceMenuSection,
   PortalPlaceReservation,
 } from '../lib/types'
+import { ClaimPanel } from './places/ClaimPanel'
+import { MediaPanel } from './places/MediaPanel'
+import { MenuTab } from './places/MenuTab'
+import { ProfileTab } from './places/ProfileTab'
+import { ReservationsTab } from './places/ReservationsTab'
+import { SubscribersTab } from './places/SubscribersTab'
+import { VerificationTab } from './places/VerificationTab'
+import { slugify, verificationLabel } from './places/helpers'
+import { VerificationBadge } from './places/VerificationBadge'
 
 const upsertPlaceProfile = httpsCallable<
   {
@@ -723,564 +710,134 @@ export function PlacesPage() {
 
       <section className="content-grid">
         {activePlacesTab === 'profile' ? (
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Claim a place</p>
-              <h3>Find your business on Google</h3>
-            </div>
-            <Search size={22} aria-hidden />
-          </div>
-          <p className="text-subtle">
-            Search Google for your venue and claim it. We import the name, address, and phone so you
-            can verify ownership.
-          </p>
-          <form className="form-grid form-grid--single" onSubmit={searchPlacesToClaim}>
-            <label>
-              <span>Business name or address</span>
-              <input
-                value={claimQuery}
-                onChange={(e) => setClaimQuery(e.target.value)}
-                placeholder="e.g. Skybar 25, Accra"
-              />
-            </label>
-            <button className="button button--secondary" disabled={claimSearching || !claimQuery.trim()} type="submit">
-              <Search size={16} aria-hidden />
-              {claimSearching ? 'Searching…' : 'Search Google'}
-            </button>
-          </form>
-          <div className="order-list">
-            {claimSuggestions.length === 0 ? (
-              <div className="empty-card">
-                <h4>No results yet</h4>
-                <p>Search for your business to claim it from Google, or create a profile manually below.</p>
-              </div>
-            ) : (
-              claimSuggestions.map((suggestion) => (
-                <div className="order-row" key={suggestion.placeId}>
-                  <div>
-                    <strong>{suggestion.title}</strong>
-                    <span>{suggestion.subtitle}</span>
-                  </div>
-                  <button
-                    className="button button--primary"
-                    disabled={Boolean(claimingId)}
-                    onClick={() => claimPlace(suggestion.placeId)}
-                    type="button"
-                  >
-                    {claimingId === suggestion.placeId ? 'Claiming…' : 'Claim'}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
+          <ClaimPanel
+            claimQuery={claimQuery}
+            setClaimQuery={setClaimQuery}
+            searchPlacesToClaim={searchPlacesToClaim}
+            claimSearching={claimSearching}
+            claimSuggestions={claimSuggestions}
+            claimingId={claimingId}
+            claimPlace={claimPlace}
+          />
         ) : null}
 
         {activePlacesTab === 'profile' ? (
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Profile</p>
-              <h3>{selectedPlace ? selectedPlace.name : 'Create a place'}</h3>
-            </div>
-            <Store size={22} aria-hidden />
-          </div>
-          <div className="hero-chip-row">
-            <span>{selectedPlace ? verificationLabel(selectedPlace) : 'Self-serve onboarding'}</span>
-            {!selectedPlace || selectedPlace.verified ? null : (
-              <span>Verification unlocks paid push and featured placement</span>
-            )}
-          </div>
-          <form className="form-grid" onSubmit={saveProfile}>
-            <label>
-              <span>Name</span>
-              <input value={profileName} onChange={(e) => setProfileName(e.target.value)} required />
-            </label>
-            <label>
-              <span>City</span>
-              <input value={profileCity} onChange={(e) => setProfileCity(e.target.value)} />
-            </label>
-            <label className="form-grid__wide">
-              <span>Address</span>
-              <input value={profileAddress} onChange={(e) => setProfileAddress(e.target.value)} />
-            </label>
-            <label>
-              <span>Phone</span>
-              <input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} />
-            </label>
-            <label>
-              <span>Website / social</span>
-              <input value={profileWebsite} onChange={(e) => setProfileWebsite(e.target.value)} />
-            </label>
-            <label className="form-grid__wide">
-              <span>Description</span>
-              <textarea value={profileDescription} onChange={(e) => setProfileDescription(e.target.value)} rows={4} />
-            </label>
-            <button className="button button--primary" disabled={saving} type="submit">
-              <CheckCircle2 size={16} aria-hidden />
-              {selectedPlace ? 'Save place' : 'Create unverified place'}
-            </button>
-          </form>
-        </article>
+          <ProfileTab
+            selectedPlace={selectedPlace}
+            profileName={profileName}
+            setProfileName={setProfileName}
+            profileCity={profileCity}
+            setProfileCity={setProfileCity}
+            profileAddress={profileAddress}
+            setProfileAddress={setProfileAddress}
+            profilePhone={profilePhone}
+            setProfilePhone={setProfilePhone}
+            profileWebsite={profileWebsite}
+            setProfileWebsite={setProfileWebsite}
+            profileDescription={profileDescription}
+            setProfileDescription={setProfileDescription}
+            saving={saving}
+            saveProfile={saveProfile}
+          />
         ) : null}
 
         {activePlacesTab === 'profile' ? (
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Photos</p>
-              <h3>Cover & gallery</h3>
-            </div>
-            <ImagePlus size={22} aria-hidden />
-          </div>
-          {!selectedPlace ? (
-            <div className="empty-card">
-              <h4>Create the place first</h4>
-              <p>Save a place profile to upload its cover image and gallery photos.</p>
-            </div>
-          ) : (
-            <>
-              <p className="text-subtle">Cover image</p>
-              <div className="cover-upload-area">
-                {selectedPlace.coverUrl ? (
-                  <div className="cover-upload-preview">
-                    <img src={selectedPlace.coverUrl} alt={`${selectedPlace.name} cover`} />
-                    <div className="cover-upload-preview__actions">
-                      <label className="button button--secondary cover-upload-btn" htmlFor={coverReplaceId}>
-                        <Upload size={15} aria-hidden />
-                        {coverUploading ? 'Uploading…' : 'Replace cover'}
-                        <input
-                          accept="image/*"
-                          disabled={coverUploading}
-                          hidden
-                          id={coverReplaceId}
-                          onChange={handleCoverUpload}
-                          type="file"
-                        />
-                      </label>
-                      <button
-                        className="button button--ghost"
-                        disabled={coverUploading}
-                        onClick={() => void savePlaceMedia({ coverUrl: '' })}
-                        type="button"
-                      >
-                        <Trash2 size={15} aria-hidden />
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <label
-                    aria-label="Upload place cover image"
-                    className={`cover-upload-drop${coverUploading ? ' cover-upload-drop--uploading' : ''}`}
-                    htmlFor={coverInputId}
-                  >
-                    <div className="cover-upload-drop__inner">
-                      <span className="cover-upload-drop__icon" aria-hidden>
-                        <ImagePlus size={22} />
-                      </span>
-                      <strong>{coverUploading ? 'Uploading…' : 'Upload cover image'}</strong>
-                      <span>JPG, PNG or WebP · 16:9 recommended</span>
-                    </div>
-                    <input
-                      accept="image/*"
-                      disabled={coverUploading}
-                      hidden
-                      id={coverInputId}
-                      onChange={handleCoverUpload}
-                      type="file"
-                    />
-                  </label>
-                )}
-              </div>
-              <p className="text-subtle">Gallery</p>
-              <div className="partner-feature-grid">
-                {selectedGalleryUrls.length === 0 ? (
-                  <div className="empty-card">
-                    <h4>No gallery photos yet</h4>
-                    <p>Add photos of your space, crowd, and menu to bring your profile to life.</p>
-                  </div>
-                ) : (
-                  selectedGalleryUrls.map((url) => (
-                    <div className="cover-upload-preview" key={url}>
-                      <img src={url} alt="Gallery" />
-                      <div className="cover-upload-preview__actions">
-                        <button
-                          className="button button--ghost"
-                          onClick={() => void removeGalleryImage(url)}
-                          type="button"
-                        >
-                          <Trash2 size={15} aria-hidden />
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <label className="button button--secondary cover-upload-btn" htmlFor={galleryInputId}>
-                <UploadCloud size={15} aria-hidden />
-                {galleryUploading ? 'Uploading…' : 'Add gallery photos'}
-                <input
-                  accept="image/*"
-                  disabled={galleryUploading}
-                  hidden
-                  id={galleryInputId}
-                  multiple
-                  onChange={handleGalleryUpload}
-                  type="file"
-                />
-              </label>
-            </>
-          )}
-        </article>
+          <MediaPanel
+            selectedPlace={selectedPlace}
+            selectedGalleryUrls={selectedGalleryUrls}
+            coverUploading={coverUploading}
+            galleryUploading={galleryUploading}
+            coverInputId={coverInputId}
+            coverReplaceId={coverReplaceId}
+            galleryInputId={galleryInputId}
+            handleCoverUpload={handleCoverUpload}
+            handleGalleryUpload={handleGalleryUpload}
+            removeGalleryImage={removeGalleryImage}
+            savePlaceMedia={savePlaceMedia}
+          />
         ) : null}
 
         {activePlacesTab === 'verification' ? (
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Verification</p>
-              <h3>{selectedPlace?.verified ? 'Verified owner' : 'Verify this location'}</h3>
-            </div>
-            <ShieldCheck size={22} aria-hidden />
-          </div>
-          <div className="order-row">
-            <div>
-              <strong>{selectedPlace ? verificationLabel(selectedPlace) : 'Create a place first'}</strong>
-              <span>
-                Anyone can create a profile. Verification unlocks paid subscriber push, official ownership signals, and featured placement requests.
-              </span>
-            </div>
-            {selectedPlace ? <VerificationBadge place={selectedPlace} /> : null}
-          </div>
-
-          {selectedPlace && !selectedPlaceVerified ? (
-            canVerifyByPhone ? (
-              <div className="places-verify-phone">
-                <div className="order-row">
-                  <div>
-                    <strong>Verify by phone</strong>
-                    <span>
-                      We can send a 6-digit code to the business phone on file
-                      {selectedPlace.verifiablePhone ? ` (${maskPhone(selectedPlace.verifiablePhone)})` : ''}.
-                    </span>
-                  </div>
-                  <Phone size={18} aria-hidden />
-                </div>
-                {otpTarget ? (
-                  <form className="form-grid form-grid--single" onSubmit={confirmPhoneOtp}>
-                    <p className="text-subtle">Enter the 6-digit code sent to {otpTarget}.</p>
-                    <label>
-                      <span>Verification code</span>
-                      <input
-                        autoComplete="one-time-code"
-                        inputMode="numeric"
-                        maxLength={6}
-                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="123456"
-                        value={otpCode}
-                      />
-                    </label>
-                    <div className="cover-upload-preview__actions">
-                      <button
-                        className="button button--primary"
-                        disabled={otpConfirming || otpCode.trim().length !== 6}
-                        type="submit"
-                      >
-                        <ShieldCheck size={16} aria-hidden />
-                        {otpConfirming ? 'Verifying…' : 'Confirm code'}
-                      </button>
-                      <button
-                        className="button button--ghost"
-                        disabled={otpSending}
-                        onClick={() => void sendPhoneOtp()}
-                        type="button"
-                      >
-                        {otpSending ? 'Sending…' : 'Resend code'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <button
-                    className="button button--primary"
-                    disabled={otpSending}
-                    onClick={() => void sendPhoneOtp()}
-                    type="button"
-                  >
-                    <Phone size={16} aria-hidden />
-                    {otpSending ? 'Sending code…' : 'Send code by phone'}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="empty-card">
-                <h4><FileText size={16} aria-hidden /> Document verification required</h4>
-                <p>
-                  This place has no verifiable phone on file, so instant phone verification isn't
-                  available. Submit ownership documents below and our team will review them.
-                </p>
-              </div>
-            )
-          ) : null}
-
-          {selectedPlace && !selectedPlaceVerified ? (
-          <form className="form-grid" onSubmit={requestVerification}>
-            <label>
-              <span>Verification method</span>
-              <select value={verificationMethod} onChange={(e) => setVerificationMethod(e.target.value)}>
-                <option value="email">Regular email</option>
-                <option value="phone">Business phone</option>
-                <option value="document">Document upload</option>
-                <option value="google_maps">Google Maps match</option>
-                <option value="website_social">Website / social proof</option>
-              </select>
-            </label>
-            {verificationMethod === 'email' ? (
-            <label>
-              <span>Contact email</span>
-              <input
-                inputMode="email"
-                type="email"
-                value={verificationEmail}
-                onChange={(e) => setVerificationEmail(e.target.value)}
-                placeholder="Any email you can access"
-              />
-            </label>
-            ) : null}
-            {verificationMethod === 'phone' ? (
-            <label>
-              <span>Phone</span>
-              <input value={verificationPhone} onChange={(e) => setVerificationPhone(e.target.value)} />
-            </label>
-            ) : null}
-            {verificationMethod === 'google_maps' ? (
-            <label>
-              <span>Google Maps link</span>
-              <input value={verificationMapsUrl} onChange={(e) => setVerificationMapsUrl(e.target.value)} />
-            </label>
-            ) : null}
-            {verificationMethod === 'website_social' ? (
-            <>
-            <label>
-              <span>Website</span>
-              <input value={verificationWebsiteUrl} onChange={(e) => setVerificationWebsiteUrl(e.target.value)} />
-            </label>
-            <label>
-              <span>Social link</span>
-              <input value={verificationSocialUrl} onChange={(e) => setVerificationSocialUrl(e.target.value)} />
-            </label>
-            </>
-            ) : null}
-            {verificationMethod === 'document' ? (
-            <label className="form-grid__wide">
-              <span>Proof document</span>
-              <input
-                accept="image/*,.pdf"
-                onChange={(e) => setVerificationFile(e.target.files?.[0] ?? null)}
-                type="file"
-              />
-            </label>
-            ) : null}
-            <label className="form-grid__wide">
-              <span>Notes for reviewer</span>
-              <textarea
-                value={verificationNotes}
-                onChange={(e) => setVerificationNotes(e.target.value)}
-                rows={3}
-                placeholder="Tell us how you are connected to this location."
-              />
-            </label>
-            <button className="button button--primary" disabled={saving} type="submit">
-              {verificationFile ? <UploadCloud size={16} aria-hidden /> : <FileText size={16} aria-hidden />}
-              Submit verification
-            </button>
-          </form>
-          ) : null}
-
-          {selectedPlaceVerified ? (
-            <div className="empty-card">
-              <h4><ShieldCheck size={16} aria-hidden /> This place is verified</h4>
-              <p>Paid subscriber push and featured placement are unlocked for this location.</p>
-            </div>
-          ) : null}
-        </article>
+          <VerificationTab
+            selectedPlace={selectedPlace}
+            selectedPlaceVerified={selectedPlaceVerified}
+            canVerifyByPhone={canVerifyByPhone}
+            otpTarget={otpTarget}
+            otpCode={otpCode}
+            setOtpCode={setOtpCode}
+            otpConfirming={otpConfirming}
+            otpSending={otpSending}
+            confirmPhoneOtp={confirmPhoneOtp}
+            sendPhoneOtp={sendPhoneOtp}
+            verificationMethod={verificationMethod}
+            setVerificationMethod={setVerificationMethod}
+            verificationEmail={verificationEmail}
+            setVerificationEmail={setVerificationEmail}
+            verificationPhone={verificationPhone}
+            setVerificationPhone={setVerificationPhone}
+            verificationMapsUrl={verificationMapsUrl}
+            setVerificationMapsUrl={setVerificationMapsUrl}
+            verificationWebsiteUrl={verificationWebsiteUrl}
+            setVerificationWebsiteUrl={setVerificationWebsiteUrl}
+            verificationSocialUrl={verificationSocialUrl}
+            setVerificationSocialUrl={setVerificationSocialUrl}
+            verificationNotes={verificationNotes}
+            setVerificationNotes={setVerificationNotes}
+            verificationFile={verificationFile}
+            setVerificationFile={setVerificationFile}
+            saving={saving}
+            requestVerification={requestVerification}
+          />
         ) : null}
 
         {activePlacesTab === 'subscribers' ? (
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Subscriber push</p>
-              <h3>Paid location alerts</h3>
-            </div>
-            <Bell size={22} aria-hidden />
-          </div>
-          <div className="metric-grid">
-            <Metric icon={Users} label="Subscribers" value={`${selectedPlace?.subscriberCount ?? 0}`} />
-            <Metric icon={Star} label="Rating" value={(selectedPlace?.rating ?? 0).toFixed(1)} />
-            <Metric icon={Send} label="Fee estimate" value={formatMoney((selectedPlace?.subscriberCount ?? 0) * 0.02)} />
-          </div>
-          {!selectedPlaceVerified ? (
-            <div className="empty-card">
-              <h4><Lock size={16} aria-hidden /> Verify this place to unlock</h4>
-              <p>Paid subscriber push and featured placement unlock once this location is verified.</p>
-            </div>
-          ) : null}
-          <form className="form-grid form-grid--single" onSubmit={sendPlacePush}>
-            <label>
-              <span>Push title</span>
-              <input
-                value={pushTitle}
-                onChange={(e) => setPushTitle(e.target.value)}
-                disabled={!selectedPlaceVerified}
-              />
-            </label>
-            <label>
-              <span>Message</span>
-              <textarea
-                value={pushMessage}
-                onChange={(e) => setPushMessage(e.target.value)}
-                rows={4}
-                required
-                disabled={!selectedPlaceVerified}
-              />
-            </label>
-            <button className="button button--primary" disabled={!selectedPlaceVerified || saving} type="submit">
-              <Send size={16} aria-hidden />
-              Send paid push
-            </button>
-          </form>
-        </article>
+          <SubscribersTab
+            selectedPlace={selectedPlace}
+            selectedPlaceVerified={selectedPlaceVerified}
+            pushTitle={pushTitle}
+            setPushTitle={setPushTitle}
+            pushMessage={pushMessage}
+            setPushMessage={setPushMessage}
+            saving={saving}
+            sendPlacePush={sendPlacePush}
+          />
         ) : null}
       </section>
 
       <section className="content-grid">
         {activePlacesTab === 'menu' ? (
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Menu builder</p>
-              <h3>Publish menu items</h3>
-            </div>
-            <Utensils size={22} aria-hidden />
-          </div>
-          <form className="form-grid" onSubmit={createSection}>
-            <label>
-              <span>Section name</span>
-              <input value={sectionName} onChange={(e) => setSectionName(e.target.value)} required />
-            </label>
-            <label>
-              <span>Description</span>
-              <input value={sectionDescription} onChange={(e) => setSectionDescription(e.target.value)} />
-            </label>
-            <button className="button button--secondary" disabled={!selectedPlaceId || saving} type="submit">
-              <Plus size={16} aria-hidden />
-              Add section
-            </button>
-          </form>
-          <form className="form-grid" onSubmit={createItem}>
-            <label>
-              <span>Section</span>
-              <select value={itemSectionId} onChange={(e) => setItemSectionId(e.target.value)} required>
-                <option value="">Choose section</option>
-                {sections.map((section) => (
-                  <option key={section.id} value={section.id}>{section.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Item name</span>
-              <input value={itemName} onChange={(e) => setItemName(e.target.value)} required />
-            </label>
-            <label>
-              <span>Price</span>
-              <input inputMode="decimal" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} required />
-            </label>
-            <label>
-              <span>Description</span>
-              <input value={itemDescription} onChange={(e) => setItemDescription(e.target.value)} />
-            </label>
-            <label className="checkbox-row">
-              <input checked={itemFeatured} onChange={(e) => setItemFeatured(e.target.checked)} type="checkbox" />
-              <span>Feature item</span>
-            </label>
-            <button className="button button--primary" disabled={!itemSectionId || saving} type="submit">
-              Publish item
-            </button>
-          </form>
-          <div className="partner-feature-grid">
-            {items.length === 0 ? (
-              <div className="empty-card">
-                <h4>No menu items yet</h4>
-                <p>Create menu sections and publish drinks, food, bottles, or packages.</p>
-              </div>
-            ) : (
-              items.map((item) => (
-                <div className="partner-feature-card" key={item.id}>
-                  <strong>{item.name}</strong>
-                  <p>{item.description || item.status}</p>
-                  <small>{formatMoney(item.price)} · {sections.find((section) => section.id === item.sectionId)?.name || 'Menu'}</small>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
+          <MenuTab
+            sections={sections}
+            items={items}
+            selectedPlaceId={selectedPlaceId}
+            saving={saving}
+            sectionName={sectionName}
+            setSectionName={setSectionName}
+            sectionDescription={sectionDescription}
+            setSectionDescription={setSectionDescription}
+            createSection={createSection}
+            itemSectionId={itemSectionId}
+            setItemSectionId={setItemSectionId}
+            itemName={itemName}
+            setItemName={setItemName}
+            itemPrice={itemPrice}
+            setItemPrice={setItemPrice}
+            itemDescription={itemDescription}
+            setItemDescription={setItemDescription}
+            itemFeatured={itemFeatured}
+            setItemFeatured={setItemFeatured}
+            createItem={createItem}
+          />
         ) : null}
 
         {activePlacesTab === 'reservations' ? (
-        <article className="panel">
-          <div className="panel__header">
-            <div>
-              <p className="eyebrow">Reservations</p>
-              <h3>Manage requests</h3>
-            </div>
-            <Clock size={22} aria-hidden />
-          </div>
-          <div className="places-filter-row">
-            <label>
-              <span>Status</span>
-              <select value={reservationStatusFilter} onChange={(e) => setReservationStatusFilter(e.target.value)}>
-                <option value="all">All reservations</option>
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="change_requested">Change requested</option>
-              </select>
-            </label>
-          </div>
-          <div className="order-list">
-            {visibleReservations.length === 0 ? (
-              <div className="empty-card">
-                <h4>No reservations yet</h4>
-                <p>Guestlist, VIP table, and bottle-service requests will appear here.</p>
-              </div>
-            ) : (
-              visibleReservations.map((reservation) => (
-                <div className="order-row" key={reservation.id}>
-                  <div>
-                    <strong>{reservation.guestName}</strong>
-                    <span>
-                      {reservation.partySize} guests · {reservation.placeName || selectedPlace?.name} · {formatDateTime(reservation.requestedAt)}
-                    </span>
-                    {reservation.note ? <small>{reservation.note}</small> : null}
-                  </div>
-                  <div className="order-row__meta">
-                    <span className={`status-pill status-pill--${reservation.status}`}>{reservation.status}</span>
-                    <button className="button button--secondary" onClick={() => changeReservationStatus(reservation.id, 'confirmed')} type="button">
-                      Confirm
-                    </button>
-                    <button className="button button--ghost" onClick={() => changeReservationStatus(reservation.id, 'cancelled')} type="button">
-                      <XCircle size={15} aria-hidden />
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </article>
+          <ReservationsTab
+            selectedPlace={selectedPlace}
+            reservationStatusFilter={reservationStatusFilter}
+            setReservationStatusFilter={setReservationStatusFilter}
+            visibleReservations={visibleReservations}
+            changeReservationStatus={changeReservationStatus}
+          />
         ) : null}
       </section>
 
@@ -1300,63 +857,5 @@ export function PlacesPage() {
         </section>
       ) : null}
     </div>
-  )
-}
-
-function Metric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
-  return (
-    <div className="metric-card">
-      <Icon size={18} aria-hidden />
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  )
-}
-
-function slugify(input: string) {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 80) || `place_${Date.now()}`
-}
-
-/** Mask all but the last 2 digits of a phone number for display. */
-function maskPhone(phone: string) {
-  const trimmed = phone.trim()
-  if (trimmed.length <= 2) return trimmed
-  const tail = trimmed.slice(-2)
-  return `${'•'.repeat(Math.min(trimmed.length - 2, 8))}${tail}`
-}
-
-function verificationLabel(place: PortalPlace) {
-  if (place.verified || place.verificationStatus === 'verified') return 'Verified location owner'
-  if (place.verificationStatus === 'verification_pending') return 'Verification pending'
-  if (place.verificationStatus === 'rejected') return 'Verification rejected'
-  if (place.verificationStatus === 'suspended') return 'Verification suspended'
-  return 'Unverified location'
-}
-
-function verificationBadge(place: PortalPlace): { label: string; tone: string; icon: LucideIcon } {
-  if (place.verified || place.verificationStatus === 'verified') {
-    return { label: 'Verified', tone: 'active', icon: ShieldCheck }
-  }
-  if (place.verificationStatus === 'verification_pending') {
-    return { label: 'Pending review', tone: 'pending', icon: Clock }
-  }
-  if (place.verificationStatus === 'rejected' || place.verificationStatus === 'suspended') {
-    return { label: 'Unverified', tone: 'rejected', icon: XCircle }
-  }
-  return { label: 'Unverified', tone: 'draft', icon: XCircle }
-}
-
-function VerificationBadge({ place }: { place: PortalPlace }) {
-  const { label, tone, icon: Icon } = verificationBadge(place)
-  return (
-    <span className={`status-pill status-pill--${tone}`}>
-      <Icon size={13} aria-hidden />
-      {label}
-    </span>
   )
 }

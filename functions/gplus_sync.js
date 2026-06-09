@@ -339,7 +339,11 @@ async function hasAdminAccess(uid) {
   const snap = await db.collection("admins").doc(uid).get();
   if (!snap.exists) return false;
   const data = snap.data() || {};
-  return safeString(data.status, "active") !== "disabled";
+  // read_only auditors must not pass privileged (write) admin gates.
+  return (
+    safeString(data.status, "active") !== "disabled" &&
+    safeString(data.role) !== "read_only"
+  );
 }
 
 async function assertAdmin(uid) {

@@ -1874,6 +1874,12 @@ exports.createWebEventTicketOrder = onCall(
       if (quantity <= 0) {
         continue;
       }
+      if (!Number.isInteger(quantity) || quantity > MAX_QUANTITY_PER_TIER) {
+        throw new HttpsError(
+          "invalid-argument",
+          `Quantity must be a whole number between 1 and ${MAX_QUANTITY_PER_TIER} per tier.`,
+        );
+      }
       const tier = tierById.get(safeString(tierId));
       if (!tier) {
         continue;
@@ -1895,6 +1901,12 @@ exports.createWebEventTicketOrder = onCall(
       throw new HttpsError(
         "failed-precondition",
         "Select at least one paid ticket tier.",
+      );
+    }
+    if (totalAmount > MAX_ORDER_TOTAL_GHS) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Order total cannot exceed ${MAX_ORDER_TOTAL_GHS} GHS.`,
       );
     }
 

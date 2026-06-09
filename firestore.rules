@@ -7,7 +7,10 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        // A revoked admin is marked status:'disabled' rather than deleted; such
+        // a doc must not retain client access (matches the Cloud Functions check).
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.status != 'disabled';
     }
 
     function isOrgOwner(organizationId) {
@@ -30,6 +33,11 @@ service cloud.firestore {
     function ownsOrganizerApplication(organizationId) {
       return isSignedIn()
         && organizationId is string
+        // An applicant may only ever manage their OWN org (org_<uid>). Without
+        // this, a self-authored application claiming a victim org would grant
+        // event-manager rights over it (privilege escalation); enforcing it on
+        // the read side also neutralizes any malicious doc written previously.
+        && organizationId == 'org_' + request.auth.uid
         && exists(/databases/$(database)/documents/organizer_applications/$(request.auth.uid))
         && get(/databases/$(database)/documents/organizer_applications/$(request.auth.uid)).data.organizationId == organizationId;
     }
@@ -80,7 +88,12 @@ service cloud.firestore {
       return isSignedIn()
         && request.auth.uid == applicationId
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status in ['draft', 'submitted'];
+        && request.resource.data.status in ['draft', 'submitted']
+        // A client may only claim their own org id, never a victim org.
+        && (
+          !request.resource.data.keys().hasAny(['organizationId'])
+          || request.resource.data.organizationId == 'org_' + request.auth.uid
+        );
     }
 
     function validOwnUserProfile(userId) {

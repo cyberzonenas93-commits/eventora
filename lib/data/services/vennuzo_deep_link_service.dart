@@ -14,7 +14,7 @@ class VennuzoDeepLinkService {
   StreamSubscription<Uri>? _subscription;
   GlobalKey<NavigatorState>? _navigatorKey;
   bool _initialized = false;
-  String? _lastHandledEventId;
+  String? _recentlyHandledUri;
 
   Future<void> initialize({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -48,11 +48,24 @@ class VennuzoDeepLinkService {
 
   void _handleUri(Uri? uri) {
     final eventId = _extractEventId(uri);
-    if (eventId == null || eventId == _lastHandledEventId) {
+    if (eventId == null) {
       return;
     }
 
-    _lastHandledEventId = eventId;
+    // Suppress the cold-start double-delivery (getInitialLink + the first
+    // stream emission of the same URI) without permanently latching, so the
+    // user can re-open the same shared link again later.
+    final key = uri.toString();
+    if (key == _recentlyHandledUri) {
+      return;
+    }
+    _recentlyHandledUri = key;
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (_recentlyHandledUri == key) {
+        _recentlyHandledUri = null;
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final navigator = _navigatorKey?.currentState;
       if (navigator == null) {
@@ -67,19 +80,44 @@ class VennuzoDeepLinkService {
   }
 
   String? _extractEventId(Uri? uri) {
-    if (uri == null || uri.scheme != 'vennuzoapp') {
+    if (uri == null) {
       return null;
     }
 
-    final queryEventId = uri.queryParameters['eventId']?.trim();
-    if (queryEventId != null && queryEventId.isNotEmpty) {
-      return queryEventId;
+    // In-app custom scheme: vennuzoapp://...?eventId=... or .../share/event/<id>
+    if (uri.scheme == 'vennuzoapp') {
+      final queryEventId = uri.queryParameters['eventId']?.trim();
+      if (queryEventId != null && queryEventId.isNotEmpty) {
+        return queryEventId;
+      }
+      final segments = <String>[
+        if (uri.host.isNotEmpty) uri.host,
+        ...uri.pathSegments,
+      ];
+      return _eventIdFromPathSegments(segments);
     }
 
-    final segments = <String>[
-      if (uri.host.isNotEmpty) uri.host,
-      ...uri.pathSegments,
-    ];
+    // Web / Universal Link share format, e.g.
+    // https://vennuzo.web.app/events/<id> or .../share/event/<id>.
+    // The native Universal Link wiring (associated-domains + hosted
+    // apple-app-site-association / assetlinks.json) is required for the OS to
+    // actually route these to the app; this keeps the in-app side ready.
+    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host.contains('vennuzo')) {
+      final segments = uri.pathSegments
+          .map((segment) => segment.trim())
+          .where((segment) => segment.isNotEmpty)
+          .toList();
+      if (segments.length >= 2 && segments.first == 'events') {
+        return segments[1];
+      }
+      return _eventIdFromPathSegments(segments);
+    }
+
+    return null;
+  }
+
+  String? _eventIdFromPathSegments(List<String> segments) {
     if (segments.length >= 3 &&
         segments.first == 'share' &&
         segments[1] == 'event') {
@@ -88,7 +126,6 @@ class VennuzoDeepLinkService {
         return pathEventId;
       }
     }
-
     return null;
   }
 }

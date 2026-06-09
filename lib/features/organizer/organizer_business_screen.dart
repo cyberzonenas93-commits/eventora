@@ -69,6 +69,10 @@ class _OrganizerBusinessScreenState extends State<OrganizerBusinessScreen> {
           contactCount: contacts.length,
           wallet: _wallet,
           loading: _loading,
+          walletError: _walletError,
+          onRetryWallet: organizationId == null
+              ? null
+              : () => _loadBusinessData(organizationId, viewer),
         ),
         const SizedBox(height: 22),
         if (!viewer.hasOrganizerAccess)
@@ -225,15 +229,26 @@ class _BusinessHero extends StatelessWidget {
     required this.contactCount,
     required this.wallet,
     required this.loading,
+    required this.walletError,
+    required this.onRetryWallet,
   });
 
   final double revenue;
   final int contactCount;
   final WalletBalance? wallet;
   final bool loading;
+  final String? walletError;
+  final VoidCallback? onRetryWallet;
 
   @override
   Widget build(BuildContext context) {
+    final walletFailed = walletError != null;
+    final walletSummary = loading
+        ? 'wallet loading'
+        : walletFailed
+        ? 'wallet unavailable'
+        : '${formatMoney(wallet?.availableBalance ?? 0)} wallet balance';
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -269,11 +284,29 @@ class _BusinessHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '${formatMoney(revenue)} revenue, $contactCount contacts, ${loading ? 'wallet loading' : formatMoney(wallet?.availableBalance ?? 0)} wallet balance.',
+            '${formatMoney(revenue)} revenue, $contactCount contacts, $walletSummary.',
             style: context.text.bodyLarge?.copyWith(
               color: VennuzoTheme.textSecondary,
             ),
           ),
+          if (walletFailed && !loading) ...[
+            const SizedBox(height: 12),
+            Text(
+              walletError!,
+              style: context.text.bodyMedium?.copyWith(
+                color: VennuzoTheme.primaryEnd,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onRetryWallet,
+                icon: const Icon(Icons.refresh_outlined),
+                label: const Text('Retry'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -312,24 +345,32 @@ class _WalletSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _Pill(
-                      label:
-                          'Available ${formatMoney(wallet?.availableBalance ?? 0)}',
-                    ),
-                    _Pill(
-                      label: 'Held ${formatMoney(wallet?.heldBalance ?? 0)}',
-                    ),
-                    if (organizationId != null) _Pill(label: organizationId!),
-                  ],
-                ),
                 if (error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(error!, style: context.text.bodyMedium),
-                ],
+                  Text(
+                    error!,
+                    style: context.text.bodyMedium?.copyWith(
+                      color: VennuzoTheme.primaryEnd,
+                    ),
+                  ),
+                  if (organizationId != null) ...[
+                    const SizedBox(height: 10),
+                    _Pill(label: organizationId!),
+                  ],
+                ] else
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _Pill(
+                        label:
+                            'Available ${formatMoney(wallet?.availableBalance ?? 0)}',
+                      ),
+                      _Pill(
+                        label: 'Held ${formatMoney(wallet?.heldBalance ?? 0)}',
+                      ),
+                      if (organizationId != null) _Pill(label: organizationId!),
+                    ],
+                  ),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 10,
@@ -487,7 +528,7 @@ class _PayoutSection extends StatelessWidget {
 
   String _destinationLabel(VennuzoOrganizerApplicationDraft? draft) {
     if (draft == null) return 'Not set yet';
-    if (draft.payoutMethod == 'bank') {
+    if (draft.payoutMethod == 'bank-transfer') {
       final parts = [
         draft.bankName,
         draft.accountName,

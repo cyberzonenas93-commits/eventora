@@ -1,7 +1,16 @@
 part of 'places_screen.dart';
 
 Future<void> _reserve(BuildContext context, PlaceProfile place) async {
-  final repository = context.read<VennuzoRepository>();
+  final session = context.read<VennuzoSessionController>();
+  if (session.isGuest) {
+    final authenticated = await showAuthPromptSheet(
+      context,
+      title: 'Sign in to reserve',
+      body: 'Reservations need an account.',
+    );
+    if (!context.mounted || !authenticated) return;
+  }
+
   final result = await showModalBottomSheet<PlaceReservationRequest>(
     context: context,
     isScrollControlled: true,
@@ -10,10 +19,23 @@ Future<void> _reserve(BuildContext context, PlaceProfile place) async {
     builder: (_) => _ReservationSheet(place: place),
   );
   if (result == null || !context.mounted) return;
-  repository.createPlaceReservation(result);
-  ScaffoldMessenger.of(context).showSnackBar(
+
+  final repository = context.read<VennuzoRepository>();
+  final messenger = ScaffoldMessenger.of(context);
+  bool sent;
+  try {
+    await repository.createPlaceReservation(result);
+    sent = true;
+  } catch (_) {
+    sent = false;
+  }
+  messenger.showSnackBar(
     SnackBar(
-      content: Text('Reservation request sent to ${_placeDisplayName(place)}.'),
+      content: Text(
+        sent
+            ? 'Reservation request sent to ${_placeDisplayName(place)}.'
+            : 'Could not send your reservation. Please try again.',
+      ),
     ),
   );
 }

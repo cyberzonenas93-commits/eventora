@@ -20,6 +20,8 @@ class _SignInScreenState extends State<SignInScreen> {
   late final TextEditingController _phoneController;
   late final TextEditingController _otpController;
   bool _phoneOtpSent = false;
+  bool _submitting = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -77,7 +79,10 @@ class _SignInScreenState extends State<SignInScreen> {
                           decoration: const InputDecoration(labelText: 'Email'),
                           validator: (value) {
                             final trimmed = value?.trim() ?? '';
-                            if (trimmed.isEmpty || !trimmed.contains('@')) {
+                            if (trimmed.isEmpty ||
+                                !RegExp(
+                                  r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                                ).hasMatch(trimmed)) {
                               return 'Enter the email linked to your Vennuzo account.';
                             }
                             return null;
@@ -86,16 +91,29 @@ class _SignInScreenState extends State<SignInScreen> {
                         const SizedBox(height: 14),
                         TextFormField(
                           controller: _passwordController,
-                          obscureText: true,
+                          obscureText: _obscurePassword,
                           textInputAction: TextInputAction.done,
                           scrollPadding: const EdgeInsets.only(bottom: 180),
                           onFieldSubmitted: (_) {
-                            if (!session.isProcessing) {
+                            if (!session.isProcessing && !_submitting) {
                               _submit();
                             }
                           },
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                              tooltip: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
                           ),
                           validator: (value) {
                             if ((value ?? '').isEmpty) {
@@ -108,7 +126,9 @@ class _SignInScreenState extends State<SignInScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: session.isProcessing ? null : _submit,
+                            onPressed: session.isProcessing || _submitting
+                                ? null
+                                : _submit,
                             child: Text(
                               session.isProcessing
                                   ? 'Signing you in...'
@@ -138,7 +158,9 @@ class _SignInScreenState extends State<SignInScreen> {
                             hintText: '024 000 0000',
                           ),
                           onFieldSubmitted: (_) {
-                            if (!session.isProcessing && !_phoneOtpSent) {
+                            if (!session.isProcessing &&
+                                !_submitting &&
+                                !_phoneOtpSent) {
                               _requestPhoneOtp();
                             }
                           },
@@ -156,7 +178,7 @@ class _SignInScreenState extends State<SignInScreen> {
                               counterText: '',
                             ),
                             onFieldSubmitted: (_) {
-                              if (!session.isProcessing) {
+                              if (!session.isProcessing && !_submitting) {
                                 _verifyPhoneOtp();
                               }
                             },
@@ -166,7 +188,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
-                            onPressed: session.isProcessing
+                            onPressed: session.isProcessing || _submitting
                                 ? null
                                 : (_phoneOtpSent
                                       ? _verifyPhoneOtp
@@ -186,7 +208,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         if (_phoneOtpSent) ...[
                           const SizedBox(height: 8),
                           TextButton(
-                            onPressed: session.isProcessing
+                            onPressed: session.isProcessing || _submitting
                                 ? null
                                 : _requestPhoneOtp,
                             child: const Text('Resend Vennuzo code'),
@@ -204,7 +226,7 @@ class _SignInScreenState extends State<SignInScreen> {
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          onPressed: session.isProcessing
+                          onPressed: session.isProcessing || _submitting
                               ? null
                               : _signInWithGoogle,
                         ),
@@ -218,7 +240,7 @@ class _SignInScreenState extends State<SignInScreen> {
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          onPressed: session.isProcessing
+                          onPressed: session.isProcessing || _submitting
                               ? null
                               : _signInWithGPlus,
                         ),
@@ -227,7 +249,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           _SocialAuthButton(
                             label: 'Continue with Apple',
                             icon: const Icon(Icons.apple, size: 20),
-                            onPressed: session.isProcessing
+                            onPressed: session.isProcessing || _submitting
                                 ? null
                                 : _signInWithApple,
                           ),
@@ -245,9 +267,13 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    setState(() => _submitting = true);
 
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
@@ -263,15 +289,27 @@ class _SignInScreenState extends State<SignInScreen> {
       navigator.pop(true);
     } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _requestPhoneOtp() async {
+    if (_submitting) {
+      return;
+    }
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) {
       _showMessage('Enter your phone number.');
       return;
     }
+    if (phone.replaceAll(RegExp(r'[^0-9]'), '').length < 9) {
+      _showMessage('Enter a valid phone number.');
+      return;
+    }
+    setState(() => _submitting = true);
 
     final session = context.read<VennuzoSessionController>();
     try {
@@ -287,16 +325,24 @@ class _SignInScreenState extends State<SignInScreen> {
       _showMessage('Vennuzo sent a sign-in code.');
     } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _verifyPhoneOtp() async {
+    if (_submitting) {
+      return;
+    }
     final phone = _phoneController.text.trim();
     final code = _otpController.text.trim();
     if (phone.isEmpty || code.length < 6) {
       _showMessage('Enter the 6-digit Vennuzo code.');
       return;
     }
+    setState(() => _submitting = true);
 
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
@@ -309,6 +355,10 @@ class _SignInScreenState extends State<SignInScreen> {
       navigator.pop(true);
     } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
@@ -319,6 +369,10 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _signInWithGoogle() async {
+    if (_submitting) {
+      return;
+    }
+    setState(() => _submitting = true);
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
@@ -330,10 +384,18 @@ class _SignInScreenState extends State<SignInScreen> {
       navigator.pop(true);
     } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _signInWithGPlus() async {
+    if (_submitting) {
+      return;
+    }
+    setState(() => _submitting = true);
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
@@ -345,10 +407,18 @@ class _SignInScreenState extends State<SignInScreen> {
       navigator.pop(true);
     } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _signInWithApple() async {
+    if (_submitting) {
+      return;
+    }
+    setState(() => _submitting = true);
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
@@ -360,6 +430,10 @@ class _SignInScreenState extends State<SignInScreen> {
       navigator.pop(true);
     } on VennuzoAuthFailure catch (error) {
       _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 

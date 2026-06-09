@@ -61,6 +61,13 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
 
   Future<void> _admit() async {
     if (_lastToken.isEmpty || _busy) return;
+    final attendee = _result?.attendeeName ?? 'this guest';
+    final confirmed = await _confirm(
+      title: 'Admit $attendee?',
+      body: 'This admits $attendee to the event.',
+      confirmLabel: 'Admit',
+    );
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -88,6 +95,13 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
   Future<void> _collectCashAndAdmit() async {
     final amount = _result?.amountDue ?? 0;
     if (_lastToken.isEmpty || _busy) return;
+    final attendee = _result?.attendeeName ?? 'this guest';
+    final confirmed = await _confirm(
+      title: 'Collect ${formatMoney(amount)}?',
+      body: 'Collected ${formatMoney(amount)}? This admits $attendee.',
+      confirmLabel: 'Collect & admit',
+    );
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -113,6 +127,33 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<bool> _confirm({
+    required String title,
+    required String body,
+    required String confirmLabel,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed ?? false;
   }
 
   Future<void> _resumeCamera() async {

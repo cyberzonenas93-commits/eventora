@@ -109,10 +109,22 @@ class _SocialFeedScreenState extends State<SocialFeedScreen>
     VennuzoSessionController session,
   ) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      imageQuality: 80,
+    );
     if (picked == null || !context.mounted) return;
 
     final imageFile = File(picked.path);
+    if (imageFile.lengthSync() > 10 * 1024 * 1024) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please choose an image under 10 MB.')),
+        );
+      }
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -190,6 +202,20 @@ class _FeedTab extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'Couldn\'t load posts right now.',
+                textAlign: TextAlign.center,
+                style: context.text.bodyMedium?.copyWith(
+                  color: context.palette.slate,
+                ),
+              ),
+            ),
+          );
+        }
         final posts = (snapshot.data ?? [])
             .where((p) => !blocked.contains(p.userId))
             .toList();
@@ -209,7 +235,7 @@ class _FeedTab extends StatelessWidget {
                   Text('Nothing here yet', style: context.text.titleMedium),
                   const SizedBox(height: 8),
                   Text(
-                    'Posts from events you follow will appear here.',
+                    'No posts yet. Check back soon.',
                     textAlign: TextAlign.center,
                     style: context.text.bodyMedium?.copyWith(
                       color: context.palette.slate,
@@ -266,6 +292,20 @@ class _ExploreTab extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                'Couldn\'t load posts right now.',
+                textAlign: TextAlign.center,
+                style: context.text.bodyMedium?.copyWith(
+                  color: context.palette.slate,
+                ),
+              ),
+            ),
+          );
         }
         final posts = (snapshot.data ?? [])
             .where((p) => !blocked.contains(p.userId))
@@ -534,7 +574,12 @@ class _FeedPostCardState extends State<_FeedPostCard> {
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     await Clipboard.setData(ClipboardData(text: fallback));
-    if (mounted) setState(() => _shareCopied = true);
+    if (mounted) {
+      setState(() => _shareCopied = true);
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _shareCopied = false);
+      });
+    }
     messenger.showSnackBar(const SnackBar(content: Text('Post text copied.')));
 
     try {
@@ -661,6 +706,14 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
       );
       await widget.socialService.addComment(comment);
       _commentController.clear();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not post your comment. Try again.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -727,9 +780,46 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
                         widget.post.postId,
                       ),
                       builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              'Comments couldn\'t be loaded.',
+                              style: context.text.bodyMedium?.copyWith(
+                                color: context.palette.slate,
+                              ),
+                            ),
+                          );
+                        }
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
                         final comments = (snapshot.data ?? [])
                             .where((c) => !blocked.contains(c.userId))
                             .toList();
+                        if (comments.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              'No comments yet. Be the first.',
+                              style: context.text.bodyMedium?.copyWith(
+                                color: context.palette.slate,
+                              ),
+                            ),
+                          );
+                        }
                         return Column(
                           children: comments.map((c) {
                             final canModerate =
@@ -818,6 +908,29 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
                             session.viewer.displayName,
                           ),
                     icon: Icon(Icons.send, color: context.palette.teal),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              color: const Color(0xFF111827),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottom),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.lock_outline,
+                    color: Colors.white38,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Sign in to join the conversation',
+                      style: context.text.bodyMedium?.copyWith(
+                        color: context.palette.slate,
+                      ),
+                    ),
                   ),
                 ],
               ),

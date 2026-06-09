@@ -50,6 +50,7 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
   BidStrategy _bidStrategy = BidStrategy.balanced;
   CreativeMode _creativeMode = CreativeMode.single;
   int _frequencyCap = 2;
+  bool _launching = false;
   DateTime _scheduledAt = DateTime.now().add(const Duration(hours: 4));
 
   @override
@@ -568,7 +569,7 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: events.isEmpty
+                              onPressed: events.isEmpty || _launching
                                   ? null
                                   : () => _launchCampaign(selectedEvent),
                               child: const Text('Launch campaign'),
@@ -589,6 +590,8 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
   }
 
   void _launchCampaign(EventModel? event) {
+    if (_launching) return;
+
     final name = _nameController.text.trim();
     final message = _messageController.text.trim();
     final budget = double.tryParse(_budgetController.text.trim()) ?? 0;
@@ -618,27 +621,40 @@ class _CampaignComposerSheetState extends State<_CampaignComposerSheet> {
       return;
     }
 
-    final campaign = context.read<VennuzoRepository>().scheduleCampaign(
-      event: event,
-      name: name,
-      scheduledAt: _scheduleForLater ? _scheduledAt : null,
-      channels: channels,
-      budget: budget,
-      message: message,
-      objective: _objective,
-      audienceStrategy: _audienceStrategy,
-      optimizationGoal: _optimizationGoal,
-      bidStrategy: _bidStrategy,
-      creativeMode: _creativeMode,
-      frequencyCap: _frequencyCap,
-      budgetCapGhs: budget,
-      audienceSources: <String>[
-        'event_rsvps',
-        'ticket_buyers',
-        if (_includeUploadedContacts) 'uploaded_contacts',
-      ],
-    );
-    Navigator.of(context).pop(campaign);
+    setState(() => _launching = true);
+    try {
+      final campaign = context.read<VennuzoRepository>().scheduleCampaign(
+        event: event,
+        name: name,
+        scheduledAt: _scheduleForLater ? _scheduledAt : null,
+        channels: channels,
+        budget: budget,
+        message: message,
+        objective: _objective,
+        audienceStrategy: _audienceStrategy,
+        optimizationGoal: _optimizationGoal,
+        bidStrategy: _bidStrategy,
+        creativeMode: _creativeMode,
+        frequencyCap: _frequencyCap,
+        budgetCapGhs: budget,
+        audienceSources: <String>[
+          'event_rsvps',
+          'ticket_buyers',
+          if (_includeUploadedContacts) 'uploaded_contacts',
+        ],
+      );
+      Navigator.of(context).pop(campaign);
+    } catch (_) {
+      if (context.mounted) {
+        _showMessage(
+          'Could not launch campaign. Check host access and try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _launching = false);
+      }
+    }
   }
 
   void _applyObjective(CampaignObjective objective, EventModel? event) {

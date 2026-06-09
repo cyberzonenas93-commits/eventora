@@ -10,7 +10,22 @@ class PlaceDetailScreen extends StatelessWidget {
     final repository = context.watch<VennuzoRepository>();
     final place = repository.placeById(placeId);
     if (place == null) {
-      return const Scaffold(body: Center(child: Text('Place not found')));
+      return Scaffold(
+        appBar: AppBar(title: const Text('Place')),
+        body: Center(
+          child: repository.placesLoading
+              ? const CircularProgressIndicator()
+              : const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: EmptyStateCard(
+                    title: 'Place not found',
+                    icon: Icons.storefront_outlined,
+                    body:
+                        'This place may have moved or is no longer available.',
+                  ),
+                ),
+        ),
+      );
     }
     final subscribed = repository.isSubscribedToPlace(place.id);
     final sections = repository.menuSectionsForPlace(place.id);
@@ -36,38 +51,14 @@ class PlaceDetailScreen extends StatelessWidget {
                 preferredSize: const Size.fromHeight(48),
                 child: Material(
                   color: VennuzoTheme.background.withValues(alpha: 0.94),
-                  child: TabBar(
+                  child: const TabBar(
                     isScrollable: true,
                     tabAlignment: TabAlignment.start,
                     tabs: [
-                      Tab(
-                        child: Semantics(
-                          button: true,
-                          label: 'Profile tab',
-                          child: const Text('Profile'),
-                        ),
-                      ),
-                      Tab(
-                        child: Semantics(
-                          button: true,
-                          label: 'Menu tab',
-                          child: const Text('Menu'),
-                        ),
-                      ),
-                      Tab(
-                        child: Semantics(
-                          button: true,
-                          label: 'Events tab',
-                          child: const Text('Events'),
-                        ),
-                      ),
-                      Tab(
-                        child: Semantics(
-                          button: true,
-                          label: 'Media tab',
-                          child: const Text('Media'),
-                        ),
-                      ),
+                      Tab(text: 'Profile'),
+                      Tab(text: 'Menu'),
+                      Tab(text: 'Events'),
+                      Tab(text: 'Media'),
                     ],
                   ),
                 ),
@@ -329,35 +320,117 @@ class _PlaceEventsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final eventsLoading = context.watch<VennuzoRepository>().eventsLoading;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
       children: [
         SectionHeading(title: 'Upcoming events', subtitle: null),
         const SizedBox(height: 12),
-        if (events.isEmpty)
+        if (events.isEmpty && eventsLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (events.isEmpty)
           const EmptyStateCard(
             title: 'No upcoming events',
             icon: Icons.event_outlined,
             body: 'Events hosted at this location will appear here.',
           )
         else
-          for (final event in events)
-            Card(
-              child: ListTile(
-                leading: Icon(
-                  Icons.event_outlined,
-                  color: context.palette.teal,
+          for (final event in events) ...[
+            EventCard(
+              event: event,
+              compact: true,
+              onTap: () => _openPlaceEvent(context, event),
+              footer: _PlaceEventActions(
+                event: event,
+                onRsvp: () => _openPlaceEvent(
+                  context,
+                  event,
+                  initialAction: EventDetailInitialAction.rsvp,
                 ),
-                title: Text(event.title),
-                subtitle: Text(
-                  formatEventWindow(event.startDate, event.endDate),
+                onCheckout: () => _openPlaceEvent(
+                  context,
+                  event,
+                  initialAction: EventDetailInitialAction.checkout,
                 ),
-                trailing: const Icon(Icons.chevron_right_rounded),
               ),
             ),
+            const SizedBox(height: 14),
+          ],
       ],
     );
   }
+}
+
+class _PlaceEventActions extends StatelessWidget {
+  const _PlaceEventActions({
+    required this.event,
+    required this.onRsvp,
+    required this.onCheckout,
+  });
+
+  final EventModel event;
+  final VoidCallback onRsvp;
+  final VoidCallback onCheckout;
+
+  @override
+  Widget build(BuildContext context) {
+    final ticketing = event.ticketing;
+    final isSoldOut = ticketing.isSoldOut;
+    final optionalTickets = ticketing.enabled && !ticketing.requireTicket;
+
+    // Optional tickets: RSVP stays available even when tickets are sold out.
+    if (optionalTickets) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onRsvp,
+              icon: const Icon(Icons.event_available_outlined),
+              label: const Text('RSVP'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: isSoldOut ? null : onCheckout,
+              icon: const Icon(Icons.confirmation_num_outlined),
+              label: Text(isSoldOut ? 'Sold out' : 'Buy ticket'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (ticketing.enabled) {
+      return FilledButton.icon(
+        onPressed: isSoldOut ? null : onCheckout,
+        icon: const Icon(Icons.confirmation_num_outlined),
+        label: Text(isSoldOut ? 'Sold out' : 'Get tickets'),
+      );
+    }
+
+    return FilledButton.icon(
+      onPressed: onRsvp,
+      icon: const Icon(Icons.event_available_outlined),
+      label: const Text('RSVP'),
+    );
+  }
+}
+
+void _openPlaceEvent(
+  BuildContext context,
+  EventModel event, {
+  EventDetailInitialAction initialAction = EventDetailInitialAction.none,
+}) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          EventDetailScreen(eventId: event.id, initialAction: initialAction),
+    ),
+  );
 }
 
 class _PlaceMediaTab extends StatelessWidget {
@@ -422,7 +495,6 @@ class _PlaceActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repository = context.read<VennuzoRepository>();
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -442,9 +514,8 @@ class _PlaceActionBar extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => subscribed
-                    ? repository.unsubscribeFromPlace(place.id)
-                    : repository.subscribeToPlace(place.id),
+                onPressed: () =>
+                    _togglePlaceSubscription(context, place, subscribed),
                 icon: Icon(
                   subscribed
                       ? Icons.notifications_active_rounded

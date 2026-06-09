@@ -178,7 +178,9 @@ class _CoverPhoto extends StatelessWidget {
           child: CircleAvatar(
             radius: 36,
             backgroundColor: Colors.white,
-            foregroundImage: photoUrl != null ? CachedNetworkImageProvider(photoUrl!) : null,
+            foregroundImage: photoUrl != null
+                ? CachedNetworkImageProvider(photoUrl!)
+                : null,
             child: photoUrl == null
                 ? Text(
                     displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
@@ -369,6 +371,17 @@ class _PostsSection extends StatelessWidget {
         StreamBuilder<List<EventPost>>(
           stream: socialService.getUserPosts(profileUserId),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Text(
+                  'Couldn\'t load posts right now.',
+                  style: context.text.bodyMedium?.copyWith(
+                    color: context.palette.slate,
+                  ),
+                ),
+              );
+            }
             final posts = snapshot.data ?? [];
             if (posts.isEmpty) {
               return Padding(
@@ -487,6 +500,17 @@ class _SavedEventsSection extends StatelessWidget {
         StreamBuilder<List<String>>(
           stream: socialService.getSavedEvents(profileUserId),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Text(
+                  'Couldn\'t load posts right now.',
+                  style: context.text.bodyMedium?.copyWith(
+                    color: context.palette.slate,
+                  ),
+                ),
+              );
+            }
             final eventIds = snapshot.data ?? [];
             if (eventIds.isEmpty) {
               return Padding(

@@ -7,7 +7,38 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        // A revoked admin is marked status:'disabled' rather than deleted; such
+        // a doc must not retain client access (matches the Cloud Functions check).
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.status != 'disabled';
+    }
+
+    // Admin role-based write gates. The Cloud Functions role table
+    // (functions/admin_permissions.js) is the source of truth; these mirror the
+    // write-permission sets so a non-write-role admin can't bypass them with a
+    // direct client write. Assumes admin `role` is stored canonically
+    // (snake_case); superadmin aliases included defensively.
+    function adminRole() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
+    }
+
+    function isAdminWithRole(roles) {
+      return isAdmin() && (adminRole() in roles);
+    }
+
+    function canModerateReports() {
+      return isAdminWithRole([
+        'superadmin', 'owner', 'super_admin',
+        'operations_manager', 'customer_support', 'trust_safety',
+      ]);
+    }
+
+    function canManageSupport() {
+      return isAdminWithRole([
+        'superadmin', 'owner', 'super_admin',
+        'operations_manager', 'customer_support', 'organizer_success',
+        'trust_safety',
+      ]);
     }
 
     function isOrgOwner(organizationId) {
@@ -30,6 +61,11 @@ service cloud.firestore {
     function ownsOrganizerApplication(organizationId) {
       return isSignedIn()
         && organizationId is string
+        // An applicant may only ever manage their OWN org (org_<uid>). Without
+        // this, a self-authored application claiming a victim org would grant
+        // event-manager rights over it (privilege escalation); enforcing it on
+        // the read side also neutralizes any malicious doc written previously.
+        && organizationId == 'org_' + request.auth.uid
         && exists(/databases/$(database)/documents/organizer_applications/$(request.auth.uid))
         && get(/databases/$(database)/documents/organizer_applications/$(request.auth.uid)).data.organizationId == organizationId;
     }
@@ -80,7 +116,12 @@ service cloud.firestore {
       return isSignedIn()
         && request.auth.uid == applicationId
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status in ['draft', 'submitted'];
+        && request.resource.data.status in ['draft', 'submitted']
+        // A client may only claim their own org id, never a victim org.
+        && (
+          !request.resource.data.keys().hasAny(['organizationId'])
+          || request.resource.data.organizationId == 'org_' + request.auth.uid
+        );
     }
 
     function validOwnUserProfile(userId) {
@@ -258,7 +299,7 @@ service cloud.firestore {
     }
 
     function validAdminSupportMessageCreate() {
-      return isAdmin()
+      return canManageSupport()
         && request.resource.data.keys().hasOnly([
           'senderType',
           'senderId',
@@ -394,8 +435,8 @@ service cloud.firestore {
         // Prevent clients from writing arbitrary extra fields
         && request.resource.data.keys().hasOnly(['eventId', 'eventTitle', 'reason', 'details', 'createdAt']);
       allow read: if isAdmin();
-      // Admins (Trust & Safety moderation queue) may set review/status fields only.
-      allow update: if isAdmin()
+      // Only moderation-capable admin roles may set review/status fields.
+      allow update: if canModerateReports()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'reviewedBy', 'reviewedByEmail', 'reviewedAt', 'reviewNotes', 'updatedAt'
         ])
@@ -429,7 +470,7 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if validSupportTicketCreate();
-      allow update: if isAdmin() || validOwnSupportTicketUpdate();
+      allow update: if canManageSupport() || validOwnSupportTicketUpdate();
       allow delete: if false;
 
       match /messages/{messageId} {

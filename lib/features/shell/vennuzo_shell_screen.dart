@@ -445,39 +445,46 @@ class _ShellTopBar extends StatelessWidget {
                               ),
                             );
                           },
-                          borderRadius: BorderRadius.circular(10),
-                          child: Ink(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: VennuzoTheme.borderBright,
+                          borderRadius: BorderRadius.circular(12),
+                          // Keep the 34px avatar but a >=44px tap target.
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Center(
+                              child: Ink(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: VennuzoTheme.borderBright,
+                                  ),
+                                  image: photoUrl != null
+                                      ? DecorationImage(
+                                          image: CachedNetworkImageProvider(
+                                            photoUrl!,
+                                          ),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                  gradient: photoUrl == null
+                                      ? const LinearGradient(
+                                          colors: [
+                                            VennuzoTheme.surfaceElevated,
+                                            VennuzoTheme.surface,
+                                          ],
+                                        )
+                                      : null,
+                                ),
+                                child: photoUrl == null
+                                    ? const Icon(
+                                        Icons.person_outline_rounded,
+                                        size: 16,
+                                        color: VennuzoTheme.primaryStart,
+                                      )
+                                    : null,
                               ),
-                              image: photoUrl != null
-                                  ? DecorationImage(
-                                      image: CachedNetworkImageProvider(
-                                        photoUrl!,
-                                      ),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                              gradient: photoUrl == null
-                                  ? const LinearGradient(
-                                      colors: [
-                                        VennuzoTheme.surfaceElevated,
-                                        VennuzoTheme.surface,
-                                      ],
-                                    )
-                                  : null,
                             ),
-                            child: photoUrl == null
-                                ? const Icon(
-                                    Icons.person_outline_rounded,
-                                    size: 16,
-                                    color: VennuzoTheme.primaryStart,
-                                  )
-                                : null,
                           ),
                         ),
                       ),
@@ -515,16 +522,27 @@ class _TopBarIconBtn extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(9),
-            child: Ink(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: VennuzoTheme.surface,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: VennuzoTheme.border),
+            borderRadius: BorderRadius.circular(12),
+            // Keep the 32px visual but a >=44px tap target for accessibility.
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Center(
+                child: Ink(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: VennuzoTheme.surface,
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: VennuzoTheme.border),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 17,
+                    color: VennuzoTheme.textSecondary,
+                  ),
+                ),
               ),
-              child: Icon(icon, size: 17, color: VennuzoTheme.textSecondary),
             ),
           ),
         ),

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, type ReactElement } from 'react'
+import { Suspense, lazy, useEffect, type ComponentType, type ReactElement } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -8,126 +8,151 @@ import { canPerformAdminAction, canReadAdminCollection, type AdminAction } from 
 import { identifyAnalyticsUser, trackPageView } from './lib/analytics'
 import { PortalSessionProvider, usePortalSession } from './lib/portalSession'
 
-const LandingPage = lazy(() =>
+// A new deploy invalidates the previous build's chunk hashes, so a still-open tab
+// can hit a ChunkLoadError when it lazily imports a route. Retry the import once,
+// then fall back to a hard reload to pull the fresh build.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyWithRetry<T extends ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(() =>
+    factory().catch((error) => {
+      const isChunkError =
+        error instanceof Error &&
+        (error.name === 'ChunkLoadError' || /Loading chunk|dynamically imported module/i.test(error.message))
+      if (!isChunkError) {
+        throw error
+      }
+      return factory().catch(() => {
+        window.location.reload()
+        // Reload is async; return a never-resolving promise so React keeps the
+        // Suspense fallback up until the page navigates away.
+        return new Promise<{ default: T }>(() => {})
+      })
+    }),
+  )
+}
+
+const LandingPage = lazyWithRetry(() =>
   import('./pages/LandingPage').then((module) => ({ default: module.LandingPage })),
 )
-const SetupPage = lazy(() =>
+const SetupPage = lazyWithRetry(() =>
   import('./pages/SetupPage').then((module) => ({ default: module.SetupPage })),
 )
-const OverviewPage = lazy(() =>
+const OverviewPage = lazyWithRetry(() =>
   import('./pages/OverviewPage').then((module) => ({ default: module.OverviewPage })),
 )
-const EventsPage = lazy(() =>
+const EventsPage = lazyWithRetry(() =>
   import('./pages/EventsPage').then((module) => ({ default: module.EventsPage })),
 )
-const EventEditorPage = lazy(() =>
+const EventEditorPage = lazyWithRetry(() =>
   import('./pages/EventEditorPage').then((module) => ({
     default: module.EventEditorPage,
   })),
 )
-const SettingsPage = lazy(() =>
+const SettingsPage = lazyWithRetry(() =>
   import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
-const OrdersPage = lazy(() =>
+const OrdersPage = lazyWithRetry(() =>
   import('./pages/OrdersPage').then((module) => ({ default: module.OrdersPage })),
 )
-const ContactsPage = lazy(() =>
+const ContactsPage = lazyWithRetry(() =>
   import('./pages/ContactsPage').then((module) => ({ default: module.ContactsPage })),
 )
-const PaymentsPayoutsPage = lazy(() =>
+const PaymentsPayoutsPage = lazyWithRetry(() =>
   import('./pages/PaymentsPayoutsPage').then((module) => ({
     default: module.PaymentsPayoutsPage,
   })),
 )
-const PromotersPage = lazy(() =>
+const PromotersPage = lazyWithRetry(() =>
   import('./pages/PromotersPage').then((module) => ({ default: module.PromotersPage })),
 )
-const TablesPage = lazy(() =>
+const TablesPage = lazyWithRetry(() =>
   import('./pages/TablesPage').then((module) => ({ default: module.TablesPage })),
 )
-const PlacesPage = lazy(() =>
+const PlacesPage = lazyWithRetry(() =>
   import('./pages/PlacesPage').then((module) => ({ default: module.PlacesPage })),
 )
-const OperationsPage = lazy(() =>
+const OperationsPage = lazyWithRetry(() =>
   import('./pages/OperationsPage').then((module) => ({ default: module.OperationsPage })),
 )
-const PromotePage = lazy(() =>
+const PromotePage = lazyWithRetry(() =>
   import('./pages/PromotePage').then((module) => ({ default: module.PromotePage })),
 )
-const CreativeServicesPage = lazy(() =>
+const CreativeServicesPage = lazyWithRetry(() =>
   import('./pages/CreativeServicesPage').then((module) => ({ default: module.CreativeServicesPage })),
 )
-const PortalLayout = lazy(() =>
+const PortalLayout = lazyWithRetry(() =>
   import('./components/PortalLayout').then((module) => ({ default: module.PortalLayout })),
 )
-const SuperadminLayout = lazy(() =>
+const SuperadminLayout = lazyWithRetry(() =>
   import('./components/SuperadminLayout').then((module) => ({ default: module.SuperadminLayout })),
 )
-const SuperadminApprovalsPage = lazy(() =>
+const SuperadminApprovalsPage = lazyWithRetry(() =>
   import('./pages/SuperadminApprovalsPage').then((module) => ({
     default: module.SuperadminApprovalsPage,
   })),
 )
-const SuperadminPricingPage = lazy(() =>
+const SuperadminPricingPage = lazyWithRetry(() =>
   import('./pages/SuperadminPricingPage').then((module) => ({ default: module.SuperadminPricingPage })),
 )
-const SuperadminCampaignsPage = lazy(() =>
+const SuperadminCampaignsPage = lazyWithRetry(() =>
   import('./pages/SuperadminCampaignsPage').then((module) => ({ default: module.SuperadminCampaignsPage })),
 )
-const AdminSupportPage = lazy(() =>
+const AdminSupportPage = lazyWithRetry(() =>
   import('./pages/AdminSupportPage').then((module) => ({ default: module.AdminSupportPage })),
 )
-const AdminAnalyticsPage = lazy(() =>
+const AdminAnalyticsPage = lazyWithRetry(() =>
   import('./pages/AdminAnalyticsPage').then((module) => ({ default: module.AdminAnalyticsPage })),
 )
-const SuperadminOptOutPage = lazy(() =>
+const SuperadminOptOutPage = lazyWithRetry(() =>
   import('./pages/SuperadminOptOutPage').then((module) => ({ default: module.SuperadminOptOutPage })),
 )
-const AdminDashboardPage = lazy(() =>
+const AdminDashboardPage = lazyWithRetry(() =>
   import('./pages/AdminDashboardPage').then((module) => ({ default: module.AdminDashboardPage })),
 )
-const AdminDataPage = lazy(() =>
+const AdminDataPage = lazyWithRetry(() =>
   import('./pages/AdminDataPage').then((module) => ({ default: module.AdminDataPage })),
 )
-const AdminModerationPage = lazy(() =>
+const AdminModerationPage = lazyWithRetry(() =>
   import('./pages/AdminModerationPage').then((module) => ({ default: module.AdminModerationPage })),
 )
-const UnsubscribePage = lazy(() =>
+const UnsubscribePage = lazyWithRetry(() =>
   import('./pages/UnsubscribePage').then((module) => ({ default: module.UnsubscribePage })),
 )
-const PublicLayout = lazy(() =>
+const PublicLayout = lazyWithRetry(() =>
   import('./components/PublicLayout').then((module) => ({ default: module.PublicLayout })),
 )
-const HomePage = lazy(() =>
+const HomePage = lazyWithRetry(() =>
   import('./pages/HomePage').then((module) => ({ default: module.HomePage })),
 )
-const PublicEventsPage = lazy(() =>
+const PublicEventsPage = lazyWithRetry(() =>
   import('./pages/PublicEventsPage').then((module) => ({ default: module.PublicEventsPage })),
 )
-const PublicEventDetailPage = lazy(() =>
+const PublicEventDetailPage = lazyWithRetry(() =>
   import('./pages/PublicEventDetailPage').then((module) => ({ default: module.PublicEventDetailPage })),
 )
-const CheckoutPage = lazy(() =>
+const CheckoutPage = lazyWithRetry(() =>
   import('./pages/CheckoutPage').then((module) => ({ default: module.CheckoutPage })),
 )
-const CheckoutConfirmationPage = lazy(() =>
+const CheckoutConfirmationPage = lazyWithRetry(() =>
   import('./pages/CheckoutConfirmationPage').then((module) => ({
     default: module.CheckoutConfirmationPage,
   })),
 )
-const OrganizerFeedPage = lazy(() =>
+const OrganizerFeedPage = lazyWithRetry(() =>
   import('./pages/OrganizerFeedPage').then((module) => ({ default: module.OrganizerFeedPage })),
 )
-const StaffModePage = lazy(() =>
+const StaffModePage = lazyWithRetry(() =>
   import('./pages/StaffModePage').then((module) => ({ default: module.StaffModePage })),
 )
-const EventTeamPage = lazy(() =>
+const EventTeamPage = lazyWithRetry(() =>
   import('./pages/EventTeamPage').then((module) => ({ default: module.EventTeamPage })),
 )
-const HostAnalyticsPage = lazy(() =>
+const HostAnalyticsPage = lazyWithRetry(() =>
   import('./pages/HostAnalyticsPage').then((module) => ({ default: module.HostAnalyticsPage })),
 )
-const TeamInviteAcceptPage = lazy(() =>
+const TeamInviteAcceptPage = lazyWithRetry(() =>
   import('./pages/TeamInviteAcceptPage').then((module) => ({ default: module.TeamInviteAcceptPage })),
 )
 

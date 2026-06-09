@@ -469,6 +469,12 @@ class EventTicketing {
 
   int get totalSold => tiers.fold(0, (sum, tier) => sum + tier.sold);
 
+  /// True when ticketing is enabled, tiers exist, and every tier is sold out.
+  /// Unlimited tiers (`maxQuantity <= 0`) never report sold out, so a single
+  /// unlimited tier keeps the event purchasable.
+  bool get isSoldOut =>
+      enabled && tiers.isNotEmpty && tiers.every((tier) => tier.soldOut);
+
   EventDiscountVoucher? voucherByCode(String? code) {
     final normalized = EventDiscountVoucher.normalizeCode(code ?? '');
     if (normalized.isEmpty) {

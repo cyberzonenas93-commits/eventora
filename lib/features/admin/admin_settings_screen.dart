@@ -301,9 +301,20 @@ class _AdminUtilityCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: context.text.titleLarge?.copyWith(fontSize: 18),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: context.text.titleLarge?.copyWith(
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const _MutedPill(label: 'Coming soon'),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Text(body, style: context.text.bodyMedium),
@@ -311,6 +322,30 @@ class _AdminUtilityCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MutedPill extends StatelessWidget {
+  const _MutedPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: context.palette.slate.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: context.text.bodySmall?.copyWith(
+          color: context.palette.slate,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

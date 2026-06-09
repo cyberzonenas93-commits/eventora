@@ -31,19 +31,61 @@ import '../social/event_posts_grid.dart';
 import '../social/social_moderation_service.dart';
 import '../social/social_service.dart';
 
-class EventDetailScreen extends StatelessWidget {
-  const EventDetailScreen({super.key, required this.eventId});
+enum EventDetailInitialAction { none, rsvp, checkout }
+
+class EventDetailScreen extends StatefulWidget {
+  const EventDetailScreen({
+    super.key,
+    required this.eventId,
+    this.initialAction = EventDetailInitialAction.none,
+  });
 
   final String eventId;
+  final EventDetailInitialAction initialAction;
+
+  @override
+  State<EventDetailScreen> createState() => _EventDetailScreenState();
+}
+
+class _EventDetailScreenState extends State<EventDetailScreen> {
   static const _eventSafetyService = EventSafetyService();
   static final _socialModerationService = SocialModerationService();
   static final _socialService = SocialService();
+
+  bool _handledInitialAction = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _runInitialActionOnce();
+  }
+
+  void _runInitialActionOnce() {
+    if (_handledInitialAction ||
+        widget.initialAction == EventDetailInitialAction.none) {
+      return;
+    }
+    _handledInitialAction = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final event = context.read<VennuzoRepository>().eventById(widget.eventId);
+      if (event == null) return;
+      switch (widget.initialAction) {
+        case EventDetailInitialAction.none:
+          break;
+        case EventDetailInitialAction.rsvp:
+          _openRsvpFlow(context, event);
+        case EventDetailInitialAction.checkout:
+          _openCheckoutFlow(context, event);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<VennuzoRepository>();
     final session = context.watch<VennuzoSessionController>();
-    final event = repository.eventById(eventId);
+    final event = repository.eventById(widget.eventId);
 
     if (event == null) {
       return Scaffold(
@@ -90,7 +132,7 @@ class EventDetailScreen extends StatelessWidget {
             StreamBuilder<bool>(
               stream: _socialService.isEventSaved(
                 session.viewer.uid ?? '',
-                eventId,
+                widget.eventId,
               ),
               builder: (context, snapshot) {
                 final saved = snapshot.data ?? false;
@@ -148,7 +190,7 @@ class EventDetailScreen extends StatelessWidget {
             onFollow: () => _toggleFollowCreator(context, creatorProfile),
           ),
           const SizedBox(height: 18),
-          _RatingRow(eventId: eventId, socialService: _socialService),
+          _RatingRow(eventId: widget.eventId, socialService: _socialService),
           if (premiumCampaign != null) ...[
             const SizedBox(height: 28),
             _PremiumPlacementPanel(event: event, campaign: premiumCampaign),
@@ -164,19 +206,30 @@ class EventDetailScreen extends StatelessWidget {
                     final authenticated = await showAuthPromptSheet(
                       context,
                       title: 'Sign in to like events',
-                      body: 'Likes sync to your account.',
+                      body: 'Save the events you love.',
                     );
                     if (!context.mounted || !authenticated) {
                       return;
                     }
                   }
-                  context.read<VennuzoRepository>().toggleLike(event.id);
+                  final nowLiked = context.read<VennuzoRepository>().toggleLike(
+                    event.id,
+                  );
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Added to your likes.')),
+                    SnackBar(
+                      content: Text(
+                        nowLiked
+                            ? 'Added to your likes.'
+                            : 'Removed from your likes.',
+                      ),
+                    ),
                   );
                 },
-                icon: Icons.favorite_border,
-                label: 'Like',
+                icon: repository.isEventLiked(event.id)
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+                label: repository.isEventLiked(event.id) ? 'Liked' : 'Like',
               ),
               _ActionPillButton(
                 onPressed: () async {
@@ -360,7 +413,7 @@ class EventDetailScreen extends StatelessWidget {
           SectionHeading(title: 'Photos from this event', subtitle: null),
           const SizedBox(height: 14),
           EventPostsGrid(
-            eventId: eventId,
+            eventId: widget.eventId,
             socialService: _socialService,
             moderationService: _socialModerationService,
             currentUserId: session.viewer.uid ?? '',
@@ -492,10 +545,18 @@ class EventDetailScreen extends StatelessWidget {
         ),
       );
       if (enable == true && context.mounted) {
-        await session.updateNotificationPrefs(pushEnabled: true);
+        final pushActive = await session.updateNotificationPrefs(
+          pushEnabled: true,
+        );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Push notifications enabled.')),
+            SnackBar(
+              content: Text(
+                pushActive
+                    ? 'Push notifications enabled.'
+                    : 'Allow notifications in Settings to get this reminder.',
+              ),
+            ),
           );
         }
       }
@@ -535,6 +596,12 @@ class EventDetailScreen extends StatelessWidget {
   }
 
   Future<void> _openCheckoutFlow(BuildContext context, EventModel event) async {
+    if (event.ticketing.isSoldOut) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('This event is sold out.')));
+      return;
+    }
     final session = context.read<VennuzoSessionController>();
     if (session.isGuest) {
       final authenticated = await showAuthPromptSheet(
@@ -708,15 +775,22 @@ class _EventBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasOptionalTickets =
         event.ticketing.enabled && !event.ticketing.requireTicket;
+    final isSoldOut = event.ticketing.isSoldOut;
     final priceLabel = _priceLabel(event);
-    final primaryLabel = event.ticketing.enabled
+    final primaryLabel = isSoldOut
+        ? 'Sold out'
+        : event.ticketing.enabled
         ? event.ticketing.requireTicket
               ? 'Get tickets'
               : 'Buy ticket'
         : hasRsvp
         ? 'Reserved'
-        : 'Reserve spot';
-    final primaryAction = event.ticketing.enabled ? onCheckout : onReserve;
+        : 'RSVP';
+    final primaryAction = isSoldOut
+        ? null
+        : event.ticketing.enabled
+        ? onCheckout
+        : onReserve;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -1940,7 +2014,9 @@ class _RsvpSheetState extends State<_RsvpSheet> {
                     ),
                     Text('$_guestCount', style: context.text.headlineSmall),
                     IconButton(
-                      onPressed: () => setState(() => _guestCount += 1),
+                      onPressed: _guestCount < 20
+                          ? () => setState(() => _guestCount += 1)
+                          : null,
                       icon: const Icon(Icons.add_circle_outline),
                     ),
                   ],
@@ -2207,9 +2283,11 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
           content: Text(error.message ?? 'Could not start Hubtel checkout.'),
         ),
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() => _checkoutError = 'Could not start checkout: $error');
+      const message = 'Could not start checkout. Please try again.';
+      setState(() => _checkoutError = message);
+      messenger.showSnackBar(const SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

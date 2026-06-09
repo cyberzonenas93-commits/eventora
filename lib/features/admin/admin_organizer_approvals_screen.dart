@@ -115,6 +115,13 @@ class _AdminOrganizerApprovalsScreenState
   }
 
   Future<void> _reviewApplication(String applicationId, String decision) async {
+    // Defense-in-depth: only superadmins may review applications. The Cloud
+    // Function enforces this server-side, but guard the client path too.
+    final session = context.read<VennuzoSessionController>();
+    if (!session.hasSuperAdminAccess) {
+      return;
+    }
+
     final noteController = TextEditingController();
     final note = await showDialog<String>(
       context: context,

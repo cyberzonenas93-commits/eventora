@@ -13,6 +13,7 @@ import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
+import 'vennuzo_ticket_payment_status_screen.dart';
 
 class TicketsScreen extends StatelessWidget {
   const TicketsScreen({super.key});
@@ -526,6 +527,13 @@ class _OrderCardState extends State<_OrderCard> {
     final repository = context.read<VennuzoRepository>();
     final order = widget.order;
     final publicLink = repository.buildPublicTicketLink(order.id);
+    // A failed payment (or a stuck pending one that never issued tickets) needs
+    // a way back into checkout instead of looking like an in-progress order.
+    final canReopenPayment =
+        order.paymentStatus == TicketPaymentStatus.failed ||
+        ((order.paymentStatus == TicketPaymentStatus.pending ||
+                order.paymentStatus == TicketPaymentStatus.initiated) &&
+            order.tickets.isEmpty);
 
     return Card(
       child: Padding(
@@ -632,6 +640,11 @@ class _OrderCardState extends State<_OrderCard> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Order link copied.')),
                       );
+                      Future.delayed(const Duration(seconds: 2), () {
+                        if (mounted) {
+                          setState(() => _linkCopied = false);
+                        }
+                      });
                     }
                   },
                   icon: Icon(
@@ -641,6 +654,22 @@ class _OrderCardState extends State<_OrderCard> {
                   ),
                   label: Text(_linkCopied ? 'Copied' : 'Copy order link'),
                 ),
+                if (canReopenPayment)
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => VennuzoTicketPaymentStatusScreen(
+                            orderId: order.id,
+                            initialOrder: order,
+                            checkoutUrl: '',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Reopen payment'),
+                  ),
               ],
             ),
           ],
@@ -776,34 +805,38 @@ class _QrPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showQrDialog(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: context.palette.canvas,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: context.palette.border.withValues(alpha: 0.5),
+    return Semantics(
+      button: true,
+      label: 'Show QR code',
+      child: GestureDetector(
+        onTap: () => _showQrDialog(context),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: context.palette.canvas,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: context.palette.border.withValues(alpha: 0.5),
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.qr_code_2_outlined,
-              size: 16,
-              color: context.palette.ink,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Show QR',
-              style: context.text.bodySmall?.copyWith(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.qr_code_2_outlined,
+                size: 16,
                 color: context.palette.ink,
-                fontWeight: FontWeight.w600,
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              Text(
+                'Show QR',
+                style: context.text.bodySmall?.copyWith(
+                  color: context.palette.ink,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -850,12 +883,17 @@ class _QrDialog extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: QrImageView(
-                data: qrToken,
-                version: QrVersions.auto,
-                size: 240,
-                backgroundColor: Colors.white,
-              ),
+              child: qrToken.isEmpty
+                  ? const _QrNotReady(size: 240)
+                  : QrImageView(
+                      data: qrToken,
+                      version: QrVersions.auto,
+                      size: 240,
+                      backgroundColor: Colors.white,
+                      semanticsLabel: 'Ticket QR code',
+                      errorStateBuilder: (context, error) =>
+                          const _QrRenderFailed(size: 240),
+                    ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -873,6 +911,70 @@ class _QrDialog extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _QrNotReady extends StatelessWidget {
+  const _QrNotReady({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.hourglass_empty_rounded,
+            color: context.palette.slate,
+            size: 40,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'QR not ready yet',
+            textAlign: TextAlign.center,
+            style: context.text.bodySmall?.copyWith(
+              color: context.palette.slate,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QrRenderFailed extends StatelessWidget {
+  const _QrRenderFailed({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            color: context.palette.coral,
+            size: 40,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Couldn't render code",
+            textAlign: TextAlign.center,
+            style: context.text.bodySmall?.copyWith(
+              color: context.palette.coral,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1401,7 +1401,7 @@ export function OperationsPage() {
                         placeholder="map-night"
                       />
                     </label>
-                    <Link className="button button--secondary" to={staffAppPath} target="_blank">
+                    <Link className="button button--secondary" to={staffAppPath} target="_blank" rel="noopener noreferrer">
                       Open staff app
                     </Link>
                   </div>
@@ -1440,6 +1440,7 @@ export function OperationsPage() {
                         className="button button--secondary"
                         to={staffAppPath}
                         target="_blank"
+                        rel="noopener noreferrer"
                       >
                         Open staff app
                       </Link>

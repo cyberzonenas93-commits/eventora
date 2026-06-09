@@ -186,11 +186,22 @@ class _SavedEventCard extends StatelessWidget {
             ),
             // Unsave button
             IconButton(
-              onPressed: () {
-                socialService.unsaveEvent(userId, event.id);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Event removed from saved.')),
-                );
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await socialService.unsaveEvent(userId, event.id);
+                  if (!context.mounted) return;
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Event removed from saved.')),
+                  );
+                } catch (_) {
+                  if (!context.mounted) return;
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not remove this event. Try again.'),
+                    ),
+                  );
+                }
               },
               icon: const Icon(Icons.bookmark),
               color: palette.coral,

@@ -31,6 +31,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   XFile? _selectedProfileImage;
   Uint8List? _selectedProfileImageBytes;
   bool _submitted = false;
+  bool _submitting = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   late final TapGestureRecognizer _termsTapRecognizer;
   late final TapGestureRecognizer _privacyTapRecognizer;
 
@@ -125,7 +128,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         onChanged: (_) => _validateAfterSubmit(),
                         validator: (value) {
                           final trimmed = value?.trim() ?? '';
-                          if (trimmed.isEmpty || !trimmed.contains('@')) {
+                          if (trimmed.isEmpty ||
+                              !RegExp(
+                                r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                              ).hasMatch(trimmed)) {
                             return 'Enter a valid email address.';
                           }
                           return null;
@@ -158,8 +164,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           onTap: _pickDateOfBirth,
                           validator: (_) {
-                            if (_selectedDateOfBirth == null) {
+                            final dob = _selectedDateOfBirth;
+                            if (dob == null) {
                               return 'Select your date of birth.';
+                            }
+                            final now = DateTime.now();
+                            final latestAllowed = DateTime(
+                              now.year - 13,
+                              now.month,
+                              now.day,
+                            );
+                            if (dob.isAfter(latestAllowed)) {
+                              return 'You must be at least 13 to use Vennuzo.';
                             }
                             return null;
                           },
@@ -168,9 +184,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 14),
                       TextFormField(
                         controller: _passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
                           labelText: 'Password',
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: _obscurePassword
+                                ? 'Show password'
+                                : 'Hide password',
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
                         ),
                         onChanged: (_) => _validateAfterSubmit(),
                         validator: (value) {
@@ -183,9 +212,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 14),
                       TextFormField(
                         controller: _confirmPasswordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
+                        obscureText: _obscureConfirmPassword,
+                        decoration: InputDecoration(
                           labelText: 'Confirm password',
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: _obscureConfirmPassword
+                                ? 'Show password'
+                                : 'Hide password',
+                            onPressed: () => setState(
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                            ),
+                          ),
                         ),
                         onChanged: (_) => _validateAfterSubmit(),
                         validator: (value) {
@@ -194,7 +237,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             return 'Confirm your password.';
                           }
                           if (text != _passwordController.text) {
-                            return 'Passwords do not match yet.';
+                            return 'Passwords do not match.';
                           }
                           return null;
                         },
@@ -203,7 +246,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: session.isProcessing ? null : _submit,
+                          onPressed: session.isProcessing || _submitting
+                              ? null
+                              : _submit,
                           child: Text(
                             session.isProcessing
                                 ? 'Creating your account...'
@@ -228,7 +273,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        onPressed: session.isProcessing
+                        onPressed: session.isProcessing || _submitting
                             ? null
                             : _signUpWithGoogle,
                       ),
@@ -242,7 +287,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        onPressed: session.isProcessing
+                        onPressed: session.isProcessing || _submitting
                             ? null
                             : _signUpWithGPlus,
                       ),
@@ -251,7 +296,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         _SocialAuthButton(
                           label: 'Continue with Apple',
                           icon: const Icon(Icons.apple, size: 20),
-                          onPressed: session.isProcessing
+                          onPressed: session.isProcessing || _submitting
                               ? null
                               : _signUpWithApple,
                         ),
@@ -268,12 +313,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) {
+      return;
+    }
     if (!_submitted) {
       setState(() => _submitted = true);
     }
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    setState(() => _submitting = true);
 
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
@@ -296,6 +345,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
@@ -306,18 +359,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _openLegalUrl(String url, String failureMessage) async {
-    final launched = await launchUrl(
-      Uri.parse(url),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!launched && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(failureMessage)));
+    try {
+      final launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failureMessage)));
+      }
+    } on Exception {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failureMessage)));
+      }
     }
   }
 
   Future<void> _signUpWithGoogle() async {
+    if (_submitting) {
+      return;
+    }
+    setState(() => _submitting = true);
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
@@ -331,10 +396,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _signUpWithGPlus() async {
+    if (_submitting) {
+      return;
+    }
+    setState(() => _submitting = true);
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
@@ -348,10 +421,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _signUpWithApple() async {
+    if (_submitting) {
+      return;
+    }
+    setState(() => _submitting = true);
     final session = context.read<VennuzoSessionController>();
     final navigator = Navigator.of(context);
     try {
@@ -365,6 +446,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
@@ -402,7 +487,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       context: context,
       initialDate: _selectedDateOfBirth ?? DateTime(now.year - 21),
       firstDate: DateTime(1900),
-      lastDate: now,
+      lastDate: DateTime(now.year - 13, now.month, now.day),
     );
     if (picked == null || !mounted) {
       return;

@@ -199,7 +199,13 @@ function normalizedVerificationMethod(value) {
 async function hasAdminAccess(uid) {
   if (!uid) return false;
   const adminSnap = await db.collection("admins").doc(uid).get();
-  return adminSnap.exists && safeString((adminSnap.data() || {}).status, "active") !== "disabled";
+  if (!adminSnap.exists) return false;
+  const data = adminSnap.data() || {};
+  // read_only auditors must not pass privileged (write) admin gates.
+  return (
+    safeString(data.status, "active") !== "disabled" &&
+    safeString(data.role) !== "read_only"
+  );
 }
 
 async function assertAdmin(uid) {
@@ -217,8 +223,7 @@ async function assertPlaceManager(uid, placeData) {
   const organizationId = safeString(placeData.organizationId);
   if (organizationId === `org_${uid}`) return;
 
-  const adminSnap = await db.collection("admins").doc(uid).get();
-  if (adminSnap.exists) return;
+  if (await hasAdminAccess(uid)) return;
 
   if (!organizationId) {
     throw new HttpsError("permission-denied", "You do not manage this place.");

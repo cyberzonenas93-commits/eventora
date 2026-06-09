@@ -6,13 +6,17 @@ import 'package:provider/provider.dart';
 import 'package:vennuzo/app/vennuzo_app.dart';
 import 'package:vennuzo/app/vennuzo_session_controller.dart';
 import 'package:vennuzo/core/theme/vennuzo_theme.dart';
+import 'package:vennuzo/core/art/event_art_widget.dart';
 import 'package:vennuzo/data/mock/mock_seed.dart';
 import 'package:vennuzo/data/repositories/vennuzo_repository.dart';
 import 'package:vennuzo/domain/models/account_models.dart';
+import 'package:vennuzo/domain/models/event_models.dart';
 import 'package:vennuzo/features/admin/admin_face_chooser_screen.dart';
 import 'package:vennuzo/features/discover/discover_screen.dart';
 import 'package:vennuzo/features/onboarding/vennuzo_onboarding_screen.dart';
+import 'package:vennuzo/features/places/places_screen.dart';
 import 'package:vennuzo/features/shell/vennuzo_shell_screen.dart';
+import 'package:vennuzo/widgets/event_card.dart';
 
 void main() {
   testWidgets('Vennuzo shell renders the core navigation', (
@@ -212,6 +216,178 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+
+  testWidgets('Place events show flyers and expose RSVP ticket actions', (
+    WidgetTester tester,
+  ) async {
+    GoogleFonts.config.allowRuntimeFetching = false;
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 920);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final baseEvent = MockSeed.events().first;
+    final placeEvent = baseEvent.copyWith(
+      id: 'gplus_place_event_test',
+      title: 'G+ Nightclub Test Event',
+      venue: 'G+ Nightclub',
+      city: 'Accra',
+      flyerAsset: 'assets/event_flyers/event_after_dark.png',
+      location: const EventLocation(
+        address: 'UPSA Road, Accra',
+        latitude: 5.6503,
+        longitude: -0.1602,
+        placeId: MockSeed.gplusPlaceId,
+      ),
+      ticketing: baseEvent.ticketing.copyWith(
+        enabled: true,
+        requireTicket: true,
+      ),
+    );
+    final repository = VennuzoRepository.withFixtures(
+      events: [placeEvent],
+      places: MockSeed.places(),
+      placeMenuSections: MockSeed.placeMenuSections(),
+      placeMenuItems: MockSeed.placeMenuItems(),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<VennuzoSessionController>.value(
+        value: VennuzoSessionController(firebaseEnabled: false),
+        child: ChangeNotifierProvider<VennuzoRepository>.value(
+          value: repository,
+          child: MaterialApp(
+            theme: VennuzoTheme.lightTheme,
+            home: const PlaceDetailScreen(placeId: MockSeed.gplusPlaceId),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+
+    await tester.tap(find.text('Events'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(find.text('G+ Nightclub Test Event'), findsOneWidget);
+    expect(find.byType(EventArtwork), findsWidgets);
+    expect(find.text('Get tickets'), findsOneWidget);
+
+    final eventCard = tester.widget<EventCard>(find.byType(EventCard).first);
+    final ticketButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Get tickets'),
+    );
+
+    expect(eventCard.onTap, isNotNull);
+    expect(ticketButton.onPressed, isNotNull);
+  });
+
+  testWidgets('Sold-out place event shows a disabled Sold out action', (
+    WidgetTester tester,
+  ) async {
+    GoogleFonts.config.allowRuntimeFetching = false;
+
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 920);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final baseEvent = MockSeed.events().first;
+    final soldOutEvent = baseEvent.copyWith(
+      id: 'gplus_place_event_soldout',
+      title: 'Sold Out Night',
+      venue: 'G+ Nightclub',
+      city: 'Accra',
+      flyerAsset: 'assets/event_flyers/event_after_dark.png',
+      location: const EventLocation(
+        address: 'UPSA Road, Accra',
+        latitude: 5.6503,
+        longitude: -0.1602,
+        placeId: MockSeed.gplusPlaceId,
+      ),
+      ticketing: baseEvent.ticketing.copyWith(
+        enabled: true,
+        requireTicket: true,
+        tiers: const [
+          TicketTier(
+            tierId: 'ga',
+            name: 'General',
+            price: 50,
+            maxQuantity: 10,
+            sold: 10,
+          ),
+        ],
+      ),
+    );
+    final repository = VennuzoRepository.withFixtures(
+      events: [soldOutEvent],
+      places: MockSeed.places(),
+      placeMenuSections: MockSeed.placeMenuSections(),
+      placeMenuItems: MockSeed.placeMenuItems(),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<VennuzoSessionController>.value(
+        value: VennuzoSessionController(firebaseEnabled: false),
+        child: ChangeNotifierProvider<VennuzoRepository>.value(
+          value: repository,
+          child: MaterialApp(
+            theme: VennuzoTheme.lightTheme,
+            home: const PlaceDetailScreen(placeId: MockSeed.gplusPlaceId),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+
+    await tester.tap(find.text('Events'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(find.text('Sold out'), findsOneWidget);
+    expect(find.text('Get tickets'), findsNothing);
+
+    final soldOutButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Sold out'),
+    );
+    expect(soldOutButton.onPressed, isNull);
+  });
+
+  testWidgets(
+    'Unknown place shows a recoverable not-found screen with an app bar',
+    (WidgetTester tester) async {
+      GoogleFonts.config.allowRuntimeFetching = false;
+
+      final repository = VennuzoRepository.withFixtures(
+        events: const [],
+        places: MockSeed.places(),
+        placeMenuSections: MockSeed.placeMenuSections(),
+        placeMenuItems: MockSeed.placeMenuItems(),
+      );
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<VennuzoSessionController>.value(
+          value: VennuzoSessionController(firebaseEnabled: false),
+          child: ChangeNotifierProvider<VennuzoRepository>.value(
+            value: repository,
+            child: MaterialApp(
+              theme: VennuzoTheme.lightTheme,
+              home: const PlaceDetailScreen(placeId: 'missing_place_id'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(AppBar), findsOneWidget);
+      expect(find.text('Place not found'), findsOneWidget);
+    },
+  );
 }
 
 class _TestWorkspaceSessionController extends VennuzoSessionController {

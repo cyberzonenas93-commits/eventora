@@ -7,6 +7,8 @@ import '../../core/theme/theme_extensions.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import 'social_models.dart';
+import 'social_moderation_service.dart';
+import 'social_moderation_ui.dart';
 import 'social_post_image.dart';
 import 'social_service.dart';
 
@@ -25,6 +27,7 @@ class SocialProfileScreen extends StatelessWidget {
   final String? coverUrl;
 
   static final _socialService = SocialService();
+  static final _moderationService = SocialModerationService();
 
   @override
   Widget build(BuildContext context) {
@@ -33,45 +36,107 @@ class SocialProfileScreen extends StatelessWidget {
     final isOwnProfile = currentUserId == profileUserId;
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: _CoverPhoto(
-                coverUrl: coverUrl,
-                photoUrl: photoUrl,
-                displayName: displayName,
+      body: StreamBuilder<Set<String>>(
+        stream: _moderationService.blockedUserIds(currentUserId),
+        builder: (context, blockedSnap) {
+          final blocked = blockedSnap.data ?? const <String>{};
+          final isBlocked = blocked.contains(profileUserId);
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 200,
+                pinned: true,
+                actions: [
+                  if (!isOwnProfile && profileUserId.isNotEmpty)
+                    ContentModerationButton(
+                      contentType: ReportContentType.profile,
+                      contentId: profileUserId,
+                      authorId: profileUserId,
+                      authorName: displayName,
+                      currentUserId: currentUserId,
+                      isBlocked: isBlocked,
+                      color: Colors.white,
+                    ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: _CoverPhoto(
+                    coverUrl: coverUrl,
+                    photoUrl: photoUrl,
+                    displayName: displayName,
+                  ),
+                ),
               ),
+              SliverToBoxAdapter(
+                child: _ProfileHeader(
+                  profileUserId: profileUserId,
+                  displayName: displayName,
+                  photoUrl: photoUrl,
+                  currentUserId: currentUserId,
+                  isOwnProfile: isOwnProfile,
+                  socialService: _socialService,
+                ),
+              ),
+              if (isBlocked)
+                SliverToBoxAdapter(
+                  child: _BlockedNotice(displayName: displayName),
+                )
+              else ...[
+                SliverToBoxAdapter(
+                  child: _PostsSection(
+                    profileUserId: profileUserId,
+                    socialService: _socialService,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _AttendedEventsSection(profileUserId: profileUserId),
+                ),
+                SliverToBoxAdapter(
+                  child: _SavedEventsSection(
+                    profileUserId: profileUserId,
+                    socialService: _socialService,
+                  ),
+                ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _BlockedNotice extends StatelessWidget {
+  const _BlockedNotice({required this.displayName});
+
+  final String displayName;
+
+  @override
+  Widget build(BuildContext context) {
+    final who = displayName.trim().isEmpty ? 'this user' : displayName.trim();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 32, 20, 40),
+      child: Column(
+        children: [
+          Icon(
+            Icons.block_outlined,
+            size: 48,
+            color: context.palette.slate.withValues(alpha: 0.6),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'You blocked $who',
+            style: context.text.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Their posts and activity are hidden. Use the menu above to unblock.',
+            style: context.text.bodyMedium?.copyWith(
+              color: context.palette.slate,
             ),
+            textAlign: TextAlign.center,
           ),
-          SliverToBoxAdapter(
-            child: _ProfileHeader(
-              profileUserId: profileUserId,
-              displayName: displayName,
-              photoUrl: photoUrl,
-              currentUserId: currentUserId,
-              isOwnProfile: isOwnProfile,
-              socialService: _socialService,
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: _PostsSection(
-              profileUserId: profileUserId,
-              socialService: _socialService,
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: _AttendedEventsSection(profileUserId: profileUserId),
-          ),
-          SliverToBoxAdapter(
-            child: _SavedEventsSection(
-              profileUserId: profileUserId,
-              socialService: _socialService,
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
     );

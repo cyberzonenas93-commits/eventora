@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../mock/mock_seed.dart';
 import '../services/vennuzo_cloud_sync_service.dart';
 import '../services/vennuzo_payment_service.dart';
 import '../../domain/models/account_models.dart';
@@ -45,17 +46,33 @@ class VennuzoRepository extends ChangeNotifier {
   }
 
   factory VennuzoRepository.seeded({required bool firebaseEnabled}) {
+    // App Store compliance (Guideline 2.3.1/4.0): demo/QA fixtures must never
+    // reach production users. Release builds start with empty base lists so
+    // only live Firestore data is shown; debug/profile builds keep the mock
+    // seed for local development. The `_effective*` getters merge these base
+    // lists with the live cloud overlay, so an empty base + live overlay is a
+    // fully functional release experience.
     return VennuzoRepository._(
-      events: <EventModel>[],
-      orders: <TicketOrder>[],
-      rsvps: <RsvpRecord>[],
-      campaigns: <PromotionCampaign>[],
-      creatorProfiles: <CreatorProfile>[],
-      creatorPhotos: <CreatorEventPhoto>[],
-      places: <PlaceProfile>[],
-      placeMenuSections: <PlaceMenuSection>[],
-      placeMenuItems: <PlaceMenuItem>[],
-      placeReservations: <PlaceReservation>[],
+      events: kReleaseMode ? <EventModel>[] : MockSeed.events(),
+      orders: kReleaseMode ? <TicketOrder>[] : MockSeed.orders(),
+      rsvps: kReleaseMode ? <RsvpRecord>[] : MockSeed.rsvps(),
+      campaigns: kReleaseMode ? <PromotionCampaign>[] : MockSeed.campaigns(),
+      creatorProfiles: kReleaseMode
+          ? <CreatorProfile>[]
+          : MockSeed.creatorProfiles(),
+      creatorPhotos: kReleaseMode
+          ? <CreatorEventPhoto>[]
+          : MockSeed.creatorPhotos(),
+      places: kReleaseMode ? <PlaceProfile>[] : MockSeed.places(),
+      placeMenuSections: kReleaseMode
+          ? <PlaceMenuSection>[]
+          : MockSeed.placeMenuSections(),
+      placeMenuItems: kReleaseMode
+          ? <PlaceMenuItem>[]
+          : MockSeed.placeMenuItems(),
+      placeReservations: kReleaseMode
+          ? <PlaceReservation>[]
+          : MockSeed.placeReservations(),
       cloudSync: VennuzoCloudSyncService(firebaseEnabled: firebaseEnabled),
     );
   }
@@ -607,9 +624,9 @@ class VennuzoRepository extends ChangeNotifier {
         if (creatorId == 'gplus') {
           return CreatorProfile(
             creatorId: creatorId,
-            displayName: 'G+',
+            displayName: 'G+ Nightclub',
             bio:
-                'G+ events, nightlife, culture, and community moments synced into Vennuzo.',
+                'G+ Nightclub events, nightlife, culture, and community moments synced into Vennuzo.',
             city: 'Accra',
             updatedAt: DateTime.now(),
           );
@@ -2144,9 +2161,10 @@ class VennuzoRepository extends ChangeNotifier {
     final location = data['location'];
     final latitude = _latitudeFromValue(location, data['latitude']);
     final longitude = _longitudeFromValue(location, data['longitude']);
+    final name = _normalizedPlaceName(doc.id, data['name']);
     return PlaceProfile(
       id: doc.id,
-      name: '${data['name'] ?? 'Vennuzo place'}'.trim(),
+      name: name,
       description: '${data['description'] ?? ''}'.trim(),
       city: '${data['city'] ?? 'Accra'}'.trim(),
       address:
@@ -2181,6 +2199,32 @@ class VennuzoRepository extends ChangeNotifier {
       createdAt: _dateFromValue(data['createdAt']) ?? DateTime.now(),
       updatedAt: _dateFromValue(data['updatedAt']) ?? DateTime.now(),
     );
+  }
+
+  String _normalizedPlaceName(String placeId, Object? value) {
+    final raw = '${value ?? 'Vennuzo place'}'.trim();
+    final compact = raw.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    if (placeId == 'gplus_nightclub' ||
+        compact == 'g+' ||
+        compact == 'gplus' ||
+        compact == 'g+nightclub' ||
+        compact == 'gplusnightclub') {
+      return 'G+ Nightclub';
+    }
+    return raw.isEmpty ? 'Vennuzo place' : raw;
+  }
+
+  String _normalizedCreatorDisplayName(String creatorId, Object? value) {
+    final raw = '${value ?? 'Vennuzo creator'}'.trim();
+    final compact = raw.toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+    if (creatorId == 'gplus' ||
+        compact == 'g+' ||
+        compact == 'gplus' ||
+        compact == 'g+nightclub' ||
+        compact == 'gplusnightclub') {
+      return 'G+ Nightclub';
+    }
+    return raw.isEmpty ? 'Vennuzo creator' : raw;
   }
 
   PlaceMenuSection? _placeMenuSectionFromFirestore(
@@ -2260,9 +2304,13 @@ class VennuzoRepository extends ChangeNotifier {
       return null;
     }
     final metrics = data['metrics'];
+    final creatorId = '${data['creatorId'] ?? doc.id}'.trim();
     return CreatorProfile(
-      creatorId: '${data['creatorId'] ?? doc.id}'.trim(),
-      displayName: '${data['displayName'] ?? 'Vennuzo creator'}'.trim(),
+      creatorId: creatorId,
+      displayName: _normalizedCreatorDisplayName(
+        creatorId,
+        data['displayName'],
+      ),
       bio: '${data['bio'] ?? ''}'.trim(),
       city: '${data['city'] ?? 'Accra'}'.trim(),
       avatarUrl: (data['avatarUrl'] as String?)?.trim(),

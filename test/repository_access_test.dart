@@ -198,8 +198,8 @@ void main() {
 
       final profile = repository.creatorProfileFor('gplus');
 
-      expect(profile.displayName, 'G+');
-      expect(profile.bio, contains('G+ events'));
+      expect(profile.displayName, 'G+ Nightclub');
+      expect(profile.bio, contains('G+ Nightclub events'));
     });
 
     test('checkout applies discount vouchers and redeems the code', () {

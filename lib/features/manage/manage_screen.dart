@@ -21,6 +21,7 @@ import '../creative/creative_services_screen.dart';
 import '../events/event_detail_screen.dart';
 import '../events/event_editor_screen.dart';
 import 'host_access_screen.dart';
+import '../places/place_management_screen.dart';
 import '../promotions/campaign_composer_sheet.dart';
 
 class ManageScreen extends StatelessWidget {
@@ -41,6 +42,10 @@ class ManageScreen extends StatelessWidget {
     );
     final viewer = session.viewer;
     final organizerReady = viewer.hasOrganizerAccess;
+    final canOnboardLocations = !session.isGuest;
+    final locationProfileStat = organizerReady
+        ? '${repository.places.length} active ${repository.places.length == 1 ? 'profile' : 'profiles'}'
+        : 'Add or claim profile';
     final campaigns = repository.campaigns;
     final featuredCount = campaigns
         .where(
@@ -92,6 +97,20 @@ class ManageScreen extends StatelessWidget {
               ),
             ],
           ),
+        ],
+        if (canOnboardLocations) ...[
+          const SizedBox(height: 28),
+          SectionHeading(title: 'Staff workflows', subtitle: null),
+          const SizedBox(height: 14),
+          _HostPlacementCard(
+            title: 'Location onboarding',
+            stat: locationProfileStat,
+            icon: Icons.add_business_outlined,
+            actionLabel: 'Onboard location',
+            onAction: () => _onboardLocation(context),
+          ),
+        ],
+        if (organizerReady) ...[
           const SizedBox(height: 28),
           SectionHeading(title: 'Premium placements', subtitle: null),
           const SizedBox(height: 14),
@@ -148,7 +167,10 @@ class ManageScreen extends StatelessWidget {
           ),
           const SizedBox(height: 28),
         ],
-        if (!organizerReady) const SizedBox(height: 22),
+        if (!organizerReady && canOnboardLocations)
+          const SizedBox(height: 28)
+        else if (!organizerReady)
+          const SizedBox(height: 22),
         SectionHeading(
           title: 'Host tools',
           subtitle: null,
@@ -290,7 +312,14 @@ class ManageScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _openEventOpsStudio(BuildContext context, EventModel? event) async {
+  Future<void> _onboardLocation(BuildContext context) async {
+    await showLocationOnboardingSheet(context);
+  }
+
+  Future<void> _openEventOpsStudio(
+    BuildContext context,
+    EventModel? event,
+  ) async {
     final url = event == null
         ? '$vennuzoStudioUrl/studio/operations'
         : '$vennuzoStudioUrl/studio/operations?eventId=${Uri.encodeComponent(event.id)}';

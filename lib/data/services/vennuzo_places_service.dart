@@ -203,6 +203,7 @@ class VennuzoPlacesService {
     String? googlePlaceId,
     String? name,
     String? address,
+    String? city,
     double? latitude,
     double? longitude,
     String? phone,
@@ -217,6 +218,9 @@ class VennuzoPlacesService {
     }
     if (address != null && address.trim().isNotEmpty) {
       payload['address'] = address.trim();
+    }
+    if (city != null && city.trim().isNotEmpty) {
+      payload['city'] = city.trim();
     }
     if (latitude != null) {
       payload['latitude'] = latitude;

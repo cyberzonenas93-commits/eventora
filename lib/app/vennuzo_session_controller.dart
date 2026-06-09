@@ -488,23 +488,36 @@ class VennuzoSessionController extends ChangeNotifier {
     });
   }
 
-  Future<void> deleteAccount({required String currentPassword}) async {
+  /// Whether the currently signed-in user authenticates with an email and
+  /// password. Apple/Google (and other federated) accounts return false, and
+  /// the delete flow must reauthenticate them through their provider instead of
+  /// prompting for a password they never set.
+  bool get currentUserIsPasswordAccount {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return false;
+    }
+    return _primaryProviderId(user) == 'password';
+  }
+
+  /// App Store Guideline 5.1.1(v): every account must be deletable in-app.
+  /// Apple reviewers test with Sign in with Apple, so the flow reauthenticates
+  /// based on the user's real provider instead of always requiring a password.
+  ///
+  /// - `password` accounts reauthenticate with the supplied [currentPassword].
+  /// - `apple.com` accounts re-run Sign in with Apple for a fresh credential.
+  /// - `google.com` accounts re-run Google sign-in for a fresh credential.
+  ///
+  /// [currentPassword] is only consulted for password accounts.
+  Future<void> deleteAccount({String? currentPassword}) async {
     _ensureFirebaseEnabled();
     await _runGuarded(() async {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         return;
       }
-      final email = user.email;
-      if (email == null || email.trim().isEmpty) {
-        throw const VennuzoAuthFailure(
-          'This account cannot be deleted from the app until it has a valid email.',
-        );
-      }
 
-      await user.reauthenticateWithCredential(
-        EmailAuthProvider.credential(email: email, password: currentPassword),
-      );
+      await _reauthenticateForDelete(user, currentPassword: currentPassword);
 
       final batch = FirebaseFirestore.instance.batch();
       batch.delete(
@@ -517,6 +530,110 @@ class VennuzoSessionController extends ChangeNotifier {
       await VennuzoNotificationService.instance.clearBoundToken();
       await user.delete();
     });
+  }
+
+  Future<void> _reauthenticateForDelete(
+    User user, {
+    String? currentPassword,
+  }) async {
+    final providerId = _primaryProviderId(user);
+    switch (providerId) {
+      case 'apple.com':
+        await user.reauthenticateWithCredential(await _freshAppleCredential());
+        return;
+      case 'google.com':
+        await user.reauthenticateWithCredential(await _freshGoogleCredential());
+        return;
+      case 'password':
+      default:
+        final email = user.email;
+        if (email == null || email.trim().isEmpty) {
+          throw const VennuzoAuthFailure(
+            'This account cannot be deleted from the app until it has a valid email.',
+          );
+        }
+        final password = currentPassword?.trim();
+        if (password == null || password.isEmpty) {
+          throw const VennuzoAuthFailure(
+            'Enter your current password to confirm deleting this account.',
+          );
+        }
+        await user.reauthenticateWithCredential(
+          EmailAuthProvider.credential(email: email, password: password),
+        );
+        return;
+    }
+  }
+
+  /// Returns the primary federated provider id for [user], falling back to
+  /// `password` when only the implicit Firebase password provider is present.
+  String _primaryProviderId(User user) {
+    for (final info in user.providerData) {
+      final id = info.providerId;
+      if (id == 'apple.com' || id == 'google.com') {
+        return id;
+      }
+    }
+    for (final info in user.providerData) {
+      if (info.providerId == 'password') {
+        return 'password';
+      }
+    }
+    return 'password';
+  }
+
+  /// Re-runs Sign in with Apple and returns a fresh [OAuthCredential] suitable
+  /// for [User.reauthenticateWithCredential].
+  Future<OAuthCredential> _freshAppleCredential() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.macOS) {
+      throw const VennuzoAuthFailure(
+        'Apple sign-in is only available on Apple devices.',
+      );
+    }
+    final isAvailable = await SignInWithApple.isAvailable();
+    if (!isAvailable) {
+      throw const VennuzoAuthFailure(
+        'Apple sign-in is not available on this device yet.',
+      );
+    }
+    final rawNonce = _generateNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: const [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: hashedNonce,
+    );
+    final identityToken = appleCredential.identityToken;
+    if (identityToken == null || identityToken.isEmpty) {
+      throw const VennuzoAuthFailure(
+        'Apple sign-in did not return a valid identity token.',
+      );
+    }
+    return OAuthProvider(
+      'apple.com',
+    ).credential(idToken: identityToken, rawNonce: rawNonce);
+  }
+
+  /// Re-runs Google sign-in and returns a fresh [AuthCredential] suitable for
+  /// [User.reauthenticateWithCredential].
+  Future<AuthCredential> _freshGoogleCredential() async {
+    await _ensureGoogleInitialized();
+    if (!GoogleSignIn.instance.supportsAuthenticate()) {
+      throw const VennuzoAuthFailure(
+        'Google sign-in is not available on this device yet.',
+      );
+    }
+    final account = await GoogleSignIn.instance.authenticate();
+    final idToken = account.authentication.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw const VennuzoAuthFailure(
+        'Google sign-in is not fully configured yet. Add the Google OAuth client configuration and try again.',
+      );
+    }
+    return GoogleAuthProvider.credential(idToken: idToken);
   }
 
   Future<void> updateNotificationPrefs({

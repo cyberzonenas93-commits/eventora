@@ -12,7 +12,9 @@ Future<void> _reserve(BuildContext context, PlaceProfile place) async {
   if (result == null || !context.mounted) return;
   repository.createPlaceReservation(result);
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Reservation request sent to ${place.name}.')),
+    SnackBar(
+      content: Text('Reservation request sent to ${_placeDisplayName(place)}.'),
+    ),
   );
 }
 
@@ -45,6 +47,7 @@ class _ReservationSheetState extends State<_ReservationSheet> {
   @override
   Widget build(BuildContext context) {
     final repository = context.watch<VennuzoRepository>();
+    final placeName = _placeDisplayName(widget.place);
     final featuredItems = repository
         .menuItemsForPlace(widget.place.id)
         .where((item) => item.featured && item.isAvailable)
@@ -60,10 +63,7 @@ class _ReservationSheetState extends State<_ReservationSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Reserve ${widget.place.name}',
-              style: context.text.headlineSmall,
-            ),
+            Text('Reserve $placeName', style: context.text.headlineSmall),
             const SizedBox(height: 16),
             DropdownButtonFormField<PlaceReservationType>(
               initialValue: _type,
@@ -190,7 +190,7 @@ class _ReservationSheetState extends State<_ReservationSheet> {
                   Navigator.of(context).pop(
                     PlaceReservationRequest(
                       placeId: widget.place.id,
-                      placeName: widget.place.name,
+                      placeName: placeName,
                       reservationType: _type,
                       guestName: name,
                       phone: phone,

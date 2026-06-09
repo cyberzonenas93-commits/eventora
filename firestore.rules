@@ -402,6 +402,29 @@ service cloud.firestore {
         && request.resource.data.status in ['open', 'reviewing', 'resolved', 'dismissed'];
     }
 
+    // App Store Guideline 1.2 — UGC moderation reports (posts/comments/reviews/
+    // profiles). Written ONLY via the reportContent callable (Admin SDK bypasses
+    // rules); clients can never create/read/write these directly. Admins read
+    // and may advance the moderation status from their console.
+    match /content_reports/{reportId} {
+      allow create, write: if false;
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'reviewedBy', 'reviewedByEmail', 'reviewedAt', 'reviewNotes', 'updatedAt'
+        ])
+        && request.resource.data.status in ['pending', 'reviewing', 'resolved', 'dismissed'];
+    }
+
+    // App Store Guideline 1.2 — per-user block list. The block list is mutated
+    // server-side via the blockUser/unblockUser callables, but each user may
+    // READ their own list so the client can filter out blocked authors locally.
+    match /user_blocks/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Writes go through the callables (Admin SDK). Block direct client writes.
+      allow write: if false;
+    }
+
     match /support_tickets/{ticketId} {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid);

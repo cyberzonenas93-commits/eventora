@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -121,6 +122,12 @@ class _HostAccessScreenState extends State<HostAccessScreen> {
   bool get _isBankTransfer => _payoutMethod == 'bank-transfer';
 
   bool _isQaBypassViewer(VennuzoViewer viewer) {
+    // App Store compliance: the QA auto-fill bypass (fake government-ID/selfie
+    // placeholders) must never be reachable in release builds. Keep it for
+    // debug/profile so local QA can still seed the host-access form quickly.
+    if (kReleaseMode) {
+      return false;
+    }
     return viewer.email?.trim().toLowerCase() == 'angelonartey@hotmail.com';
   }
 

@@ -13,6 +13,8 @@ import '../../core/theme/theme_extensions.dart';
 import '../../data/repositories/vennuzo_repository.dart';
 import 'saved_events_screen.dart';
 import 'social_models.dart';
+import 'social_moderation_service.dart';
+import 'social_moderation_ui.dart';
 import 'social_post_image.dart';
 import 'social_service.dart';
 
@@ -27,6 +29,7 @@ class _SocialFeedScreenState extends State<SocialFeedScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   SocialService? _socialService;
+  final SocialModerationService _moderationService = SocialModerationService();
 
   SocialService get _service => _socialService ??= SocialService();
 
@@ -75,8 +78,16 @@ class _SocialFeedScreenState extends State<SocialFeedScreen>
                       _OfflineSocialTab(),
                     ]
                   : [
-                      _FeedTab(socialService: socialService),
-                      _ExploreTab(socialService: socialService),
+                      _FeedTab(
+                        socialService: socialService,
+                        moderationService: _moderationService,
+                        currentUserId: session.viewer.uid ?? '',
+                      ),
+                      _ExploreTab(
+                        socialService: socialService,
+                        moderationService: _moderationService,
+                        currentUserId: session.viewer.uid ?? '',
+                      ),
                       SavedEventsScreen(userId: session.viewer.uid ?? ''),
                     ],
             ),
@@ -152,18 +163,36 @@ class _AccessibleTabLabel extends StatelessWidget {
 // ─── Feed Tab ────────────────────────────────────────────────────────────────
 
 class _FeedTab extends StatelessWidget {
-  const _FeedTab({required this.socialService});
+  const _FeedTab({
+    required this.socialService,
+    required this.moderationService,
+    required this.currentUserId,
+  });
   final SocialService socialService;
+  final SocialModerationService moderationService;
+  final String currentUserId;
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<Set<String>>(
+      stream: moderationService.blockedUserIds(currentUserId),
+      builder: (context, blockedSnap) {
+        final blocked = blockedSnap.data ?? const <String>{};
+        return _buildFeed(context, blocked);
+      },
+    );
+  }
+
+  Widget _buildFeed(BuildContext context, Set<String> blocked) {
     return StreamBuilder<List<EventPost>>(
       stream: socialService.getRecentFeed(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final posts = snapshot.data ?? [];
+        final posts = (snapshot.data ?? [])
+            .where((p) => !blocked.contains(p.userId))
+            .toList();
         if (posts.isEmpty) {
           return Center(
             child: Padding(
@@ -198,6 +227,8 @@ class _FeedTab extends StatelessWidget {
             return _FeedPostCard(
               post: posts[index],
               socialService: socialService,
+              moderationService: moderationService,
+              currentUserId: currentUserId,
             );
           },
         );
@@ -209,18 +240,36 @@ class _FeedTab extends StatelessWidget {
 // ─── Explore Tab ─────────────────────────────────────────────────────────────
 
 class _ExploreTab extends StatelessWidget {
-  const _ExploreTab({required this.socialService});
+  const _ExploreTab({
+    required this.socialService,
+    required this.moderationService,
+    required this.currentUserId,
+  });
   final SocialService socialService;
+  final SocialModerationService moderationService;
+  final String currentUserId;
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<Set<String>>(
+      stream: moderationService.blockedUserIds(currentUserId),
+      builder: (context, blockedSnap) {
+        final blocked = blockedSnap.data ?? const <String>{};
+        return _buildGrid(context, blocked);
+      },
+    );
+  }
+
+  Widget _buildGrid(BuildContext context, Set<String> blocked) {
     return StreamBuilder<List<EventPost>>(
       stream: socialService.getRecentFeed(limit: 60),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final posts = snapshot.data ?? [];
+        final posts = (snapshot.data ?? [])
+            .where((p) => !blocked.contains(p.userId))
+            .toList();
         if (posts.isEmpty) {
           return Center(
             child: Text(
@@ -251,6 +300,8 @@ class _ExploreTab extends StatelessWidget {
                     builder: (_) => _SinglePostScreen(
                       post: post,
                       socialService: socialService,
+                      moderationService: moderationService,
+                      currentUserId: currentUserId,
                     ),
                   ),
                 ),
@@ -275,10 +326,17 @@ class _ExploreTab extends StatelessWidget {
 // ─── Feed Post Card ───────────────────────────────────────────────────────────
 
 class _FeedPostCard extends StatefulWidget {
-  const _FeedPostCard({required this.post, required this.socialService});
+  const _FeedPostCard({
+    required this.post,
+    required this.socialService,
+    required this.moderationService,
+    required this.currentUserId,
+  });
 
   final EventPost post;
   final SocialService socialService;
+  final SocialModerationService moderationService;
+  final String currentUserId;
 
   @override
   State<_FeedPostCard> createState() => _FeedPostCardState();
@@ -364,6 +422,17 @@ class _FeedPostCardState extends State<_FeedPostCard> {
                   dateStr,
                   style: const TextStyle(color: Colors.white38, fontSize: 12),
                 ),
+                if (post.userId.isNotEmpty &&
+                    post.userId != widget.currentUserId)
+                  ContentModerationButton(
+                    contentType: ReportContentType.post,
+                    contentId: post.postId,
+                    authorId: post.userId,
+                    authorName: post.displayName,
+                    currentUserId: widget.currentUserId,
+                    isBlocked: false,
+                    color: Colors.white54,
+                  ),
               ],
             ),
           ),
@@ -406,6 +475,8 @@ class _FeedPostCardState extends State<_FeedPostCard> {
                           builder: (_) => _SinglePostScreen(
                             post: post,
                             socialService: socialService,
+                            moderationService: widget.moderationService,
+                            currentUserId: widget.currentUserId,
                           ),
                         ),
                       ),
@@ -549,10 +620,17 @@ class _LikeButton extends StatelessWidget {
 // ─── Single Post Screen ───────────────────────────────────────────────────────
 
 class _SinglePostScreen extends StatefulWidget {
-  const _SinglePostScreen({required this.post, required this.socialService});
+  const _SinglePostScreen({
+    required this.post,
+    required this.socialService,
+    required this.moderationService,
+    required this.currentUserId,
+  });
 
   final EventPost post;
   final SocialService socialService;
+  final SocialModerationService moderationService;
+  final String currentUserId;
 
   @override
   State<_SinglePostScreen> createState() => _SinglePostScreenState();
@@ -603,6 +681,19 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
           widget.post.displayName,
           style: const TextStyle(color: Colors.white),
         ),
+        actions: [
+          if (widget.post.userId.isNotEmpty &&
+              widget.post.userId != widget.currentUserId)
+            ContentModerationButton(
+              contentType: ReportContentType.post,
+              contentId: widget.post.postId,
+              authorId: widget.post.userId,
+              authorName: widget.post.displayName,
+              currentUserId: widget.currentUserId,
+              isBlocked: false,
+              color: Colors.white,
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -625,43 +716,69 @@ class _SinglePostScreenState extends State<_SinglePostScreen> {
                     ),
                   ),
                 const Divider(color: Colors.white12),
-                StreamBuilder<List<PostComment>>(
-                  stream: widget.socialService.getComments(widget.post.postId),
-                  builder: (context, snapshot) {
-                    final comments = snapshot.data ?? [];
-                    return Column(
-                      children: comments.map((c) {
-                        return ListTile(
-                          leading: CircleAvatar(
-                            radius: 14,
-                            foregroundImage: c.photoUrl != null
-                                ? CachedNetworkImageProvider(c.photoUrl!)
-                                : null,
-                            child: c.photoUrl == null
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 14,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          title: Text(
-                            c.displayName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          subtitle: Text(
-                            c.text,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                            ),
-                          ),
+                StreamBuilder<Set<String>>(
+                  stream: widget.moderationService.blockedUserIds(
+                    widget.currentUserId,
+                  ),
+                  builder: (context, blockedSnap) {
+                    final blocked = blockedSnap.data ?? const <String>{};
+                    return StreamBuilder<List<PostComment>>(
+                      stream: widget.socialService.getComments(
+                        widget.post.postId,
+                      ),
+                      builder: (context, snapshot) {
+                        final comments = (snapshot.data ?? [])
+                            .where((c) => !blocked.contains(c.userId))
+                            .toList();
+                        return Column(
+                          children: comments.map((c) {
+                            final canModerate =
+                                c.userId.isNotEmpty &&
+                                c.userId != widget.currentUserId;
+                            return ListTile(
+                              leading: CircleAvatar(
+                                radius: 14,
+                                foregroundImage: c.photoUrl != null
+                                    ? CachedNetworkImageProvider(c.photoUrl!)
+                                    : null,
+                                child: c.photoUrl == null
+                                    ? const Icon(
+                                        Icons.person,
+                                        size: 14,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                              ),
+                              title: Text(
+                                c.displayName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(
+                                c.text,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              trailing: canModerate
+                                  ? ContentModerationButton(
+                                      contentType: ReportContentType.comment,
+                                      contentId: c.commentId,
+                                      authorId: c.userId,
+                                      authorName: c.displayName,
+                                      currentUserId: widget.currentUserId,
+                                      isBlocked: false,
+                                      color: Colors.white38,
+                                    )
+                                  : null,
+                            );
+                          }).toList(),
                         );
-                      }).toList(),
+                      },
                     );
                   },
                 ),

@@ -1,20 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import 'social_models.dart';
+import 'social_moderation_service.dart';
+import 'social_moderation_ui.dart';
 import 'social_post_image.dart';
 import 'social_service.dart';
 
 class EventPostsGrid extends StatefulWidget {
-  const EventPostsGrid({
+  EventPostsGrid({
     super.key,
     required this.eventId,
     required this.socialService,
-  });
+    SocialModerationService? moderationService,
+    this.currentUserId,
+  }) : moderationService = moderationService ?? SocialModerationService();
 
   final String eventId;
   final SocialService socialService;
+  final SocialModerationService moderationService;
+
+  /// The signed-in viewer's uid. When null it is resolved from the session via
+  /// context so callers that don't have it handy (e.g. event detail screen)
+  /// still get block-filtering + self-moderation suppression.
+  final String? currentUserId;
 
   @override
   State<EventPostsGrid> createState() => _EventPostsGridState();
@@ -38,8 +50,28 @@ class _EventPostsGridState extends State<EventPostsGrid> {
     }
   }
 
+  String _resolveCurrentUserId(BuildContext context) {
+    if (widget.currentUserId != null) return widget.currentUserId!;
+    return context.watch<VennuzoSessionController>().viewer.uid ?? '';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final currentUserId = _resolveCurrentUserId(context);
+    return StreamBuilder<Set<String>>(
+      stream: widget.moderationService.blockedUserIds(currentUserId),
+      builder: (context, blockedSnap) {
+        final blocked = blockedSnap.data ?? const <String>{};
+        return _buildGrid(context, blocked, currentUserId);
+      },
+    );
+  }
+
+  Widget _buildGrid(
+    BuildContext context,
+    Set<String> blocked,
+    String currentUserId,
+  ) {
     return StreamBuilder<List<EventPost>>(
       stream: _postsStream,
       builder: (context, snapshot) {
@@ -66,7 +98,9 @@ class _EventPostsGridState extends State<EventPostsGrid> {
             ),
           );
         }
-        final posts = snapshot.data ?? [];
+        final posts = (snapshot.data ?? [])
+            .where((p) => !blocked.contains(p.userId))
+            .toList();
         if (posts.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -92,7 +126,8 @@ class _EventPostsGridState extends State<EventPostsGrid> {
           itemBuilder: (context, index) {
             final post = posts[index];
             return GestureDetector(
-              onTap: () => _openFullScreen(context, post, posts, index),
+              onTap: () =>
+                  _openFullScreen(context, post, posts, index, currentUserId),
               child: _PostThumbnail(post: post),
             );
           },
@@ -106,6 +141,7 @@ class _EventPostsGridState extends State<EventPostsGrid> {
     EventPost post,
     List<EventPost> posts,
     int initialIndex,
+    String currentUserId,
   ) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -113,6 +149,8 @@ class _EventPostsGridState extends State<EventPostsGrid> {
           posts: posts,
           initialIndex: initialIndex,
           socialService: widget.socialService,
+          moderationService: widget.moderationService,
+          currentUserId: currentUserId,
         ),
       ),
     );
@@ -141,11 +179,15 @@ class _FullScreenPostViewer extends StatefulWidget {
     required this.posts,
     required this.initialIndex,
     required this.socialService,
+    required this.moderationService,
+    required this.currentUserId,
   });
 
   final List<EventPost> posts;
   final int initialIndex;
   final SocialService socialService;
+  final SocialModerationService moderationService;
+  final String currentUserId;
 
   @override
   State<_FullScreenPostViewer> createState() => _FullScreenPostViewerState();
@@ -170,6 +212,10 @@ class _FullScreenPostViewerState extends State<_FullScreenPostViewer> {
 
   @override
   Widget build(BuildContext context) {
+    final currentPost = widget.posts[_currentIndex];
+    final canModerate =
+        currentPost.userId.isNotEmpty &&
+        currentPost.userId != widget.currentUserId;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -179,6 +225,18 @@ class _FullScreenPostViewerState extends State<_FullScreenPostViewer> {
           '${_currentIndex + 1} / ${widget.posts.length}',
           style: const TextStyle(color: Colors.white),
         ),
+        actions: [
+          if (canModerate)
+            ContentModerationButton(
+              contentType: ReportContentType.post,
+              contentId: currentPost.postId,
+              authorId: currentPost.userId,
+              authorName: currentPost.displayName,
+              currentUserId: widget.currentUserId,
+              isBlocked: false,
+              color: Colors.white,
+            ),
+        ],
       ),
       body: PageView.builder(
         controller: _pageController,

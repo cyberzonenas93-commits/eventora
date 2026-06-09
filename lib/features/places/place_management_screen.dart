@@ -13,6 +13,22 @@ import '../../widgets/empty_state_card.dart';
 import '../../widgets/place_verification_badge.dart';
 import '../../widgets/section_heading.dart';
 
+Future<String?> showLocationOnboardingSheet(BuildContext context) async {
+  final result = await showModalBottomSheet<_OnboardedLocationResult>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => const _OnboardLocationSheet(),
+  );
+  if (result == null || !context.mounted) return null;
+  final message = result.canVerifyByPhone
+      ? 'Location added. Verify by phone to unlock paid tools.'
+      : 'Location added. Upload a document to finish verification.';
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  return result.placeId;
+}
+
 class PlaceManagementScreen extends StatefulWidget {
   const PlaceManagementScreen({super.key});
 
@@ -35,20 +51,25 @@ class _PlaceManagementScreenState extends State<PlaceManagementScreen> {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       children: [
         SectionHeading(
-          title: 'Place manager',
-          subtitle: 'Menus, reservations, subscribers, and paid push.',
-          actionLabel: 'Claim place',
-          onAction: () => _startClaimFlow(context),
+          title: 'Location onboarding',
+          subtitle: 'Add, verify, and hand off places to the venue team.',
+          actionLabel: 'Onboard',
+          onAction: _startLocationOnboarding,
         ),
         const SizedBox(height: 14),
+        _LocationOnboardingCard(
+          placeCount: places.length,
+          onStart: _startLocationOnboarding,
+        ),
+        const SizedBox(height: 18),
         if (places.isEmpty)
           EmptyStateCard(
             title: 'No places assigned',
             icon: Icons.storefront_outlined,
             body:
                 'Claim a Google business listing or create a place profile before managing menus and reservations.',
-            actionLabel: 'Claim or create a place',
-            onAction: () => _startClaimFlow(context),
+            actionLabel: 'Onboard a location',
+            onAction: _startLocationOnboarding,
           )
         else ...[
           DropdownButtonFormField<String>(
@@ -81,16 +102,116 @@ class _PlaceManagementScreenState extends State<PlaceManagementScreen> {
     );
   }
 
-  Future<void> _startClaimFlow(BuildContext context) async {
-    final claimedPlaceId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const _ClaimPlaceSheet(),
+  Future<void> _startLocationOnboarding() async {
+    final placeId = await showLocationOnboardingSheet(context);
+    if (placeId == null || !mounted) return;
+    setState(() => _selectedPlaceId = placeId);
+  }
+}
+
+class _LocationOnboardingCard extends StatelessWidget {
+  const _LocationOnboardingCard({
+    required this.placeCount,
+    required this.onStart,
+  });
+
+  final int placeCount;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: context.palette.teal.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: VennuzoTheme.borderBright),
+                  ),
+                  child: Icon(
+                    Icons.add_business_rounded,
+                    color: context.palette.teal,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Onboard location', style: context.text.titleMedium),
+                      const SizedBox(height: 3),
+                      Text(
+                        '$placeCount active ${placeCount == 1 ? 'profile' : 'profiles'} in this workspace',
+                        style: context.text.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: onStart,
+                  icon: const Icon(Icons.add_location_alt_outlined),
+                  label: const Text('Start'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: const [
+                _OnboardingStepPill(
+                  icon: Icons.search_rounded,
+                  label: 'Find listing',
+                ),
+                _OnboardingStepPill(
+                  icon: Icons.edit_location_alt_outlined,
+                  label: 'Manual add',
+                ),
+                _OnboardingStepPill(
+                  icon: Icons.verified_outlined,
+                  label: 'Verify',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
-    if (claimedPlaceId == null || !mounted) return;
-    setState(() => _selectedPlaceId = claimedPlaceId);
+  }
+}
+
+class _OnboardingStepPill extends StatelessWidget {
+  const _OnboardingStepPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: VennuzoTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: VennuzoTheme.borderSubtle),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: context.palette.teal),
+          const SizedBox(width: 6),
+          Text(label, style: context.text.bodySmall),
+        ],
+      ),
+    );
   }
 }
 
@@ -565,9 +686,9 @@ Future<void> _startPhoneVerification(
   if (outcome == null || !context.mounted) return;
   switch (outcome) {
     case _VerifyOutcome.verified:
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${place.name} is now verified.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${place.name} is now verified.')));
     case _VerifyOutcome.switchToDocument:
       await _startDocumentVerification(context, place);
     case _VerifyOutcome.dismissed:
@@ -582,7 +703,9 @@ Future<void> _startDocumentVerification(
   final uid = context.read<VennuzoRepository>().currentUserId;
   if (uid.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sign in to submit a verification document.')),
+      const SnackBar(
+        content: Text('Sign in to submit a verification document.'),
+      ),
     );
     return;
   }
@@ -595,33 +718,63 @@ Future<void> _startDocumentVerification(
   );
   if (submitted != true || !context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text('${place.name} submitted for review.'),
-    ),
+    SnackBar(content: Text('${place.name} submitted for review.')),
   );
 }
 
-/// Step 1 of the claim flow: search a Google listing (or create a free-form
-/// place) and call `claimOrCreatePlace`. Pops the new place id on success.
-class _ClaimPlaceSheet extends StatefulWidget {
-  const _ClaimPlaceSheet();
+class _OnboardedLocationResult {
+  const _OnboardedLocationResult({
+    required this.placeId,
+    required this.canVerifyByPhone,
+    required this.verificationStatus,
+  });
 
-  @override
-  State<_ClaimPlaceSheet> createState() => _ClaimPlaceSheetState();
+  final String placeId;
+  final bool canVerifyByPhone;
+  final String verificationStatus;
 }
 
-class _ClaimPlaceSheetState extends State<_ClaimPlaceSheet> {
+enum _OnboardLocationMode { google, manual }
+
+/// Staff location setup: search a Google listing, or add a free-form location
+/// when the listing is missing and send it into the same verification pipeline.
+class _OnboardLocationSheet extends StatefulWidget {
+  const _OnboardLocationSheet();
+
+  @override
+  State<_OnboardLocationSheet> createState() => _OnboardLocationSheetState();
+}
+
+class _OnboardLocationSheetState extends State<_OnboardLocationSheet> {
   final _searchController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _cityController = TextEditingController(text: 'Accra');
+  final _phoneController = TextEditingController();
+  final _websiteController = TextEditingController();
   List<VennuzoPlaceSuggestion> _results = const <VennuzoPlaceSuggestion>[];
+  _OnboardLocationMode _mode = _OnboardLocationMode.google;
   bool _searching = false;
-  bool _claiming = false;
+  bool _saving = false;
   String? _error;
   int _searchToken = 0;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _nameController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _phoneController.dispose();
+    _websiteController.dispose();
     super.dispose();
+  }
+
+  void _switchMode(_OnboardLocationMode mode) {
+    setState(() {
+      _mode = mode;
+      _error = null;
+    });
   }
 
   Future<void> _runSearch(String query) async {
@@ -659,7 +812,7 @@ class _ClaimPlaceSheetState extends State<_ClaimPlaceSheet> {
 
   Future<void> _claim(VennuzoPlaceSuggestion suggestion) async {
     setState(() {
-      _claiming = true;
+      _saving = true;
       _error = null;
     });
     try {
@@ -667,14 +820,63 @@ class _ClaimPlaceSheetState extends State<_ClaimPlaceSheet> {
         googlePlaceId: suggestion.placeId,
       );
       if (!mounted) return;
-      Navigator.of(context).pop(result.placeId);
+      Navigator.of(context).pop(
+        _OnboardedLocationResult(
+          placeId: result.placeId,
+          canVerifyByPhone: result.canVerifyByPhone,
+          verificationStatus: result.verificationStatus,
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _claiming = false;
+        _saving = false;
         _error = error is VennuzoPlacesFailure
             ? error.message
             : 'We could not claim this place. Please try again.';
+      });
+    }
+  }
+
+  Future<void> _createManual() async {
+    final name = _nameController.text.trim();
+    final address = _addressController.text.trim();
+    final city = _cityController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Add the location name.');
+      return;
+    }
+    if (address.isEmpty) {
+      setState(() => _error = 'Add the street address or area.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final result = await VennuzoPlacesService.instance.claimOrCreatePlace(
+        name: name,
+        address: address,
+        city: city,
+        phone: _phoneController.text,
+        website: _websiteController.text,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(
+        _OnboardedLocationResult(
+          placeId: result.placeId,
+          canVerifyByPhone: result.canVerifyByPhone,
+          verificationStatus: result.verificationStatus,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = error is VennuzoPlacesFailure
+            ? error.message
+            : 'We could not create this location. Please try again.';
       });
     }
   }
@@ -692,67 +894,210 @@ class _ClaimPlaceSheetState extends State<_ClaimPlaceSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Claim a place', style: context.text.headlineSmall),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Onboard location',
+                    style: context.text.headlineSmall,
+                  ),
+                ),
+                IconButton(
+                  onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
             const SizedBox(height: 6),
             Text(
-              'Search Google Business listings. Claiming a listing lets you verify by phone instantly.',
+              'Find the business listing first. Add manually when the location is not listed yet.',
               style: context.text.bodyMedium,
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _searchController,
-              autofocus: true,
-              textInputAction: TextInputAction.search,
-              decoration: const InputDecoration(
-                hintText: 'Search venue name or address',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
-              onChanged: _runSearch,
+            SegmentedButton<_OnboardLocationMode>(
+              segments: const [
+                ButtonSegment(
+                  value: _OnboardLocationMode.google,
+                  icon: Icon(Icons.travel_explore_rounded),
+                  label: Text('Find listing'),
+                ),
+                ButtonSegment(
+                  value: _OnboardLocationMode.manual,
+                  icon: Icon(Icons.edit_location_alt_outlined),
+                  label: Text('Add manually'),
+                ),
+              ],
+              selected: {_mode},
+              showSelectedIcon: false,
+              onSelectionChanged: _saving
+                  ? null
+                  : (value) => _switchMode(value.first),
             ),
             const SizedBox(height: 14),
-            if (_claiming)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_searching)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null)
-              Text(
-                _error!,
-                style: context.text.bodyMedium?.copyWith(
-                  color: context.palette.error,
-                ),
-              )
-            else if (_results.isEmpty &&
-                _searchController.text.trim().length >= 2)
-              Text(
-                'No matching listings found.',
-                style: context.text.bodyMedium,
-              )
+            if (_mode == _OnboardLocationMode.google)
+              _buildGoogleListingPath(context)
             else
-              for (final suggestion in _results)
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.place_outlined),
-                    title: Text(
-                      suggestion.title.isEmpty
-                          ? suggestion.fullText
-                          : suggestion.title,
-                    ),
-                    subtitle: suggestion.subtitle.isEmpty
-                        ? null
-                        : Text(suggestion.subtitle),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => _claim(suggestion),
-                  ),
-                ),
+              _buildManualPath(context),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildGoogleListingPath(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _searchController,
+          autofocus: true,
+          enabled: !_saving,
+          textInputAction: TextInputAction.search,
+          decoration: const InputDecoration(
+            hintText: 'Search venue name or address',
+            prefixIcon: Icon(Icons.search_rounded),
+          ),
+          onChanged: _runSearch,
+        ),
+        const SizedBox(height: 14),
+        if (_saving || _searching)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_error != null)
+          _OnboardingError(message: _error!)
+        else if (_results.isEmpty &&
+            _searchController.text.trim().length >= 2) ...[
+          Text('No matching listings found.', style: context.text.bodyMedium),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => _switchMode(_OnboardLocationMode.manual),
+            icon: const Icon(Icons.edit_location_alt_outlined),
+            label: const Text('Add manually'),
+          ),
+        ] else if (_results.isEmpty)
+          _InfoCallout(
+            icon: Icons.sms_outlined,
+            message:
+                'Listings with a business phone can verify by SMS after onboarding.',
+          )
+        else
+          for (final suggestion in _results)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.place_outlined),
+                title: Text(
+                  suggestion.title.isEmpty
+                      ? suggestion.fullText
+                      : suggestion.title,
+                ),
+                subtitle: suggestion.subtitle.isEmpty
+                    ? null
+                    : Text(suggestion.subtitle),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _saving ? null : () => _claim(suggestion),
+              ),
+            ),
+      ],
+    );
+  }
+
+  Widget _buildManualPath(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _nameController,
+          enabled: !_saving,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            labelText: 'Location name',
+            prefixIcon: Icon(Icons.storefront_outlined),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _addressController,
+          enabled: !_saving,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            labelText: 'Street address or area',
+            prefixIcon: Icon(Icons.location_on_outlined),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _cityController,
+          enabled: !_saving,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            labelText: 'City',
+            prefixIcon: Icon(Icons.location_city_outlined),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _phoneController,
+          enabled: !_saving,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            labelText: 'Phone (optional)',
+            prefixIcon: Icon(Icons.phone_outlined),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _websiteController,
+          enabled: !_saving,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            labelText: 'Website or Instagram (optional)',
+            prefixIcon: Icon(Icons.link_outlined),
+          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 10),
+          _OnboardingError(message: _error!),
+        ],
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _saving ? null : _createManual,
+            icon: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
+                : const Icon(Icons.add_business_outlined),
+            label: Text(_saving ? 'Creating...' : 'Create location'),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _InfoCallout(
+          icon: Icons.upload_file_outlined,
+          message:
+              'Manual locations go to document review before paid tools unlock.',
+        ),
+      ],
+    );
+  }
+}
+
+class _OnboardingError extends StatelessWidget {
+  const _OnboardingError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      message,
+      style: context.text.bodyMedium?.copyWith(color: context.palette.error),
     );
   }
 }
@@ -1081,9 +1426,7 @@ class _DocumentVerificationSheetState
       ),
       padding: EdgeInsets.fromLTRB(20, 16, 20, viewInsets.bottom + 24),
       child: SingleChildScrollView(
-        child: _submitted
-            ? _buildSuccess(context)
-            : _buildForm(context),
+        child: _submitted ? _buildSuccess(context) : _buildForm(context),
       ),
     );
   }
@@ -1095,11 +1438,7 @@ class _DocumentVerificationSheetState
       children: [
         Row(
           children: [
-            Icon(
-              Icons.verified_outlined,
-              color: palette.teal,
-              size: 28,
-            ),
+            Icon(Icons.verified_outlined, color: palette.teal, size: 28),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

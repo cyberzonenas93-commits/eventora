@@ -16,6 +16,7 @@
 
 const os = require("os");
 const path = require("path");
+const crypto = require("crypto");
 const admin = require("../functions/node_modules/firebase-admin");
 
 const DEFAULT_GPLUS_SERVICE_ACCOUNT = path.join(
@@ -35,6 +36,9 @@ const WRITE = process.env.WRITE === "1" || process.env.WRITE === "true";
 
 const GPLUS_PLACE_ID = "gplus_nightclub";
 const GPLUS_PROFILE_ID = "gplus";
+const GPLUS_PLACE_NAME = "G+ Nightclub";
+const GPLUS_ORGANIZATION_ID = "org_gplus";
+const GPLUS_CREATOR_ID = "gplus";
 const SOURCE_COLLECTION = "moments_gallery";
 const MIRROR_COLLECTION = "gplus_media_gallery";
 
@@ -76,6 +80,56 @@ function videoUrlForMoment(moment) {
   return firstString(moment, ["videoUrl", "processedVideoUrl"]);
 }
 
+function objectPathFromStorageUrl(value, bucketName) {
+  const raw = safeString(value);
+  if (!raw) return "";
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (_) {
+    return "";
+  }
+  if (parsed.hostname === "storage.googleapis.com") {
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts[0] === bucketName && parts.length > 1) {
+      return decodeURIComponent(parts.slice(1).join("/"));
+    }
+  }
+  if (parsed.hostname === `${bucketName}.storage.googleapis.com`) {
+    return decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+  }
+  return "";
+}
+
+async function browserReadableStorageUrl(bucket, value) {
+  const raw = safeString(value);
+  if (!raw) return "";
+  if (raw.includes("firebasestorage.googleapis.com") && raw.includes("alt=media")) {
+    return raw;
+  }
+  const objectPath = objectPathFromStorageUrl(raw, bucket.name);
+  if (!objectPath) return raw;
+
+  const file = bucket.file(objectPath);
+  const [metadata] = await file.getMetadata();
+  const customMetadata = metadata.metadata || {};
+  const existingToken = safeString(customMetadata.firebaseStorageDownloadTokens)
+    .split(",")
+    .map(safeString)
+    .find(Boolean);
+  const token = existingToken || crypto.randomUUID();
+  if (!existingToken) {
+    await file.setMetadata({
+      metadata: {
+        ...customMetadata,
+        firebaseStorageDownloadTokens: token,
+      },
+    });
+  }
+
+  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket.name)}/o/${encodeURIComponent(objectPath)}?alt=media&token=${encodeURIComponent(token)}`;
+}
+
 function timestampMillis(value) {
   if (!value) return 0;
   if (typeof value.toMillis === "function") return value.toMillis();
@@ -115,6 +169,7 @@ async function main() {
   );
 
   const sourceDb = sourceApp.firestore();
+  const sourceBucket = sourceApp.storage().bucket();
   const destinationDb = destinationApp.firestore();
   const now = admin.firestore.FieldValue.serverTimestamp();
 
@@ -124,8 +179,7 @@ async function main() {
     .limit(SOURCE_LIMIT)
     .get();
 
-  const seenUrls = new Set();
-  const media = snap.docs
+  const sourceMedia = snap.docs
     .map((doc) => {
       const data = doc.data() || {};
       const imageUrl = urlForMoment(data);
@@ -141,13 +195,21 @@ async function main() {
     })
     .filter((item) => item.data.isActive !== false)
     .filter((item) => item.imageUrl)
+    .sort((a, b) => b.sortAt - a.sortAt)
+    .slice(0, MAX_GALLERY);
+
+  const seenUrls = new Set();
+  const media = (await Promise.all(
+    sourceMedia.map(async (item) => ({
+      ...item,
+      imageUrl: await browserReadableStorageUrl(sourceBucket, item.imageUrl),
+    })),
+  ))
     .filter((item) => {
       if (seenUrls.has(item.imageUrl)) return false;
       seenUrls.add(item.imageUrl);
       return true;
-    })
-    .sort((a, b) => b.sortAt - a.sortAt)
-    .slice(0, MAX_GALLERY);
+    });
 
   const galleryUrls = media.map((item) => item.imageUrl);
   if (!galleryUrls.length) {
@@ -205,10 +267,18 @@ async function main() {
 
   writes.push((batch) => {
     batch.set(
-      destinationDb.collection("places").doc(GPLUS_PLACE_ID),
+        destinationDb.collection("places").doc(GPLUS_PLACE_ID),
       {
+        organizationId: GPLUS_ORGANIZATION_ID,
+        ownerId: GPLUS_CREATOR_ID,
+        name: GPLUS_PLACE_NAME,
         coverUrl: galleryUrls[0],
         galleryUrls,
+        featured: true,
+        status: "active",
+        source: "gplus",
+        integrationSource: "gplus",
+        syncSource: "gplus_moments_gallery",
         mediaDeskGallerySource: "gplus/moments_gallery",
         mediaDeskGallerySyncedAt: now,
         updatedAt: now,
@@ -221,6 +291,9 @@ async function main() {
     batch.set(
       destinationDb.collection("creator_profiles").doc(GPLUS_PROFILE_ID),
       {
+        displayName: GPLUS_PLACE_NAME,
+        name: GPLUS_PLACE_NAME,
+        source: "gplus",
         coverUrl: galleryUrls[0],
         mediaDeskGallerySyncedAt: now,
         updatedAt: now,

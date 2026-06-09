@@ -1,12 +1,15 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
+import 'legal_links.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -28,6 +31,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   XFile? _selectedProfileImage;
   Uint8List? _selectedProfileImageBytes;
   bool _submitted = false;
+  late final TapGestureRecognizer _termsTapRecognizer;
+  late final TapGestureRecognizer _privacyTapRecognizer;
 
   @override
   void initState() {
@@ -38,6 +43,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _dobController = TextEditingController();
     _passwordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
+    _termsTapRecognizer = TapGestureRecognizer()
+      ..onTap = () => _openLegalUrl(
+        VennuzoLegalLinks.termsOfService,
+        'Could not open the Terms of Service.',
+      );
+    _privacyTapRecognizer = TapGestureRecognizer()
+      ..onTap = () => _openLegalUrl(
+        VennuzoLegalLinks.privacyPolicy,
+        'Could not open the Privacy Policy.',
+      );
   }
 
   @override
@@ -48,6 +63,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _dobController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _termsTapRecognizer.dispose();
+    _privacyTapRecognizer.dispose();
     super.dispose();
   }
 
@@ -194,6 +211,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      _LegalConsentText(
+                        termsRecognizer: _termsTapRecognizer,
+                        privacyRecognizer: _privacyTapRecognizer,
+                      ),
                       const SizedBox(height: 8),
                       const _SocialDivider(),
                       const SizedBox(height: 12),
@@ -281,6 +303,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.macOS);
+  }
+
+  Future<void> _openLegalUrl(String url, String failureMessage) async {
+    final launched = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(failureMessage)));
+    }
   }
 
   Future<void> _signUpWithGoogle() async {
@@ -440,6 +474,49 @@ class _ProfileImagePicker extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _LegalConsentText extends StatelessWidget {
+  const _LegalConsentText({
+    required this.termsRecognizer,
+    required this.privacyRecognizer,
+  });
+
+  final TapGestureRecognizer termsRecognizer;
+  final TapGestureRecognizer privacyRecognizer;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final baseStyle = context.text.bodySmall?.copyWith(color: palette.slate);
+    final linkStyle = context.text.bodySmall?.copyWith(
+      color: palette.teal,
+      fontWeight: FontWeight.w700,
+      decoration: TextDecoration.underline,
+    );
+
+    return Text.rich(
+      TextSpan(
+        style: baseStyle,
+        children: [
+          const TextSpan(text: 'By creating an account you agree to our '),
+          TextSpan(
+            text: 'Terms of Service',
+            style: linkStyle,
+            recognizer: termsRecognizer,
+          ),
+          const TextSpan(text: ' and '),
+          TextSpan(
+            text: 'Privacy Policy',
+            style: linkStyle,
+            recognizer: privacyRecognizer,
+          ),
+          const TextSpan(text: '.'),
+        ],
+      ),
+      textAlign: TextAlign.center,
     );
   }
 }

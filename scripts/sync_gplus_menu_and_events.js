@@ -28,7 +28,7 @@ const VENNUZO_PROJECT_ID = process.env.VENNUZO_PROJECT_ID || "eventora-10063";
 const WRITE = process.env.WRITE === "1" || process.env.WRITE === "true";
 
 const PLACE_ID = "gplus_nightclub";
-const PLACE_NAME = "G+Nightclub";
+const PLACE_NAME = "G+ Nightclub";
 const GPLUS_ORGANIZATION_ID = "org_gplus";
 const GPLUS_CREATOR_ID = "gplus";
 const GPLUS_ADDRESS = "UPSA Road, Madina, Accra, Ghana";
@@ -36,6 +36,15 @@ const GPLUS_ADDRESS = "UPSA Road, Madina, Accra, Ghana";
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
   return normalized || fallback;
+}
+
+function normalizeGPlusPlaceName(value) {
+  const raw = safeString(value, PLACE_NAME);
+  const compact = raw.toLowerCase().replace(/[\s_-]+/g, "");
+  if (compact === "g+" || compact === "gplus" || compact === "g+nightclub" || compact === "gplusnightclub") {
+    return PLACE_NAME;
+  }
+  return raw;
 }
 
 function safeId(value, fallback = "item") {
@@ -105,7 +114,7 @@ function normalizeSourceEvent(event) {
     ...event,
     organizationId: GPLUS_ORGANIZATION_ID,
     createdBy: GPLUS_CREATOR_ID,
-    venue: safeString(event.venue || event.location, "G+"),
+    venue: normalizeGPlusPlaceName(event.venue || event.location),
     city: safeString(event.city || event.locationCity, "Accra"),
     addressText: safeString(event.addressText || event.address, GPLUS_ADDRESS),
     placeId: safeString(event.placeId || event.venueId || event.locationId, PLACE_ID),
@@ -214,8 +223,8 @@ async function main() {
         placeId: PLACE_ID,
         name: category,
         description: category === "Table Packages"
-          ? "Live public table packages from G+."
-          : `Live ${category} menu from G+.`,
+          ? "Live public table packages from G+ Nightclub."
+          : `Live ${category} menu from G+ Nightclub.`,
         sortOrder: section.sortOrder,
         visible: true,
         source: "gplus_menu_sync",
@@ -294,6 +303,7 @@ async function main() {
   existingEventsSnap.docs.forEach((doc) => {
     writes.push((batch) => {
       batch.set(doc.ref, {
+        venue: PLACE_NAME,
         placeId: PLACE_ID,
         addressText: GPLUS_ADDRESS,
         updatedAt: now,

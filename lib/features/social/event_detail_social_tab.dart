@@ -6,52 +6,72 @@ import 'package:intl/intl.dart';
 import '../../core/theme/theme_extensions.dart';
 import 'event_posts_grid.dart';
 import 'social_models.dart';
+import 'social_moderation_service.dart';
+import 'social_moderation_ui.dart';
 import 'social_service.dart';
 import 'write_review_sheet.dart';
 
 class EventDetailSocialTab extends StatelessWidget {
-  const EventDetailSocialTab({
+  EventDetailSocialTab({
     super.key,
     required this.eventId,
     required this.userId,
     required this.displayName,
     this.userPhotoUrl,
     required this.socialService,
-  });
+    SocialModerationService? moderationService,
+  }) : moderationService = moderationService ?? SocialModerationService();
 
   final String eventId;
   final String userId;
   final String displayName;
   final String? userPhotoUrl;
   final SocialService socialService;
+  final SocialModerationService moderationService;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      children: [
-        _RatingSummary(eventId: eventId, socialService: socialService),
-        const SizedBox(height: 16),
-        if (userId.isNotEmpty)
-          OutlinedButton.icon(
-            onPressed: () => showWriteReviewSheet(
-              context,
+    return StreamBuilder<Set<String>>(
+      stream: moderationService.blockedUserIds(userId),
+      builder: (context, blockedSnap) {
+        final blocked = blockedSnap.data ?? const <String>{};
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          children: [
+            _RatingSummary(eventId: eventId, socialService: socialService),
+            const SizedBox(height: 16),
+            if (userId.isNotEmpty)
+              OutlinedButton.icon(
+                onPressed: () => showWriteReviewSheet(
+                  context,
+                  eventId: eventId,
+                  userId: userId,
+                  displayName: displayName,
+                  photoUrl: userPhotoUrl,
+                  socialService: socialService,
+                ),
+                icon: const Icon(Icons.star_outline),
+                label: const Text('Write a Review'),
+              ),
+            const SizedBox(height: 24),
+            _ReviewsList(
               eventId: eventId,
-              userId: userId,
-              displayName: displayName,
-              photoUrl: userPhotoUrl,
               socialService: socialService,
+              currentUserId: userId,
+              blockedUserIds: blocked,
             ),
-            icon: const Icon(Icons.star_outline),
-            label: const Text('Write a Review'),
-          ),
-        const SizedBox(height: 24),
-        _ReviewsList(eventId: eventId, socialService: socialService),
-        const SizedBox(height: 24),
-        Text('Event Photos', style: context.text.titleMedium),
-        const SizedBox(height: 12),
-        EventPostsGrid(eventId: eventId, socialService: socialService),
-      ],
+            const SizedBox(height: 24),
+            Text('Event Photos', style: context.text.titleMedium),
+            const SizedBox(height: 12),
+            EventPostsGrid(
+              eventId: eventId,
+              socialService: socialService,
+              moderationService: moderationService,
+              currentUserId: userId,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -175,10 +195,17 @@ class _RatingSummary extends StatelessWidget {
 }
 
 class _ReviewsList extends StatelessWidget {
-  const _ReviewsList({required this.eventId, required this.socialService});
+  const _ReviewsList({
+    required this.eventId,
+    required this.socialService,
+    required this.currentUserId,
+    required this.blockedUserIds,
+  });
 
   final String eventId;
   final SocialService socialService;
+  final String currentUserId;
+  final Set<String> blockedUserIds;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +215,9 @@ class _ReviewsList extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final reviews = snapshot.data ?? [];
+        final reviews = (snapshot.data ?? [])
+            .where((r) => !blockedUserIds.contains(r.userId))
+            .toList();
         if (reviews.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -201,7 +230,9 @@ class _ReviewsList extends StatelessWidget {
           );
         }
         return Column(
-          children: reviews.map((r) => _ReviewCard(review: r)).toList(),
+          children: reviews
+              .map((r) => _ReviewCard(review: r, currentUserId: currentUserId))
+              .toList(),
         );
       },
     );
@@ -209,12 +240,15 @@ class _ReviewsList extends StatelessWidget {
 }
 
 class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.review});
+  const _ReviewCard({required this.review, required this.currentUserId});
   final EventReview review;
+  final String currentUserId;
 
   @override
   Widget build(BuildContext context) {
     final dateStr = DateFormat('MMM d, yyyy').format(review.timestamp);
+    final canModerate =
+        review.userId.isNotEmpty && review.userId != currentUserId;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -261,6 +295,15 @@ class _ReviewCard extends StatelessWidget {
                   itemBuilder: (_, _) =>
                       const Icon(Icons.star, color: Color(0xFFFFD700)),
                 ),
+                if (canModerate)
+                  ContentModerationButton(
+                    contentType: ReportContentType.review,
+                    contentId: review.reviewId,
+                    authorId: review.userId,
+                    authorName: review.displayName,
+                    currentUserId: currentUserId,
+                    isBlocked: false,
+                  ),
               ],
             ),
             if (review.comment.isNotEmpty) ...[

@@ -121,12 +121,12 @@ function buildBridgePayload(orderId, orderData, eventData, tickets) {
         orderData.sourceEventId ||
         (eventData.integration && eventData.integration.sourceEventId),
     ),
-    eventTitle: safeString(orderData.eventTitle || eventData.title, "G+Nightclub Event"),
+    eventTitle: safeString(orderData.eventTitle || eventData.title, "G+ Nightclub Event"),
     eventSnapshot: {
-      title: safeString(eventData.title || orderData.eventTitle, "G+Nightclub Event"),
+      title: safeString(eventData.title || orderData.eventTitle, "G+ Nightclub Event"),
       startAtIso: asTimestampIso(eventData.startAt || eventData.date),
       endAtIso: asTimestampIso(eventData.endAt || eventData.endDate),
-      venue: safeString(eventData.venue, "G+Nightclub"),
+      venue: safeString(eventData.venue, "G+ Nightclub"),
       city: safeString(eventData.city, "Accra"),
       sourceEventId: safeString(eventData.sourceEventId || orderData.sourceEventId),
     },
@@ -173,12 +173,12 @@ function buildBridgeRsvpPayload(rsvpId, rsvpData, eventData) {
     vennuzoRsvpId: rsvpId,
     vennuzoEventId: eventId,
     gplusEventId: resolveGPlusEventId(eventId, eventData, rsvpData),
-    eventTitle: safeString(rsvpData.eventTitle || eventData.title, "G+Nightclub Event"),
+    eventTitle: safeString(rsvpData.eventTitle || eventData.title, "G+ Nightclub Event"),
     eventSnapshot: {
-      title: safeString(eventData.title || rsvpData.eventTitle, "G+Nightclub Event"),
+      title: safeString(eventData.title || rsvpData.eventTitle, "G+ Nightclub Event"),
       startAtIso: asTimestampIso(eventData.startAt || eventData.date),
       endAtIso: asTimestampIso(eventData.endAt || eventData.endDate),
-      venue: safeString(eventData.venue, "G+Nightclub"),
+      venue: safeString(eventData.venue, "G+ Nightclub"),
       city: safeString(eventData.city, "Accra"),
       sourceEventId: safeString(eventData.sourceEventId || rsvpData.sourceEventId),
     },
@@ -399,6 +399,7 @@ async function syncRsvpToGPlus(rsvpId, options = {}) {
       gplusEventId: safeString(result.gplusEventId),
       entryQrToken: safeString(result.entryQrToken),
       alreadyProcessed: result.alreadyProcessed === true,
+      confirmationSms: result.confirmationSms || null,
       lastError: FieldValue.delete(),
       syncedAt: FieldValue.serverTimestamp(),
       attemptCount: Number(existing.attemptCount || 0) + 1,
@@ -443,7 +444,11 @@ function changedTopLevelKeys(before = {}, after = {}) {
 function isRsvpBridgeOnlyWrite(before = {}, after = {}) {
   const changed = changedTopLevelKeys(before, after);
   return changed.length > 0 &&
-    changed.every((key) => key === "gplusRsvpBridge" || key === "updatedAt");
+    changed.every((key) => (
+      key === "gplusRsvpBridge" ||
+      key === "rsvpDelivery" ||
+      key === "updatedAt"
+    ));
 }
 
 exports.syncGPlusTicketOrder = onCall(
@@ -464,6 +469,48 @@ exports.syncGPlusTicketOrder = onCall(
     return syncOrderToGPlusTicketing(orderId, {
       force: request.data && request.data.force === true,
       source: "manual_retry",
+    });
+  },
+);
+
+exports.syncGPlusEventRsvp = onCall(
+  { region: REGION, timeoutSeconds: 180 },
+  async (request) => {
+    const uid = safeString(request.auth && request.auth.uid);
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in first.");
+    }
+    const adminSnap = await db.collection("admins").doc(uid).get();
+    if (!adminSnap.exists) {
+      throw new HttpsError("permission-denied", "Only admins can retry G+ RSVP sync.");
+    }
+    const rsvpId = safeString(request.data && request.data.rsvpId);
+    if (!rsvpId) {
+      throw new HttpsError("invalid-argument", "rsvpId is required.");
+    }
+    return syncRsvpToGPlus(rsvpId, {
+      force: request.data && request.data.force === true,
+      source: "manual_retry",
+    });
+  },
+);
+
+exports.onGPlusEventRsvpWritten = onDocumentWritten(
+  {
+    region: REGION,
+    document: "event_rsvps/{rsvpId}",
+    timeoutSeconds: 180,
+  },
+  async (event) => {
+    if (!event.data || !event.data.after.exists) return;
+
+    const before = event.data.before.exists ? event.data.before.data() || {} : {};
+    const after = event.data.after.data() || {};
+    if (isRsvpBridgeOnlyWrite(before, after)) return;
+
+    await syncRsvpToGPlus(event.params.rsvpId, {
+      force: true,
+      source: "firestore_trigger",
     });
   },
 );
@@ -497,5 +544,35 @@ exports.retryGPlusTicketBridgeFailures = onSchedule(
   },
 );
 
+exports.retryGPlusRsvpBridgeFailures = onSchedule(
+  {
+    region: REGION,
+    schedule: "every 15 minutes",
+    timeoutSeconds: 300,
+  },
+  async () => {
+    const failedSnap = await db
+      .collection("event_rsvps")
+      .where("gplusRsvpBridge.status", "==", "failed")
+      .limit(25)
+      .get();
+
+    let retried = 0;
+    for (const doc of failedSnap.docs) {
+      try {
+        await syncRsvpToGPlus(doc.id, {
+          force: true,
+          source: "scheduled_retry",
+        });
+        retried += 1;
+      } catch (error) {
+        console.error(`G+ RSVP bridge retry failed for ${doc.id}`, error);
+      }
+    }
+    return { retried };
+  },
+);
+
 module.exports.syncOrderToGPlusTicketing = syncOrderToGPlusTicketing;
+module.exports.syncRsvpToGPlus = syncRsvpToGPlus;
 module.exports.isGPlusEvent = isGPlusEvent;

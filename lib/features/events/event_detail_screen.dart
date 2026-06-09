@@ -28,6 +28,7 @@ import '../creators/creator_profile_screen.dart';
 import 'event_share_sheet.dart';
 import '../tickets/vennuzo_ticket_payment_status_screen.dart';
 import '../social/event_posts_grid.dart';
+import '../social/social_moderation_service.dart';
 import '../social/social_service.dart';
 
 class EventDetailScreen extends StatelessWidget {
@@ -35,6 +36,7 @@ class EventDetailScreen extends StatelessWidget {
 
   final String eventId;
   static const _eventSafetyService = EventSafetyService();
+  static final _socialModerationService = SocialModerationService();
   static final _socialService = SocialService();
 
   @override
@@ -357,7 +359,12 @@ class EventDetailScreen extends StatelessWidget {
           const SizedBox(height: 28),
           SectionHeading(title: 'Photos from this event', subtitle: null),
           const SizedBox(height: 14),
-          EventPostsGrid(eventId: eventId, socialService: _socialService),
+          EventPostsGrid(
+            eventId: eventId,
+            socialService: _socialService,
+            moderationService: _socialModerationService,
+            currentUserId: session.viewer.uid ?? '',
+          ),
         ],
       ),
     );

@@ -76,20 +76,114 @@ class _TappableGalleryImage extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'View photo ${index + 1} of ${urls.length}',
-      child: GestureDetector(
-        onTap: () => showPlaceFullscreenGallery(
-          context,
-          urls: urls,
-          initialIndex: index,
-        ),
-        child: ClipRRect(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Material(
+          color: Colors.transparent,
           borderRadius: borderRadius,
-          child: _PlaceImage(
-            url: index < urls.length ? urls[index] : null,
-            thumbnail: thumbnail,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => showPlaceFullscreenGallery(
+              context,
+              urls: urls,
+              initialIndex: index,
+            ),
+            child: _PlaceImage(
+              url: index < urls.length ? urls[index] : null,
+              thumbnail: thumbnail,
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PlacePhotoGrid extends StatelessWidget {
+  const _PlacePhotoGrid({
+    required this.urls,
+    this.columns = 3,
+    this.spacing = 2,
+    this.maxItems,
+    this.borderRadius,
+  });
+
+  final List<String> urls;
+  final int columns;
+  final double spacing;
+  final int? maxItems;
+  final BorderRadius? borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = urls
+        .map((url) => url.trim())
+        .where((url) => url.isNotEmpty)
+        .toList();
+    if (media.isEmpty) return const SizedBox.shrink();
+
+    final safeColumns = columns.clamp(1, 4).toInt();
+    final visible = maxItems == null ? media : media.take(maxItems!).toList();
+    final hiddenCount = media.length - visible.length;
+    final rows = (visible.length / safeColumns).ceil();
+    final radius = borderRadius ?? BorderRadius.circular(2);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final itemSize = (width - spacing * (safeColumns - 1)) / safeColumns;
+        final height = itemSize * rows + spacing * (rows - 1);
+
+        return SizedBox(
+          height: height,
+          child: GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: visible.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: safeColumns,
+              crossAxisSpacing: spacing,
+              mainAxisSpacing: spacing,
+              childAspectRatio: 1,
+            ),
+            itemBuilder: (context, index) {
+              final isLast = index == visible.length - 1;
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  _TappableGalleryImage(
+                    urls: media,
+                    index: index,
+                    thumbnail: true,
+                    borderRadius: radius,
+                  ),
+                  if (isLast && hiddenCount > 0)
+                    IgnorePointer(
+                      child: ClipRRect(
+                        borderRadius: radius,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.42),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '+$hiddenCount',
+                              textAlign: TextAlign.center,
+                              style: context.text.titleSmall?.copyWith(
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -151,6 +245,17 @@ List<String> _mediaForPlace(PlaceProfile place) {
     add(url);
   }
   return media;
+}
+
+String _placeDisplayName(PlaceProfile place) {
+  final compact = place.name.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+  if (place.id == 'gplus_nightclub' ||
+      compact == 'g+' ||
+      compact == 'g+nightclub' ||
+      compact == 'gplusnightclub') {
+    return 'G+ Nightclub';
+  }
+  return place.name;
 }
 
 class _Pill extends StatelessWidget {

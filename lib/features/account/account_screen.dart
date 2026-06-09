@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/vennuzo_session_controller.dart';
+import 'legal_links.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
@@ -379,9 +381,71 @@ class AccountScreen extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Legal',
+                    style: context.text.titleLarge?.copyWith(fontSize: 20),
+                  ),
+                  const SizedBox(height: 16),
+                  _SupportActionTile(
+                    icon: Icons.description_outlined,
+                    title: 'Terms of Service',
+                    subtitle: 'Read the Vennuzo terms',
+                    onTap: () => _openLegalUrl(
+                      context,
+                      VennuzoLegalLinks.termsOfService,
+                      'Could not open the Terms of Service.',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _SupportActionTile(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy Policy',
+                    subtitle: 'How we handle your data',
+                    onTap: () => _openLegalUrl(
+                      context,
+                      VennuzoLegalLinks.privacyPolicy,
+                      'Could not open the Privacy Policy.',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _SupportActionTile(
+                    icon: Icons.help_outline_rounded,
+                    title: 'Support',
+                    subtitle: 'Visit the Vennuzo support center',
+                    onTap: () => _openLegalUrl(
+                      context,
+                      VennuzoLegalLinks.support,
+                      'Could not open the support center.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _openLegalUrl(
+    BuildContext context,
+    String url,
+    String failureMessage,
+  ) async {
+    final launched = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && context.mounted) {
+      _showMessage(context, failureMessage);
+    }
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -400,6 +464,21 @@ class AccountScreen extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
+    final session = context.read<VennuzoSessionController>();
+    // Apple/Google (and any non-password) accounts have no password to type.
+    // Apple Guideline 5.1.1(v) requires them to be deletable too, so they get a
+    // plain confirmation and re-run their provider sign-in to reauthenticate.
+    if (session.currentUserIsPasswordAccount) {
+      await _confirmDeletePasswordAccount(context, session);
+    } else {
+      await _confirmDeleteSocialAccount(context, session);
+    }
+  }
+
+  Future<void> _confirmDeletePasswordAccount(
+    BuildContext context,
+    VennuzoSessionController session,
+  ) async {
     final passwordController = TextEditingController();
     final password = await showDialog<String>(
       context: context,
@@ -443,10 +522,53 @@ class AccountScreen extends StatelessWidget {
       return;
     }
 
+    await _runAccountDeletion(
+      context,
+      () => session.deleteAccount(currentPassword: password.trim()),
+    );
+  }
+
+  Future<void> _confirmDeleteSocialAccount(
+    BuildContext context,
+    VennuzoSessionController session,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete account?'),
+          content: const Text(
+            'This permanently removes your Vennuzo account profile. '
+            'To confirm, you will be asked to sign in again with your '
+            'account provider.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Continue'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!context.mounted || confirmed != true) {
+      return;
+    }
+
+    await _runAccountDeletion(context, () => session.deleteAccount());
+  }
+
+  Future<void> _runAccountDeletion(
+    BuildContext context,
+    Future<void> Function() deletion,
+  ) async {
     try {
-      await context.read<VennuzoSessionController>().deleteAccount(
-        currentPassword: password.trim(),
-      );
+      await deletion();
       if (!context.mounted) {
         return;
       }
@@ -455,6 +577,9 @@ class AccountScreen extends StatelessWidget {
         const SnackBar(content: Text('Your Vennuzo account was deleted.')),
       );
     } on VennuzoAuthFailure catch (error) {
+      if (!context.mounted) {
+        return;
+      }
       _showMessage(context, error.message);
     }
   }

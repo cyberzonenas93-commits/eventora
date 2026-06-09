@@ -57,6 +57,7 @@ const phoneAuth = require("./phone_auth");
 const gplusSync = require("./gplus_sync");
 const placesPlatform = require("./places_platform");
 const gplusTicketBridge = require("./gplus_ticket_bridge");
+const contentModeration = require("./content_moderation");
 
 Object.assign(exports, adminSettings);
 Object.assign(exports, notifications);
@@ -75,3 +76,4 @@ Object.assign(exports, phoneAuth);
 Object.assign(exports, gplusSync);
 Object.assign(exports, placesPlatform);
 Object.assign(exports, gplusTicketBridge);
+Object.assign(exports, contentModeration);

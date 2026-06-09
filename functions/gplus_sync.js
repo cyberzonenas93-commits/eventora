@@ -19,9 +19,9 @@ const REGION = "us-central1";
 const GPLUS_ORGANIZATION_ID = "org_gplus";
 const GPLUS_CREATOR_ID = "gplus";
 const GPLUS_PROFILE_ID = "gplus";
-const GPLUS_DISPLAY_NAME = "G+";
+const GPLUS_DISPLAY_NAME = "G+ Nightclub";
 const GPLUS_PLACE_ID = "gplus_nightclub";
-const GPLUS_PLACE_TITLE = "G+Nightclub";
+const GPLUS_PLACE_TITLE = "G+ Nightclub";
 const GPLUS_PLACE_ADDRESS = "UPSA Road, Madina, Accra, Ghana";
 const GPLUS_PLACE_MAPS_URL = "https://maps.google.com/?q=G%2B%20Nightclub%20UPSA%20Road%20Madina%20Accra%20Ghana";
 const GPLUS_PLACE_DEFAULT_COVER = "https://storage.googleapis.com/gplus-admin.firebasestorage.app/moments/photos/drive_import_1780065860214/MG_0005.jpg";
@@ -42,6 +42,15 @@ const DEFAULT_TIMEZONE = "Africa/Accra";
 function safeString(value, fallback = "") {
   const normalized = String(value || "").trim();
   return normalized || fallback;
+}
+
+function normalizeGPlusDisplayName(value, fallback = GPLUS_DISPLAY_NAME) {
+  const raw = safeString(value, fallback);
+  const compact = raw.toLowerCase().replace(/[\s_-]+/g, "");
+  if (compact === "g+" || compact === "gplus" || compact === "g+nightclub" || compact === "gplusnightclub") {
+    return GPLUS_DISPLAY_NAME;
+  }
+  return raw;
 }
 
 function cleanText(value, fallback = "", max = 2000) {
@@ -162,7 +171,7 @@ function normalizeGPlusProfile(profileId, source = {}) {
   const bio = firstString(
     source,
     ["bio", "description", "about"],
-    "G+ events, nightlife, culture, and community moments synced into Vennuzo.",
+    "G+ Nightclub events, nightlife, culture, and community moments synced into Vennuzo.",
   );
 
   return {
@@ -213,7 +222,7 @@ function normalizeTicketing(source = {}) {
 }
 
 function normalizeGPlusEvent(gplusEventId, source = {}, profile = {}) {
-  const title = firstString(source, ["title", "name", "eventTitle"], "G+ Event");
+  const title = firstString(source, ["title", "name", "eventTitle"], "G+ Nightclub Event");
   const description = firstString(source, ["description", "details", "copy"], "");
   const startDate =
     toDate(source.startAt) ||
@@ -234,12 +243,15 @@ function normalizeGPlusEvent(gplusEventId, source = {}, profile = {}) {
     "posterUrl",
     "thumbnailUrl",
   ]);
-  const venue = firstString(source, ["venue", "location", "addressText"], GPLUS_PLACE_TITLE);
+  const venue = normalizeGPlusDisplayName(
+    firstString(source, ["venue", "location", "addressText"], GPLUS_PLACE_TITLE),
+    GPLUS_PLACE_TITLE,
+  );
   const city = firstString(source, ["city", "locationCity"], profile.city || "Accra");
   const tags = Array.from(
     new Set([
       "gplus",
-      "G+",
+      GPLUS_PLACE_TITLE,
       ...asStringArray(source.tags),
       ...asStringArray(source.hashtags).map((tag) => tag.replace(/^#/, "")),
     ].filter(Boolean)),
@@ -257,9 +269,9 @@ function normalizeGPlusEvent(gplusEventId, source = {}, profile = {}) {
     eventId,
     sourceEventId,
     event: {
-      title: cleanText(title, "G+ Event", 220),
+      title: cleanText(title, "G+ Nightclub Event", 220),
       description: cleanText(description, "", 4000),
-      venue: cleanText(venue, "G+", 300),
+      venue: cleanText(venue, GPLUS_PLACE_TITLE, 300),
       city: cleanText(city, "Accra", 120),
       visibility: expired ? "private" : normalizeVisibility(source.visibility),
       status: expired ? "cancelled" : normalizeStatus(source),
@@ -350,8 +362,8 @@ async function ensureGPlusProfile(profile = {}) {
         displayName: normalized.displayName,
         bio: normalized.bio,
         city: normalized.city,
-        avatarUrl: normalized.avatarUrl || null,
-        coverUrl: normalized.coverUrl || null,
+        ...(normalized.avatarUrl ? { avatarUrl: normalized.avatarUrl } : {}),
+        ...(normalized.coverUrl ? { coverUrl: normalized.coverUrl } : {}),
         followerCount: normalized.followerCount,
         eventCount: normalized.eventCount,
         photoCount: normalized.photoCount,
@@ -371,8 +383,8 @@ async function ensureGPlusProfile(profile = {}) {
         name: normalized.displayName,
         bio: normalized.bio,
         city: normalized.city,
-        logoUrl: normalized.avatarUrl || null,
-        coverUrl: normalized.coverUrl || null,
+        ...(normalized.avatarUrl ? { logoUrl: normalized.avatarUrl } : {}),
+        ...(normalized.coverUrl ? { coverUrl: normalized.coverUrl } : {}),
         status: "active",
         source: "gplus",
         syncedFromGPlus: true,
@@ -389,8 +401,12 @@ async function ensureGPlusProfile(profile = {}) {
         usernameLower: "gplus",
         bio: normalized.bio,
         city: normalized.city,
-        photoUrl: normalized.avatarUrl || null,
-        profileImageUrl: normalized.avatarUrl || null,
+        ...(normalized.avatarUrl
+          ? {
+              photoUrl: normalized.avatarUrl,
+              profileImageUrl: normalized.avatarUrl,
+            }
+          : {}),
         defaultOrganizationId: GPLUS_ORGANIZATION_ID,
         organizerApproved: true,
         organizerApplicationStatus: "active",
@@ -409,7 +425,7 @@ async function ensureGPlusProfile(profile = {}) {
 
 function campaignMessageForEvent(event) {
   const location = [safeString(event.venue), safeString(event.city)].filter(Boolean).join(", ");
-  return `${safeString(event.title, "G+ Event")} is now live on Vennuzo${location ? ` at ${location}` : ""}. Save it, share it, or get your tickets before the room fills.`;
+  return `${safeString(event.title, "G+ Nightclub Event")} is now live on Vennuzo${location ? ` at ${location}` : ""}. Save it, share it, or get your tickets before the room fills.`;
 }
 
 async function upsertFeaturedCampaign(eventId, event) {
@@ -421,11 +437,11 @@ async function upsertFeaturedCampaign(eventId, event) {
       eventId,
       occurrenceId: `${eventId}_primary`,
       organizationId: safeString(event.organizationId, GPLUS_ORGANIZATION_ID),
-      eventTitle: safeString(event.title, "G+ Event"),
+      eventTitle: safeString(event.title, "G+ Nightclub Event"),
       targetType: "event",
       targetId: eventId,
-      targetTitle: safeString(event.title, "G+ Event"),
-      name: `${safeString(event.title, "G+ Event")} G+ featured sync`,
+      targetTitle: safeString(event.title, "G+ Nightclub Event"),
+      name: `${safeString(event.title, "G+ Nightclub Event")} G+ Nightclub featured sync`,
       status: expired ? "cancelled" : event.status === "published" && event.visibility === "public" ? "live" : "scheduled",
       channels: ["featured", "announcement", "shareLink"],
       audienceSources: ["gplus_sync"],
@@ -545,7 +561,9 @@ async function upsertGPlusPlace(profile = {}) {
         reviewCount: Number(profile.reviewCount) || 186,
         subscriberCount: Number(profile.subscriberCount) || 2400,
       },
-      source: "gplus_sync",
+      source: "gplus",
+      integrationSource: "gplus",
+      syncSource: "gplus_sync",
       updatedAt: FieldValue.serverTimestamp(),
       createdAt: existingPlace.createdAt || FieldValue.serverTimestamp(),
     },
@@ -591,7 +609,7 @@ async function upsertEventSocialPost(eventId, event) {
     {
       eventId,
       userId: GPLUS_CREATOR_ID,
-      displayName: "G+",
+      displayName: GPLUS_DISPLAY_NAME,
       userPhotoUrl: null,
       photoUrl: safeString(event.imageUrl || event.coverImageUrl || event.flyerUrl) || null,
       caption: campaignMessageForEvent(event),
@@ -615,7 +633,7 @@ async function upsertCreatorPhoto(eventId, event) {
     {
       creatorId: GPLUS_PROFILE_ID,
       eventId,
-      eventTitle: safeString(event.title, "G+ Event"),
+      eventTitle: safeString(event.title, "G+ Nightclub Event"),
       imageUrl,
       caption: campaignMessageForEvent(event),
       source: "gplus_sync",
@@ -707,7 +725,7 @@ async function upsertGPlusMediaGalleryItem(mediaId, source = {}) {
       {
         creatorId: GPLUS_PROFILE_ID,
         eventId,
-        eventTitle: cleanText(source.eventTitle || event.title, "G+ Event", 220),
+        eventTitle: cleanText(source.eventTitle || event.title, "G+ Nightclub Event", 220),
         imageUrl,
         caption,
         source: "gplus_media_gallery",
@@ -801,7 +819,7 @@ async function upsertGeloEventRecords(eventId, event) {
     sourceApp: "vennuzo",
     sourceEventId: safeString(event.sourceEventId),
     eventId,
-    eventTitle: safeString(event.title, "G+ Event"),
+    eventTitle: safeString(event.title, "G+ Nightclub Event"),
     organizationId: safeString(event.organizationId, GPLUS_ORGANIZATION_ID),
     imageUrl: imageUrl || null,
     caption,
@@ -815,7 +833,7 @@ async function upsertGeloEventRecords(eventId, event) {
     {
       ...base,
       type: "event_promo",
-      title: safeString(event.title, "G+ Event"),
+      title: safeString(event.title, "G+ Nightclub Event"),
       body: caption,
       route: `/events/${eventId}`,
       scheduledAt: event.startAt || FieldValue.serverTimestamp(),
@@ -827,7 +845,7 @@ async function upsertGeloEventRecords(eventId, event) {
     db.collection("gelo_event_launch_drafts").doc(draftId),
     {
       ...base,
-      title: safeString(event.title, "G+ Event"),
+      title: safeString(event.title, "G+ Nightclub Event"),
       venue: safeString(event.venue),
       city: safeString(event.city),
       startAt: event.startAt || null,
@@ -842,10 +860,10 @@ async function upsertGeloEventRecords(eventId, event) {
     {
       ...base,
       featureType: "featured_event",
-      title: safeString(event.title, "G+ Event"),
+      title: safeString(event.title, "G+ Nightclub Event"),
       description: cleanText(event.description, caption, 300),
       urlPath: `/events/${eventId}`,
-      seoKeywords: ["G+", "Vennuzo", safeString(event.city, "Accra"), "events"].filter(Boolean),
+      seoKeywords: ["G+ Nightclub", "Vennuzo", safeString(event.city, "Accra"), "events"].filter(Boolean),
       createdAt: FieldValue.serverTimestamp(),
     },
     { merge: true },

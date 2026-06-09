@@ -16,7 +16,8 @@ class PlaceDetailScreen extends StatelessWidget {
     final sections = repository.menuSectionsForPlace(place.id);
     final menuItems = repository.menuItemsForPlace(place.id);
     final events = repository.eventsForPlace(place.id);
-    final gallery = _mediaForPlace(place).take(12).toList();
+    final gallery = _mediaForPlace(place).take(60).toList();
+    final placeName = _placeDisplayName(place);
 
     return DefaultTabController(
       length: 4,
@@ -30,7 +31,7 @@ class PlaceDetailScreen extends StatelessWidget {
             SliverAppBar(
               expandedHeight: 380,
               pinned: true,
-              title: Text(place.name),
+              title: Text(placeName),
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(48),
                 child: Material(
@@ -114,7 +115,7 @@ class PlaceDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            place.name,
+                            placeName,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: context.text.headlineMedium?.copyWith(
@@ -168,7 +169,11 @@ class _PlaceHeaderMedia extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        _PlaceImage(url: media.isEmpty ? place.coverUrl : media.first),
+        _TappableGalleryImage(
+          urls: media.isEmpty ? [place.coverUrl ?? ''] : media,
+          index: 0,
+          borderRadius: BorderRadius.zero,
+        ),
         if (media.length > 2)
           Positioned(
             right: 18,
@@ -183,9 +188,11 @@ class _PlaceHeaderMedia extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: AspectRatio(
                         aspectRatio: 1,
-                        child: ClipRRect(
+                        child: _TappableGalleryImage(
+                          urls: media,
+                          index: media.indexOf(url),
+                          thumbnail: true,
                           borderRadius: BorderRadius.circular(16),
-                          child: _PlaceImage(url: url, thumbnail: true),
                         ),
                       ),
                     ),
@@ -242,6 +249,7 @@ class _PlaceProfileSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final placeName = _placeDisplayName(place);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: VennuzoTheme.surfaceElevated,
@@ -258,7 +266,7 @@ class _PlaceProfileSummary extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(place.name, style: context.text.titleLarge),
+                  Text(placeName, style: context.text.titleLarge),
                   const SizedBox(height: 4),
                   Text(
                     place.categories.take(3).join(' · '),
@@ -373,10 +381,16 @@ class _PlaceMediaTab extends StatelessWidget {
           const EmptyStateCard(
             title: 'No media yet',
             icon: Icons.photo_library_outlined,
-            body: 'Photos and gallery imports from G+ will appear here.',
+            body:
+                'Photos and gallery imports from G+ Nightclub will appear here.',
           )
         else
-          _PlaceMediaMosaic(urls: media),
+          _PlacePhotoGrid(
+            urls: media,
+            columns: 3,
+            spacing: 3,
+            borderRadius: BorderRadius.circular(3),
+          ),
         const SizedBox(height: 18),
         Card(
           child: Padding(
@@ -387,7 +401,7 @@ class _PlaceMediaTab extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Media from G+ gallery imports is used to keep this profile fresh across Vennuzo discovery, events, and featured placements.',
+                    'Media from G+ Nightclub gallery imports is used to keep this profile fresh across Vennuzo discovery, events, and featured placements.',
                     style: context.text.bodyMedium,
                   ),
                 ),
@@ -395,49 +409,6 @@ class _PlaceMediaTab extends StatelessWidget {
             ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _PlaceMediaMosaic extends StatelessWidget {
-  const _PlaceMediaMosaic({required this.urls});
-
-  final List<String> urls;
-
-  @override
-  Widget build(BuildContext context) {
-    final restCount = (urls.length - 1).clamp(0, 8);
-    return Column(
-      children: [
-        AspectRatio(
-          aspectRatio: 1.35,
-          child: _TappableGalleryImage(
-            urls: urls,
-            index: 0,
-            borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
-          ),
-        ),
-        if (restCount > 0) ...[
-          const SizedBox(height: 10),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: restCount,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 1.18,
-            ),
-            itemBuilder: (context, index) => _TappableGalleryImage(
-              urls: urls,
-              index: index + 1,
-              thumbnail: true,
-              borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -588,22 +559,11 @@ class _GalleryStrip extends StatelessWidget {
       children: [
         SectionHeading(title: 'Photos', subtitle: null),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 112,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemBuilder: (context, index) => AspectRatio(
-              aspectRatio: 1.2,
-              child: _TappableGalleryImage(
-                urls: urls,
-                index: index,
-                thumbnail: true,
-                borderRadius: BorderRadius.circular(VennuzoTheme.radiusMd),
-              ),
-            ),
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemCount: urls.length,
-          ),
+        _PlacePhotoGrid(
+          urls: urls,
+          columns: 3,
+          spacing: 3,
+          borderRadius: BorderRadius.circular(4),
         ),
       ],
     );

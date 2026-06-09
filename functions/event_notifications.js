@@ -827,6 +827,168 @@ async function sendTicketEmail({ to, orderId, order, eventData, ticketLink, tick
   };
 }
 
+function isGPlusEventForNotifications(eventId, eventData = {}) {
+  const source = safeString(eventData.source).toLowerCase();
+  const integrationSource = safeString(
+    eventData.integration && eventData.integration.source,
+  ).toLowerCase();
+  return (
+    source === "gplus" ||
+    integrationSource === "gplus" ||
+    safeString(eventId).startsWith("gplus_")
+  );
+}
+
+async function resolveRsvpEmail({ rsvp = {}, user = null, userId = "" }) {
+  const direct = normalizeEmail(
+    rsvp.email ||
+      rsvp.attendeeEmail ||
+      rsvp.customerEmail ||
+      rsvp.buyerEmail ||
+      (user && (user.email || user.emailLower)),
+  );
+  if (direct) return direct;
+
+  if (!userId) return "";
+  try {
+    const authUser = await admin.auth().getUser(userId);
+    return normalizeEmail(authUser.email);
+  } catch (error) {
+    console.warn("Failed to resolve RSVP auth email", userId, error && error.message);
+    return "";
+  }
+}
+
+function buildRsvpEmail({ rsvpId, rsvp, eventData, eventLink }) {
+  const eventTitle = safeString(rsvp.eventTitle || eventData.title, "your event");
+  const attendeeName = safeString(rsvp.name, "Vennuzo attendee");
+  const eventDate = formatEventDate(eventData.startAt || eventData.date);
+  const guestCount = Math.max(1, Number(rsvp.guestCount || rsvp.numberOfPeople || rsvp.partySize || 1) || 1);
+  const venueParts = [
+    safeString(eventData.venue),
+    safeString(eventData.city),
+  ].filter(Boolean);
+  const venue = venueParts.length ? venueParts.join(", ") : "See event details";
+
+  const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RSVP confirmed</title>
+  </head>
+  <body style="margin:0; padding:0; background:#f6f7fb; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+    <table role="presentation" style="width:100%; border-collapse:collapse; background:#f6f7fb;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" style="max-width:600px; width:100%; border-collapse:collapse; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 18px 45px rgba(15,23,42,0.10);">
+            <tr>
+              <td style="padding:34px 30px; background:#080b18; color:#ffffff;">
+                <p style="margin:0 0 8px; color:#8ef9ff; font-size:13px; letter-spacing:0.08em; text-transform:uppercase;">RSVP confirmed</p>
+                <h1 style="margin:0; font-size:28px; line-height:1.15;">You're on the list</h1>
+                <p style="margin:14px 0 0; color:#dbeafe; font-size:16px; line-height:1.5;">${escapeHtml(eventTitle)}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:30px;">
+                <p style="margin:0 0 18px; color:#111827; font-size:16px; line-height:1.6;">Hi ${escapeHtml(attendeeName)},</p>
+                <p style="margin:0 0 22px; color:#374151; font-size:16px; line-height:1.6;">
+                  Your RSVP is confirmed. We have noted ${guestCount} guest${guestCount === 1 ? "" : "s"} for <strong>${escapeHtml(eventTitle)}</strong>.
+                </p>
+                <table role="presentation" style="width:100%; border-collapse:collapse; margin:0 0 24px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px;">
+                  <tr>
+                    <td style="padding:16px 18px; color:#4b5563; font-size:14px;">Date</td>
+                    <td style="padding:16px 18px; color:#111827; font-size:14px; font-weight:700; text-align:right;">${escapeHtml(eventDate)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 18px 16px; color:#4b5563; font-size:14px;">Venue</td>
+                    <td style="padding:0 18px 16px; color:#111827; font-size:14px; font-weight:700; text-align:right;">${escapeHtml(venue)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 18px 16px; color:#4b5563; font-size:14px;">Reference</td>
+                    <td style="padding:0 18px 16px; color:#111827; font-size:14px; font-weight:700; text-align:right;">${escapeHtml(rsvpId.slice(-10).toUpperCase() || rsvpId)}</td>
+                  </tr>
+                </table>
+                <table role="presentation" style="width:100%; border-collapse:collapse; margin:24px 0;">
+                  <tr>
+                    <td align="center">
+                      <a href="${eventLink}" style="display:inline-block; padding:15px 26px; background:#f151c8; color:#ffffff; text-decoration:none; border-radius:999px; font-size:15px; font-weight:800;">Open event</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0; color:#6b7280; font-size:13px; line-height:1.6;">
+                  You can also open this link any time: <a href="${eventLink}" style="color:#2563eb; word-break:break-all;">${eventLink}</a>
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:22px 30px; background:#f9fafb; color:#6b7280; font-size:12px; line-height:1.6;">
+                This is an automated RSVP confirmation from Vennuzo.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+  const text = [
+    `Hi ${attendeeName},`,
+    "",
+    `Your RSVP is confirmed for ${eventTitle}.`,
+    `Date: ${eventDate}`,
+    `Venue: ${venue}`,
+    `Guests: ${guestCount}`,
+    `Reference: ${rsvpId}`,
+    "",
+    `Open event: ${eventLink}`,
+    "",
+    "This is an automated RSVP confirmation from Vennuzo.",
+  ].join("\n");
+
+  return {
+    subject: `RSVP confirmed for ${eventTitle}`,
+    html,
+    text,
+  };
+}
+
+async function sendRsvpEmail({ to, rsvpId, rsvp, eventData, eventLink }) {
+  const email = normalizeEmail(to);
+  if (!email) {
+    return { status: "skipped", reason: "missing_email" };
+  }
+
+  const config = await getTicketEmailConfig();
+  if (!config.enabled) {
+    return { status: "skipped", reason: "email_not_configured" };
+  }
+
+  const message = buildRsvpEmail({ rsvpId, rsvp, eventData, eventLink });
+  const transporter = nodemailer.createTransport({
+    host: config.smtpHost,
+    port: config.smtpPort,
+    secure: config.smtpPort === 465,
+    auth: {
+      user: config.smtpUser,
+      pass: config.smtpPass,
+    },
+  });
+  const info = await transporter.sendMail({
+    from: `"${config.fromName}" <${config.fromEmail}>`,
+    to: email,
+    subject: message.subject,
+    text: message.text,
+    html: message.html,
+  });
+
+  return {
+    status: "sent",
+    messageId: safeString(info && info.messageId),
+  };
+}
+
 function titleCaseTiming(timing) {
   switch (String(timing || "")) {
     case "oneDayBefore":
@@ -3022,31 +3184,184 @@ exports.onEventRsvpCreated = onDocumentCreated(
     const eventTitle = safeString(rsvp.eventTitle || eventData.title, "your event");
     const body = `Your RSVP is confirmed for ${eventTitle} on ${formatEventDate(eventData.startAt)}.`;
     const shareLink = await buildEventLink(eventId, eventData);
+    const rsvpRef = db.collection("event_rsvps").doc(rsvpDoc.id);
+    const delivery = rsvp.rsvpDelivery || {};
+    const isGPlusEvent = isGPlusEventForNotifications(eventId, eventData);
 
     if (distribution.sendPushNotification !== false && userId && user && prefs.pushEnabled !== false && user.fcmToken) {
-      await queuePushNotification({
-        kind: "event_rsvp_confirmation",
-        targets: [userId],
-        payload: {
-          title: "RSVP confirmed",
-          body,
+      try {
+        const queueId = await queuePushNotification({
+          kind: "event_rsvp_confirmation",
+          targets: [userId],
+          payload: {
+            title: "RSVP confirmed",
+            body,
+            eventId,
+            route: `/events/${eventId}`,
+            link: shareLink,
+          },
           eventId,
-          route: `/events/${eventId}`,
-          link: shareLink,
-        },
-        eventId,
-      });
+        });
+        await rsvpRef.set({
+          rsvpDelivery: {
+            push: {
+              status: queueId ? "queued" : "skipped",
+              queueId: queueId || null,
+              attemptedAt: FieldValue.serverTimestamp(),
+            },
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (error) {
+        console.error("RSVP push delivery failed", rsvpDoc.id, error);
+        await rsvpRef.set({
+          rsvpDelivery: {
+            push: {
+              status: "failed",
+              error: safeString(error && error.message, "RSVP push delivery failed").slice(0, 500),
+              attemptedAt: FieldValue.serverTimestamp(),
+            },
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
     }
 
     const phone = normalizePhoneNumber(rsvp.phone || (user && user.phone));
-    if (distribution.sendSmsNotification !== false && phone && (!user || prefs.smsEnabled !== false)) {
-      const hubtelCfg = await getHubtelSmsConfig();
-      await sendHubtelSms({
-        to: phone,
-        message: `RSVP confirmed: ${body} ${shareLink}`,
-        reference: `rsvp_${rsvpDoc.id}`,
-        hubtelCfg,
-      });
+    const smsAlreadySent = delivery.sms && delivery.sms.status === "sent";
+    if (isGPlusEvent) {
+      await rsvpRef.set({
+        rsvpDelivery: {
+          sms: {
+            status: "delegated",
+            provider: "gplus_bridge",
+            reason: "G+ RSVP confirmations are sent by the G+ bridge.",
+            attemptedAt: FieldValue.serverTimestamp(),
+          },
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } else if (
+      !smsAlreadySent &&
+      distribution.sendSmsNotification !== false &&
+      phone &&
+      (!user || prefs.smsEnabled !== false)
+    ) {
+      try {
+        const hubtelCfg = await getHubtelSmsConfig();
+        const result = await sendHubtelSms({
+          to: phone,
+          message: `RSVP confirmed: ${body} ${shareLink}`,
+          reference: `rsvp_${rsvpDoc.id}`,
+          hubtelCfg,
+        });
+        await rsvpRef.set({
+          rsvpDelivery: {
+            sms: {
+              status: "sent",
+              to: result.normalizedPhone || phone,
+              sentAt: FieldValue.serverTimestamp(),
+              reference: `rsvp_${rsvpDoc.id}`,
+              link: shareLink,
+            },
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (error) {
+        console.error("RSVP SMS delivery failed", rsvpDoc.id, error);
+        await rsvpRef.set({
+          rsvpDelivery: {
+            sms: {
+              status: "failed",
+              to: phone,
+              error: safeString(error && error.message, "RSVP SMS delivery failed").slice(0, 500),
+              attemptedAt: FieldValue.serverTimestamp(),
+              reference: `rsvp_${rsvpDoc.id}`,
+              link: shareLink,
+            },
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    } else if (!smsAlreadySent) {
+      await rsvpRef.set({
+        rsvpDelivery: {
+          sms: {
+            status: "skipped",
+            reason: phone
+              ? distribution.sendSmsNotification === false
+                ? "sms_disabled"
+                : "user_sms_disabled"
+              : "missing_phone",
+            attemptedAt: FieldValue.serverTimestamp(),
+            link: shareLink,
+          },
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+
+    const emailAlreadySent = delivery.email && delivery.email.status === "sent";
+    const email = await resolveRsvpEmail({ rsvp, user, userId });
+    if (
+      !emailAlreadySent &&
+      distribution.sendEmailNotification !== false &&
+      email &&
+      (!user || prefs.emailEnabled !== false)
+    ) {
+      try {
+        const result = await sendRsvpEmail({
+          to: email,
+          rsvpId: rsvpDoc.id,
+          rsvp,
+          eventData,
+          eventLink: shareLink,
+        });
+        await rsvpRef.set({
+          rsvpDelivery: {
+            email: {
+              status: result.status,
+              to: email,
+              reason: result.reason || null,
+              messageId: result.messageId || null,
+              sentAt: result.status === "sent" ? FieldValue.serverTimestamp() : null,
+              attemptedAt: FieldValue.serverTimestamp(),
+              link: shareLink,
+            },
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (error) {
+        console.error("RSVP email delivery failed", rsvpDoc.id, error);
+        await rsvpRef.set({
+          rsvpDelivery: {
+            email: {
+              status: "failed",
+              to: email,
+              error: safeString(error && error.message, "RSVP email delivery failed").slice(0, 500),
+              attemptedAt: FieldValue.serverTimestamp(),
+              link: shareLink,
+            },
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    } else if (!emailAlreadySent) {
+      await rsvpRef.set({
+        rsvpDelivery: {
+          email: {
+            status: "skipped",
+            reason: email
+              ? distribution.sendEmailNotification === false
+                ? "email_disabled"
+                : "user_email_disabled"
+              : "missing_email",
+            attemptedAt: FieldValue.serverTimestamp(),
+            link: shareLink,
+          },
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
     }
 
     await notifyOrganizersOfEventActivity({

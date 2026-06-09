@@ -48,6 +48,7 @@ class _PlacesScreenState extends State<PlacesScreen> {
           if (_query.isEmpty) return true;
           final text = [
             place.name,
+            _placeDisplayName(place),
             place.city,
             place.address,
             place.description,
@@ -117,13 +118,13 @@ class _PlacesScreenState extends State<PlacesScreen> {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 248,
+            height: 382,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: featured.length,
               separatorBuilder: (_, _) => const SizedBox(width: 12),
               itemBuilder: (context, index) => SizedBox(
-                width: 306,
+                width: 326,
                 child: _FeaturedPlaceCard(place: featured[index]),
               ),
             ),
@@ -295,85 +296,117 @@ class _PlacesHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final place = spotlight;
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      constraints: const BoxConstraints(minHeight: 360),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
-        border: Border.all(color: VennuzoTheme.borderBright),
-        boxShadow: VennuzoTheme.shadowElevated,
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: _PlaceImage(url: place?.coverUrl)),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.22),
-                    VennuzoTheme.surface.withValues(alpha: 0.58),
-                    Colors.black.withValues(alpha: 0.88),
-                  ],
-                ),
-              ),
+    final placeName = place == null ? null : _placeDisplayName(place);
+    final radius = BorderRadius.circular(VennuzoTheme.radiusXl);
+    return Semantics(
+      button: place != null,
+      label: place == null ? 'Places' : 'Open $placeName',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: place == null ? null : () => _openPlace(context, place),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 372),
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: VennuzoTheme.borderBright),
+              boxShadow: VennuzoTheme.shadowElevated,
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Stack(
               children: [
-                const _Pill(label: 'Places'),
-                const SizedBox(height: 52),
-                Text(
-                  place == null ? 'Discover places' : place.name,
-                  style: context.text.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    height: 1.02,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  place == null
-                      ? 'Explore menus, reservations, events, and venue updates.'
-                      : '${place.city} · ${place.subscriberCount} followers · ${place.rating.toStringAsFixed(1)} rating',
-                  style: context.text.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.82),
-                  ),
-                ),
-                if (place != null && place.galleryUrls.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  _HeroGalleryPreview(place: place),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _PlaceStat(value: '$placeCount', label: 'places'),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _PlaceStat(
-                        value: '$featuredCount',
-                        label: 'featured',
+                Positioned.fill(child: _PlaceImage(url: place?.coverUrl)),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.20),
+                          VennuzoTheme.surface.withValues(alpha: 0.54),
+                          Colors.black.withValues(alpha: 0.90),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _PlaceStat(
-                        value: '$subscriberCount',
-                        label: 'followers',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Pill(
+                            label: place?.featured == true
+                                ? 'Featured venue'
+                                : 'Places',
+                          ),
+                          const Spacer(),
+                          if (place != null)
+                            _IconPill(
+                              icon: Icons.arrow_forward_rounded,
+                              label: 'View profile',
+                            ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 48),
+                      Text(
+                        place == null ? 'Discover places' : placeName!,
+                        style: context.text.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          height: 1.02,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        place == null
+                            ? 'Explore menus, reservations, events, and venue updates.'
+                            : '${place.city} · ${place.subscriberCount} followers · ${place.rating.toStringAsFixed(1)} rating',
+                        style: context.text.bodyMedium?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.82),
+                        ),
+                      ),
+                      if (place != null &&
+                          _mediaForPlace(place).isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _HeroGalleryPreview(place: place),
+                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PlaceStat(
+                              value: '$placeCount',
+                              label: 'places',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PlaceStat(
+                              value: '$featuredCount',
+                              label: 'featured',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _PlaceStat(
+                              value: '$subscriberCount',
+                              label: 'followers',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -386,21 +419,42 @@ class _HeroGalleryPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gallery = _mediaForPlace(place).take(4).toList();
+    final gallery = _mediaForPlace(place);
     if (gallery.isEmpty) return const SizedBox.shrink();
-    return SizedBox(
-      height: 64,
+    return _PlacePhotoGrid(
+      urls: gallery,
+      columns: 3,
+      spacing: 8,
+      borderRadius: BorderRadius.circular(14),
+      maxItems: 6,
+    );
+  }
+}
+
+class _IconPill extends StatelessWidget {
+  const _IconPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (final url in gallery) ...[
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: _PlaceImage(url: url, thumbnail: true),
-              ),
-            ),
-            if (url != gallery.last) const SizedBox(width: 8),
-          ],
+          Text(
+            label,
+            style: context.text.bodySmall?.copyWith(color: Colors.white),
+          ),
+          const SizedBox(width: 6),
+          Icon(icon, color: Colors.white, size: 16),
         ],
       ),
     );
@@ -479,10 +533,11 @@ class _FeaturedPlaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gallery = _mediaForPlace(place).skip(1).take(3).toList();
+    final gallery = _mediaForPlace(place).skip(1).toList();
+    final placeName = _placeDisplayName(place);
     return Semantics(
       button: true,
-      label: 'Open ${place.name}',
+      label: 'Open $placeName',
       child: InkWell(
         borderRadius: BorderRadius.circular(VennuzoTheme.radiusLg),
         onTap: () => _openPlace(context, place),
@@ -510,6 +565,14 @@ class _FeaturedPlaceCard extends StatelessWidget {
                 ),
               ),
               Positioned(
+                top: 16,
+                right: 16,
+                child: _IconPill(
+                  icon: Icons.arrow_forward_rounded,
+                  label: 'View profile',
+                ),
+              ),
+              Positioned(
                 left: 16,
                 right: 16,
                 bottom: 16,
@@ -517,28 +580,12 @@ class _FeaturedPlaceCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (gallery.isNotEmpty) ...[
-                      SizedBox(
-                        height: 46,
-                        child: Row(
-                          children: gallery
-                              .map(
-                                (url) => Expanded(
-                                  child: Padding(
-                                    padding: EdgeInsets.only(
-                                      right: url == gallery.last ? 0 : 7,
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: _PlaceImage(
-                                        url: url,
-                                        thumbnail: true,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
+                      _PlacePhotoGrid(
+                        urls: gallery,
+                        columns: 3,
+                        spacing: 7,
+                        maxItems: 6,
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       const SizedBox(height: 10),
                     ],
@@ -553,7 +600,7 @@ class _FeaturedPlaceCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      place.name,
+                      placeName,
                       style: context.text.titleLarge?.copyWith(
                         color: Colors.white,
                         fontSize: 22,
@@ -564,6 +611,15 @@ class _FeaturedPlaceCard extends StatelessWidget {
                       '${place.city} · ${place.subscriberCount} subscribers',
                       style: context.text.bodyMedium?.copyWith(
                         color: Colors.white.withValues(alpha: 0.82),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.tonalIcon(
+                        onPressed: () => _openPlace(context, place),
+                        icon: const Icon(Icons.storefront_rounded),
+                        label: const Text('View profile'),
                       ),
                     ),
                   ],
@@ -591,12 +647,14 @@ class _PlaceRow extends StatelessWidget {
     final primaryCategory = place.categories.isEmpty
         ? 'Place'
         : place.categories.first;
+    final media = _mediaForPlace(place);
+    final placeName = _placeDisplayName(place);
 
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Semantics(
         button: true,
-        label: 'Open ${place.name}',
+        label: 'Open $placeName',
         child: InkWell(
           onTap: () => _openPlace(context, place),
           child: Column(
@@ -643,7 +701,7 @@ class _PlaceRow extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              place.name,
+                              placeName,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: context.text.titleLarge?.copyWith(
@@ -702,6 +760,16 @@ class _PlaceRow extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
+                    if (media.length > 1) ...[
+                      _PlacePhotoGrid(
+                        urls: media.skip(1).toList(),
+                        columns: 3,
+                        spacing: 6,
+                        maxItems: 6,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     Row(
                       children: [
                         Icon(

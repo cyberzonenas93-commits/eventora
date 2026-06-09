@@ -636,7 +636,10 @@ class VennuzoSessionController extends ChangeNotifier {
     return GoogleAuthProvider.credential(idToken: idToken);
   }
 
-  Future<void> updateNotificationPrefs({
+  /// Persists notification preferences and returns whether push is actually
+  /// active afterwards (OS-authorized + token saved), so callers can give
+  /// truthful feedback rather than assuming "enabled" succeeded.
+  Future<bool> updateNotificationPrefs({
     bool? pushEnabled,
     bool? smsEnabled,
     bool? marketingOptIn,
@@ -693,7 +696,7 @@ class VennuzoSessionController extends ChangeNotifier {
 
     _viewer = _viewer.copyWith(notificationPrefs: updatedPrefs);
     notifyListeners();
-    await VennuzoNotificationService.instance.bindViewer(
+    return VennuzoNotificationService.instance.bindViewer(
       _viewer,
       requestPermission: pushEnabled == true,
     );

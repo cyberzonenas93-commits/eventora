@@ -246,7 +246,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           onChanged: (mode) => setState(() => _viewMode = mode),
         ),
         const SizedBox(height: 12),
-        if (filteredEvents.isEmpty)
+        if (filteredEvents.isEmpty && repository.eventsLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 56),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (filteredEvents.isEmpty)
           EmptyStateCard(
             title: _searchQuery.isNotEmpty
                 ? 'No events match "$_searchQuery"'
@@ -602,6 +607,13 @@ class _DiscoverCalendarView extends StatelessWidget {
         )
         .length;
 
+    final now = DateTime.now();
+    // Events are forward-looking, so block paging into months before this one.
+    final canGoToPreviousMonth = DateTime(
+      month.year,
+      month.month,
+    ).isAfter(DateTime(now.year, now.month));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -646,7 +658,9 @@ class _DiscoverCalendarView extends StatelessWidget {
                     ),
                   ),
                   IconButton.filledTonal(
-                    onPressed: () => onMonthChanged(_addMonths(month, -1)),
+                    onPressed: canGoToPreviousMonth
+                        ? () => onMonthChanged(_addMonths(month, -1))
+                        : null,
                     icon: const Icon(Icons.chevron_left_rounded),
                     tooltip: 'Previous month',
                   ),

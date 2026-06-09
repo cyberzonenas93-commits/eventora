@@ -156,12 +156,15 @@ class VennuzoNotificationService {
     );
   }
 
-  Future<void> bindViewer(
+  /// Binds push for [viewer]. Returns whether push notifications are actually
+  /// active afterwards (OS-authorized and a token was saved), so callers can
+  /// give truthful feedback instead of assuming success.
+  Future<bool> bindViewer(
     VennuzoViewer viewer, {
     bool requestPermission = false,
   }) async {
     if (!_firebaseEnabled) {
-      return;
+      return false;
     }
     await initialize(firebaseEnabled: _firebaseEnabled);
 
@@ -171,19 +174,19 @@ class VennuzoNotificationService {
         await _clearToken(_lastBoundUid!);
       }
       _lastBoundUid = null;
-      return;
+      return false;
     }
 
     _lastBoundUid = uid;
     if (!viewer.notificationPrefs.pushEnabled) {
       await _clearToken(uid);
-      return;
+      return false;
     }
 
     var settings = await _messaging.getNotificationSettings();
     if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
       if (!requestPermission) {
-        return;
+        return false;
       }
       settings = await _messaging.requestPermission(
         alert: true,
@@ -194,7 +197,7 @@ class VennuzoNotificationService {
     }
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       await _clearToken(uid);
-      return;
+      return false;
     }
 
     final String? token;
@@ -204,12 +207,13 @@ class VennuzoNotificationService {
       debugPrint(
         'Vennuzo push token unavailable: ${error.code} ${error.message ?? ''}',
       );
-      return;
+      return false;
     }
     if (token == null || token.trim().isEmpty) {
-      return;
+      return false;
     }
     await _trySaveToken(uid: uid, token: token);
+    return true;
   }
 
   Future<void> clearBoundToken() async {

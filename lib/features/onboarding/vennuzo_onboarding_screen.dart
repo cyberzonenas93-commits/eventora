@@ -319,7 +319,10 @@ class _VennuzoOnboardingScreenState extends State<VennuzoOnboardingScreen> {
             ? 'Accra'
             : _cityController.text.trim(),
         marketingOptIn: _marketingOptIn,
-        promotionalPushEnabled: _promotionalPushEnabled,
+        // Don't persist promo push when marketing is opted out — the switch is
+        // disabled in that case, so saving its stale value would contradict the
+        // user's visible choice.
+        promotionalPushEnabled: _marketingOptIn && _promotionalPushEnabled,
       ),
     );
     if (mounted) setState(() => _isFinishing = false);

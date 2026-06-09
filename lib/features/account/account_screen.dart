@@ -439,12 +439,18 @@ class AccountScreen extends StatelessWidget {
     String url,
     String failureMessage,
   ) async {
-    final launched = await launchUrl(
-      Uri.parse(url),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!launched && context.mounted) {
-      _showMessage(context, failureMessage);
+    try {
+      final launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && context.mounted) {
+        _showMessage(context, failureMessage);
+      }
+    } on Exception {
+      if (context.mounted) {
+        _showMessage(context, failureMessage);
+      }
     }
   }
 

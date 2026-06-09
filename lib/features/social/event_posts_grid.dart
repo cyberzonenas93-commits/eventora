@@ -200,8 +200,9 @@ class _FullScreenPostViewerState extends State<_FullScreenPostViewer> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
+    final lastIndex = widget.posts.isEmpty ? 0 : widget.posts.length - 1;
+    _currentIndex = widget.initialIndex.clamp(0, lastIndex);
+    _pageController = PageController(initialPage: _currentIndex);
   }
 
   @override
@@ -212,7 +213,24 @@ class _FullScreenPostViewerState extends State<_FullScreenPostViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final currentPost = widget.posts[_currentIndex];
+    if (widget.posts.isEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Text(
+            'Post unavailable',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
+      );
+    }
+    final lastIndex = widget.posts.length - 1;
+    final safeIndex = _currentIndex.clamp(0, lastIndex);
+    final currentPost = widget.posts[safeIndex];
     final canModerate =
         currentPost.userId.isNotEmpty &&
         currentPost.userId != widget.currentUserId;
@@ -222,7 +240,7 @@ class _FullScreenPostViewerState extends State<_FullScreenPostViewer> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: Text(
-          '${_currentIndex + 1} / ${widget.posts.length}',
+          '${safeIndex + 1} / ${widget.posts.length}',
           style: const TextStyle(color: Colors.white),
         ),
         actions: [

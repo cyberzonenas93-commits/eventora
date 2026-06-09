@@ -19,7 +19,12 @@ class VennuzoTicketOrderMonitor {
         stopMonitoring(orderId);
         return;
       }
-      await onPoll();
+      try {
+        await onPoll();
+      } catch (_) {
+        // The screen surfaces user-facing messaging; never let a failed
+        // poll escape and kill the periodic timer.
+      }
     });
   }
 

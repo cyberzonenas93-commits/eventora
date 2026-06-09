@@ -37,6 +37,7 @@ class _VennuzoTicketPaymentStatusScreenState
   _orderSubscription;
   late TicketOrder _order;
   bool _refreshing = false;
+  bool _reopening = false;
   int _autoChecks = 0;
 
   bool get _paymentConfirmed =>
@@ -141,6 +142,15 @@ class _VennuzoTicketPaymentStatusScreenState
           context,
         ).showSnackBar(SnackBar(content: Text(error.message)));
       }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      if (_autoChecks > 3) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not refresh ticket payment.')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _refreshing = false);
@@ -149,6 +159,10 @@ class _VennuzoTicketPaymentStatusScreenState
   }
 
   Future<void> _openCheckoutAgain() async {
+    if (_reopening) {
+      return;
+    }
+    setState(() => _reopening = true);
     try {
       await VennuzoPaymentService.startPaymentForExistingOrder(widget.orderId);
       if (!mounted) {
@@ -171,6 +185,10 @@ class _VennuzoTicketPaymentStatusScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.message ?? 'Could not reopen payment.')),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _reopening = false);
+      }
     }
   }
 
@@ -381,12 +399,17 @@ class _VennuzoTicketPaymentStatusScreenState
                                     ),
                                   ],
                                 ),
-                                child: QrImageView(
-                                  data: ticket.qrToken,
-                                  version: QrVersions.auto,
-                                  size: 200,
-                                  backgroundColor: Colors.white,
-                                ),
+                                child: ticket.qrToken.isEmpty
+                                    ? const _QrNotReady(size: 200)
+                                    : QrImageView(
+                                        data: ticket.qrToken,
+                                        version: QrVersions.auto,
+                                        size: 200,
+                                        backgroundColor: Colors.white,
+                                        semanticsLabel: 'Ticket QR code',
+                                        errorStateBuilder: (context, error) =>
+                                            const _QrRenderFailed(size: 200),
+                                      ),
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -444,8 +467,16 @@ class _VennuzoTicketPaymentStatusScreenState
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: _openCheckoutAgain,
-                child: const Text('Open Hubtel again'),
+                onPressed: _reopening ? null : _openCheckoutAgain,
+                child: Text(_reopening ? 'Opening...' : 'Open Hubtel again'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Text('Close'),
               ),
             ),
           ],
@@ -474,6 +505,70 @@ class _HeroPill extends StatelessWidget {
           color: Colors.white,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+}
+
+class _QrNotReady extends StatelessWidget {
+  const _QrNotReady({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.hourglass_empty_rounded,
+            color: context.palette.slate,
+            size: 40,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'QR not ready yet',
+            textAlign: TextAlign.center,
+            style: context.text.bodySmall?.copyWith(
+              color: context.palette.slate,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QrRenderFailed extends StatelessWidget {
+  const _QrRenderFailed({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            color: context.palette.coral,
+            size: 40,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Couldn't render code",
+            textAlign: TextAlign.center,
+            style: context.text.bodySmall?.copyWith(
+              color: context.palette.coral,
+            ),
+          ),
+        ],
       ),
     );
   }

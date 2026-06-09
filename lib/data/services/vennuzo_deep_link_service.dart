@@ -14,7 +14,7 @@ class VennuzoDeepLinkService {
   StreamSubscription<Uri>? _subscription;
   GlobalKey<NavigatorState>? _navigatorKey;
   bool _initialized = false;
-  String? _lastHandledEventId;
+  String? _recentlyHandledUri;
 
   Future<void> initialize({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -48,11 +48,24 @@ class VennuzoDeepLinkService {
 
   void _handleUri(Uri? uri) {
     final eventId = _extractEventId(uri);
-    if (eventId == null || eventId == _lastHandledEventId) {
+    if (eventId == null) {
       return;
     }
 
-    _lastHandledEventId = eventId;
+    // Suppress the cold-start double-delivery (getInitialLink + the first
+    // stream emission of the same URI) without permanently latching, so the
+    // user can re-open the same shared link again later.
+    final key = uri.toString();
+    if (key == _recentlyHandledUri) {
+      return;
+    }
+    _recentlyHandledUri = key;
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (_recentlyHandledUri == key) {
+        _recentlyHandledUri = null;
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final navigator = _navigatorKey?.currentState;
       if (navigator == null) {

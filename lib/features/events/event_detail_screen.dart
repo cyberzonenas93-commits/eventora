@@ -206,19 +206,30 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     final authenticated = await showAuthPromptSheet(
                       context,
                       title: 'Sign in to like events',
-                      body: 'Likes sync to your account.',
+                      body: 'Save the events you love.',
                     );
                     if (!context.mounted || !authenticated) {
                       return;
                     }
                   }
-                  context.read<VennuzoRepository>().toggleLike(event.id);
+                  final nowLiked = context.read<VennuzoRepository>().toggleLike(
+                    event.id,
+                  );
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Added to your likes.')),
+                    SnackBar(
+                      content: Text(
+                        nowLiked
+                            ? 'Added to your likes.'
+                            : 'Removed from your likes.',
+                      ),
+                    ),
                   );
                 },
-                icon: Icons.favorite_border,
-                label: 'Like',
+                icon: repository.isEventLiked(event.id)
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+                label: repository.isEventLiked(event.id) ? 'Liked' : 'Like',
               ),
               _ActionPillButton(
                 onPressed: () async {
@@ -534,10 +545,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         ),
       );
       if (enable == true && context.mounted) {
-        await session.updateNotificationPrefs(pushEnabled: true);
+        final pushActive = await session.updateNotificationPrefs(
+          pushEnabled: true,
+        );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Push notifications enabled.')),
+            SnackBar(
+              content: Text(
+                pushActive
+                    ? 'Push notifications enabled.'
+                    : 'Allow notifications in Settings to get this reminder.',
+              ),
+            ),
           );
         }
       }

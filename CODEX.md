@@ -131,3 +131,32 @@ Additional release checks:
     place-tab `Semantics` removed.
   - Added widget regression tests for the sold-out action and the not-found app bar.
   - Gates: `flutter analyze` clean; `flutter test` 29/29 passing.
+- App-wide attendee-flow hardening pass (second audit, Discover/Account/Tickets/Social/cross-cutting):
+  - Discover: loading state (via `eventsLoading`) instead of a "no events" flash on
+    cold load; calendar "Previous month" disabled before the current month.
+  - Likes: `toggleLike` was increment-only (and a no-op for live events) — now a real
+    per-viewer toggle (`isEventLiked`) with correct icon/label/snackbar; fixed the
+    misleading "Likes sync to your account" copy.
+  - Reminders/push: `bindViewer` + `updateNotificationPrefs` now return whether push
+    actually activated, so "Enable" only claims success when OS-authorized (otherwise
+    points the user to Settings).
+  - Onboarding: promo-push pref no longer persisted when marketing is opted out.
+  - Deep links: replaced the permanent event-id dedup latch with a short-window URI
+    dedup so the same shared link can be reopened.
+  - Auth (account/): local `_submitting` guards close the double-submit window across
+    `waitForAuthenticatedSession` (fixes phone-OTP re-consume / duplicate create-account);
+    `launchUrl` wrapped in try/catch; real email regex; phone validator; DOB min-age 13;
+    "Passwords do not match" copy.
+  - Tickets: broadened payment-poll error handling (uncaught `FirebaseException` from
+    `Source.server` no longer escapes the timer); re-entrancy guard on "Open Hubtel again"
+    (double-charge path); "Close" exit on failed/pending; empty/invalid QR placeholder +
+    `errorStateBuilder` + semantics; transient "Copied".
+  - Social: comment submit catch+snackbar; image pick compression (`maxWidth`/`imageQuality`)
+    + 10 MB guard; comments/feed/explore/profile StreamBuilders now have error (and
+    loading/empty) branches instead of masking errors as empty; guest "sign in to comment"
+    prompt; transient "Copied"; truthful unsave confirmation; full-screen viewer index clamp.
+  - Deferred/flagged (need native config / content / product decision): Universal Links
+    for shared `https://vennuzo.web.app` links (entitlements + hosted AASA/assetlinks);
+    Terms page publication; guest-visible Host/Passes/Reach tabs; top-bar touch-target
+    sizing (small-screen overflow risk).
+  - Gates: `flutter analyze` clean; `flutter test` 29/29 passing.

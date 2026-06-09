@@ -159,6 +159,7 @@ class VennuzoRepository extends ChangeNotifier {
   _placeSubscriptionsSubscription;
   VennuzoViewer _viewer = const VennuzoViewer.guest();
   final Map<String, ReminderTiming> _reminders = <String, ReminderTiming>{};
+  final Set<String> _likedEventIds = <String>{};
   bool _ordersHydrated = false;
   bool _rsvpsHydrated = false;
   bool _campaignsHydrated = false;
@@ -1103,12 +1104,21 @@ class VennuzoRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleLike(String eventId) {
-    final index = _events.indexWhere((event) => event.id == eventId);
-    if (index == -1) return;
-    final event = _events[index];
-    _events[index] = event.copyWith(likesCount: event.likesCount + 1);
+  bool isEventLiked(String eventId) => _likedEventIds.contains(eventId);
+
+  /// Toggles the viewer's like for an event and returns the new liked state.
+  /// Likes are tracked per session (not yet synced server-side), so this
+  /// records membership rather than mutating shared like counts — the old
+  /// behavior only ever incremented and could never be undone.
+  bool toggleLike(String eventId) {
+    final nowLiked = !_likedEventIds.contains(eventId);
+    if (nowLiked) {
+      _likedEventIds.add(eventId);
+    } else {
+      _likedEventIds.remove(eventId);
+    }
     notifyListeners();
+    return nowLiked;
   }
 
   void createEvent(EventDraft draft) {

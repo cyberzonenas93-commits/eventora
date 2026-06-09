@@ -43,193 +43,199 @@ class EventCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(VennuzoTheme.radiusXl),
           child: Material(
             color: VennuzoTheme.surface,
-            child: InkWell(
-              onTap: onTap,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Hero image ──────────────────────────────────
-                  SizedBox(
-                    height: artHeight,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        EventArtwork(event: event, height: artHeight),
-                        // Cinematic scrim
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                stops: const [0.0, 0.5, 1.0],
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.0),
-                                  Colors.black.withValues(alpha: 0.08),
-                                  Colors.black.withValues(alpha: 0.60),
-                                ],
+            child: Semantics(
+              button: onTap != null,
+              label: onTap != null ? 'Open ${event.title}' : null,
+              // Keep footer action buttons as their own focusable nodes.
+              explicitChildNodes: true,
+              child: InkWell(
+                onTap: onTap,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Hero image ──────────────────────────────────
+                    SizedBox(
+                      height: artHeight,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          EventArtwork(event: event, height: artHeight),
+                          // Cinematic scrim
+                          Positioned.fill(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  stops: const [0.0, 0.5, 1.0],
+                                  colors: [
+                                    Colors.black.withValues(alpha: 0.0),
+                                    Colors.black.withValues(alpha: 0.08),
+                                    Colors.black.withValues(alpha: 0.60),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        // Status pills — top left
-                        Positioned(
-                          top: 12,
-                          left: 14,
-                          child: Wrap(
-                            spacing: 6,
-                            children: [
-                              if (event.isPrivate)
-                                _GlassPill(
-                                  label: 'Private',
-                                  icon: Icons.lock_outline_rounded,
-                                )
-                              else
-                                _GlassPill(
-                                  label: 'Public',
-                                  icon: Icons.public_rounded,
-                                ),
-                              if (event.ticketing.enabled)
-                                _GlassPill(
-                                  label: event.ticketing.requireTicket
-                                      ? 'Ticketed'
-                                      : 'RSVP',
-                                  icon: Icons.confirmation_num_outlined,
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Date + price — bottom overlay
-                        Positioned(
-                          left: 14,
-                          right: 14,
-                          bottom: 12,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  event.title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: context.text.titleLarge?.copyWith(
-                                    color: Colors.white,
-                                    height: 1.1,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                        blurRadius: 10,
-                                      ),
-                                    ],
+                          // Status pills — top left
+                          Positioned(
+                            top: 12,
+                            left: 14,
+                            child: Wrap(
+                              spacing: 6,
+                              children: [
+                                if (event.isPrivate)
+                                  _GlassPill(
+                                    label: 'Private',
+                                    icon: Icons.lock_outline_rounded,
+                                  )
+                                else
+                                  _GlassPill(
+                                    label: 'Public',
+                                    icon: Icons.public_rounded,
                                   ),
+                                if (event.ticketing.enabled)
+                                  _GlassPill(
+                                    label: event.ticketing.requireTicket
+                                        ? 'Ticketed'
+                                        : 'RSVP',
+                                    icon: Icons.confirmation_num_outlined,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          // Date + price — bottom overlay
+                          Positioned(
+                            left: 14,
+                            right: 14,
+                            bottom: 12,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    event.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: context.text.titleLarge?.copyWith(
+                                      color: Colors.white,
+                                      height: 1.1,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          blurRadius: 10,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                _PriceBadge(label: entryLabel),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ── Mood accent line ────────────────────────────
+                    Container(
+                      height: 2,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [moodPal.mid, moodPal.highlight],
+                        ),
+                      ),
+                    ),
+                    // ── Card body ───────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Date row
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: 13,
+                                color: palette.slate,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                formatShortDate(event.startDate),
+                                style: context.text.labelMedium?.copyWith(
+                                  color: VennuzoTheme.primaryStart,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(width: 10),
-                              _PriceBadge(label: entryLabel),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // ── Mood accent line ────────────────────────────
-                  Container(
-                    height: 2,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [moodPal.mid, moodPal.highlight],
-                      ),
-                    ),
-                  ),
-                  // ── Card body ───────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Date row
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today_outlined,
-                              size: 13,
-                              color: palette.slate,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              formatShortDate(event.startDate),
-                              style: context.text.labelMedium?.copyWith(
-                                color: VennuzoTheme.primaryStart,
-                                fontWeight: FontWeight.w700,
+                              Icon(
+                                Icons.place_outlined,
+                                size: 13,
+                                color: palette.slate,
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Icon(
-                              Icons.place_outlined,
-                              size: 13,
-                              color: palette.slate,
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                '${event.venue}, ${event.city}',
-                                overflow: TextOverflow.ellipsis,
-                                style: context.text.labelMedium?.copyWith(
-                                  color: palette.slate,
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  '${event.venue}, ${event.city}',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: context.text.labelMedium?.copyWith(
+                                    color: palette.slate,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        // Description
-                        Text(
-                          event.description,
-                          style: context.text.bodySmall?.copyWith(
-                            color: palette.slate,
-                            height: 1.55,
-                            fontWeight: FontWeight.w400,
+                            ],
                           ),
-                          maxLines: compact ? 2 : 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 10),
-                        // Social proof + tags row
-                        Row(
-                          children: [
-                            _MicroStat(
-                              icon: Icons.favorite_rounded,
-                              value: '${event.likesCount}',
-                              color: palette.coral,
+                          const SizedBox(height: 10),
+                          // Description
+                          Text(
+                            event.description,
+                            style: context.text.bodySmall?.copyWith(
+                              color: palette.slate,
+                              height: 1.55,
+                              fontWeight: FontWeight.w400,
                             ),
-                            const SizedBox(width: 14),
-                            _MicroStat(
-                              icon: Icons.people_rounded,
-                              value: '${event.rsvpCount}',
-                              color: palette.teal,
-                            ),
-                            const Spacer(),
-                            if (event.tags.isNotEmpty)
-                              _TagChip(
-                                label: event.tags.first,
-                                color: moodPal.mid,
+                            maxLines: compact ? 2 : 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 10),
+                          // Social proof + tags row
+                          Row(
+                            children: [
+                              _MicroStat(
+                                icon: Icons.favorite_rounded,
+                                value: '${event.likesCount}',
+                                color: palette.coral,
                               ),
-                          ],
-                        ),
-                      ],
+                              const SizedBox(width: 14),
+                              _MicroStat(
+                                icon: Icons.people_rounded,
+                                value: '${event.rsvpCount}',
+                                color: palette.teal,
+                              ),
+                              const Spacer(),
+                              if (event.tags.isNotEmpty)
+                                _TagChip(
+                                  label: event.tags.first,
+                                  color: moodPal.mid,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  // ── Footer (action buttons) ─────────────────────
-                  if (footer != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-                      child: footer,
-                    )
-                  else
-                    const SizedBox(height: 14),
-                ],
+                    // ── Footer (action buttons) ─────────────────────
+                    if (footer != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                        child: footer,
+                      )
+                    else
+                      const SizedBox(height: 14),
+                  ],
+                ),
               ),
             ),
           ),

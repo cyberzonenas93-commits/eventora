@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/vennuzo_session_controller.dart';
 import '../../core/theme/theme_extensions.dart';
 import '../../core/theme/vennuzo_theme.dart';
 import '../../core/utils/formatters.dart';
@@ -9,8 +10,11 @@ import '../../data/repositories/vennuzo_repository.dart';
 import '../../domain/models/event_models.dart';
 import '../../domain/models/place_models.dart';
 import '../../widgets/empty_state_card.dart';
+import '../../widgets/event_card.dart';
 import '../../widgets/place_verification_badge.dart';
 import '../../widgets/section_heading.dart';
+import '../account/auth_prompt_sheet.dart';
+import '../events/event_detail_screen.dart';
 import 'place_fullscreen_gallery.dart';
 
 part 'place_detail_screen.dart';
@@ -136,7 +140,12 @@ class _PlacesScreenState extends State<PlacesScreen> {
           subtitle: '${places.length} matching profiles',
         ),
         const SizedBox(height: 12),
-        if (places.isEmpty)
+        if (repository.placesLoading && allPlaces.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (places.isEmpty)
           const EmptyStateCard(
             title: 'No places yet',
             icon: Icons.storefront_outlined,
@@ -710,9 +719,11 @@ class _PlaceRow extends StatelessWidget {
                             ),
                           ),
                           IconButton.filledTonal(
-                            onPressed: () => subscribed
-                                ? repository.unsubscribeFromPlace(place.id)
-                                : repository.subscribeToPlace(place.id),
+                            onPressed: () => _togglePlaceSubscription(
+                              context,
+                              place,
+                              subscribed,
+                            ),
                             icon: Icon(
                               subscribed
                                   ? Icons.notifications_active_rounded

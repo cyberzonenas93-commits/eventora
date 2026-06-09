@@ -113,7 +113,7 @@ void main() {
       expect(repository.featuredPlaceCampaigns, contains(campaign));
     });
 
-    test('attendees can subscribe to places and create reservations', () {
+    test('attendees can subscribe to places and create reservations', () async {
       final repository = fixtureRepository();
       const viewer = VennuzoViewer(
         uid: 'attendee_places_001',
@@ -133,7 +133,7 @@ void main() {
       repository.subscribeToPlace(MockSeed.gplusPlaceId);
       expect(repository.isSubscribedToPlace(MockSeed.gplusPlaceId), isTrue);
 
-      final reservation = repository.createPlaceReservation(
+      final reservation = await repository.createPlaceReservation(
         PlaceReservationRequest(
           placeId: MockSeed.gplusPlaceId,
           placeName: 'G+Nightclub',

@@ -163,6 +163,8 @@ class VennuzoRepository extends ChangeNotifier {
   bool _rsvpsHydrated = false;
   bool _campaignsHydrated = false;
   bool _remindersHydrated = false;
+  bool _placesHydrated = false;
+  bool _eventsHydrated = false;
 
   List<EventModel> get _effectiveEvents {
     final merged = <String, EventModel>{
@@ -323,6 +325,14 @@ class VennuzoRepository extends ChangeNotifier {
   List<PlaceProfile> get featuredPlaces =>
       places.where((place) => place.featured).toList();
 
+  /// True while the first Firestore places snapshot is still pending, so the UI
+  /// can show a loading state instead of flashing an empty/"not found" view.
+  /// Always false when cloud sync is disabled (data is available synchronously).
+  bool get placesLoading => _cloudSync.isEnabled && !_placesHydrated;
+
+  /// True while the first Firestore public-events snapshot is still pending.
+  bool get eventsLoading => _cloudSync.isEnabled && !_eventsHydrated;
+
   PlaceProfile? placeById(String id) {
     for (final place in _effectivePlaces) {
       if (place.id == id) return place;
@@ -433,7 +443,13 @@ class VennuzoRepository extends ChangeNotifier {
     if (removed) notifyListeners();
   }
 
-  PlaceReservation createPlaceReservation(PlaceReservationRequest request) {
+  /// Optimistically records the reservation, then awaits the cloud write.
+  /// Adds locally first for an instant UI, but rolls back and throws if the
+  /// cloud write fails so callers can surface a truthful result. Cloud sync
+  /// disabled is treated as accepted (offline/local).
+  Future<PlaceReservation> createPlaceReservation(
+    PlaceReservationRequest request,
+  ) async {
     if (isGuest || currentUserId.isEmpty) {
       throw StateError('Sign in before reserving a place.');
     }
@@ -455,17 +471,18 @@ class VennuzoRepository extends ChangeNotifier {
       updatedAt: now,
     );
     _placeReservations.add(reservation);
-    unawaited(
-      _cloudSync.createPlaceReservation(reservation: reservation).then((ok) {
-        if (!ok) {
-          _placeReservations.removeWhere((r) => r.id == reservation.id);
-          _reportPlaceSyncError(
-            'Could not submit your reservation. Please try again.',
-          );
-        }
-      }),
-    );
     notifyListeners();
+    final ok = await _cloudSync.createPlaceReservation(
+      reservation: reservation,
+    );
+    if (!ok) {
+      _placeReservations.removeWhere((r) => r.id == reservation.id);
+      _reportPlaceSyncError(
+        'Could not submit your reservation. Please try again.',
+      );
+      notifyListeners();
+      throw StateError('Could not submit your reservation. Please try again.');
+    }
     return reservation;
   }
 
@@ -1756,6 +1773,7 @@ class VennuzoRepository extends ChangeNotifier {
     _workspaceEventsSubscription?.cancel();
     _livePublicEvents.clear();
     _liveWorkspaceEvents.clear();
+    _eventsHydrated = false;
 
     final firestore = FirebaseFirestore.instance;
     _publicEventsSubscription = firestore
@@ -1773,16 +1791,24 @@ class VennuzoRepository extends ChangeNotifier {
         // and filters over this set. 500 is generous for the discover feed.
         .limit(500)
         .snapshots()
-        .listen((snapshot) {
-          _livePublicEvents
-            ..clear()
-            ..addAll(
-              snapshot.docs
-                  .map((doc) => _eventFromFirestore(doc))
-                  .whereType<EventModel>(),
-            );
-          notifyListeners();
-        });
+        .listen(
+          (snapshot) {
+            _livePublicEvents
+              ..clear()
+              ..addAll(
+                snapshot.docs
+                    .map((doc) => _eventFromFirestore(doc))
+                    .whereType<EventModel>(),
+              );
+            _eventsHydrated = true;
+            notifyListeners();
+          },
+          onError: (_) {
+            // Surface an empty state rather than spinning forever on error.
+            _eventsHydrated = true;
+            notifyListeners();
+          },
+        );
 
     if (_viewer.hasAdminAccess) {
       _workspaceEventsSubscription = firestore
@@ -1872,6 +1898,7 @@ class VennuzoRepository extends ChangeNotifier {
     _livePlaceMenuSections.clear();
     _livePlaceMenuItems.clear();
     _livePlaceReservations.clear();
+    _placesHydrated = false;
 
     final firestore = FirebaseFirestore.instance;
     Query<Map<String, dynamic>> placesQuery = firestore
@@ -1889,16 +1916,23 @@ class VennuzoRepository extends ChangeNotifier {
           .where('organizationId', isEqualTo: _viewer.defaultOrganizationId)
           .limit(500);
     }
-    _placesSubscription = placesQuery.snapshots().listen((snapshot) {
-      _livePlaces
-        ..clear()
-        ..addAll(
-          snapshot.docs
-              .map((doc) => _placeFromFirestore(doc))
-              .whereType<PlaceProfile>(),
-        );
-      notifyListeners();
-    });
+    _placesSubscription = placesQuery.snapshots().listen(
+      (snapshot) {
+        _livePlaces
+          ..clear()
+          ..addAll(
+            snapshot.docs
+                .map((doc) => _placeFromFirestore(doc))
+                .whereType<PlaceProfile>(),
+          );
+        _placesHydrated = true;
+        notifyListeners();
+      },
+      onError: (_) {
+        _placesHydrated = true;
+        notifyListeners();
+      },
+    );
 
     _placeMenuSectionsSubscription = firestore
         .collection('place_menu_sections')

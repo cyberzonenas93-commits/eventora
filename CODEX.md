@@ -1,0 +1,133 @@
+# Vennuzo Engineering and Operations Memory
+
+Last updated: 2026-06-09
+
+## Repository Structure
+
+- `lib/`: Flutter mobile application.
+  - `lib/features/`: feature screens and UI flows.
+  - `lib/data/services/`: Firebase, payments, places, notification, and sync services.
+  - `lib/domain/models/`: typed domain models for events, places, accounts, creators, promotions, tickets, and services.
+  - `lib/core/`: theme, Firebase bootstrap, art, utilities, and shared constants.
+- `functions/`: Firebase Cloud Functions, Node.js 22, CommonJS modules.
+- `studio/`: React + TypeScript + Vite web admin/organizer app.
+- `ios/`, `android/`, `macos/`, `linux/`: platform shells.
+- `assets/`, `studio/public/`, `public-pages/`: app, web, and public assets.
+- `docs/`: architecture notes, QA logs, release notes, migration plans, and store submission records.
+- Root Firebase config: `firebase.json`, `firestore.rules`, `firestore.indexes.json`, `storage.rules`.
+
+## Build Process
+
+Flutter:
+
+- Install dependencies: `flutter pub get`
+- Analyze: `flutter analyze`
+- Test: `flutter test`
+- iOS App Store IPA:
+  - `flutter build ipa --release --build-name=1.0.0 --build-number=<build> --export-options-plist=ios/ExportOptionsAppStore.plist`
+
+Functions:
+
+- From `functions/`: `npm test`
+- Root helpers include `npm run functions:lint`, `npm run functions:deploy`, and targeted deploy scripts.
+
+Studio:
+
+- From `studio/`: `npm run lint`, `npm run build`, `npm run test`.
+
+iOS release requirements:
+
+- Bundle ID: `com.vennuzo.app`
+- Team ID: `36TZ8UKL8W`
+- Export options: `ios/ExportOptionsAppStore.plist`
+- ASC API key ID used locally: `R7BYLGVT9L`
+- Never print or commit issuer IDs, generated JWTs, or `.p8` private keys.
+
+## Development Standards
+
+- Prefer existing feature/service patterns before introducing abstractions.
+- Keep Flutter screens responsive with explicit loading, error, and empty states.
+- Use server-side Functions for privileged writes, payment settlement, notification dispatch, and cross-app bridge writes.
+- Treat Firestore rules and indexes as part of each feature, not a deployment afterthought.
+- Keep UI copy concise and production-facing; avoid placeholder flows in shipped surfaces.
+- Manual code edits should be small and traceable; generated build artifacts should not be committed unless intentionally tracked.
+
+## Testing Procedures
+
+Primary release gates:
+
+- `flutter analyze`
+- `flutter test`
+- `npm test` in `functions`
+- `npm run lint` in `studio`
+- `npm run build` in `studio`
+- `npm run test` in `studio`
+
+Additional release checks:
+
+- `plutil -lint ios/Runner/Info.plist`
+- Inspect exported IPA `Info.plist` for bundle id, version, build number, and Apple privacy purpose strings.
+- Inspect IPA entitlements for production push, Sign in with Apple, and `get-task-allow=false`.
+- `xcrun altool --validate-app` before upload.
+- `xcrun altool --build-status` and ASC API readback after upload.
+
+## Infrastructure
+
+- Firebase Hosting serves Vennuzo/Studio/public pages through configured targets.
+- Cloud Functions deploy to Firebase with Node.js 22.
+- Firestore and Storage rules are tracked at the repo root.
+- App Store Connect submission is currently handled with Apple CLI/API calls from the local machine.
+- Monitoring/logging lives primarily in Firebase logs, Cloud Functions structured logger output, and Studio Sentry integration.
+
+## Refactoring History
+
+- Places experience has been progressively split into detail, gallery, management, reservation, and shared widget files.
+- Place detail event rows now reuse `EventCard` so flyer rendering and event navigation stay consistent with Discover/creator surfaces.
+- Staff location onboarding is available from the mobile Manage surface and reuses place management creation/claiming paths.
+- Notification, payment, support, places, and G+ bridge functions are separated into domain modules instead of a single monolithic index.
+
+## Operational Notes
+
+- The App Store version `1.0` is currently submitted and waiting for review with build `2026060902`.
+- New review submission ID: `730de9f2-40fc-4239-9e66-d442e0ad762d`.
+- Build/delivery ID: `58704fe2-b4e0-45ff-9291-c562bb877fb5`.
+- Prior waiting review submission `716078ad-eef0-4525-af3a-a65d3d4f8833` was removed before attaching build `2026060902`.
+- Apple validation for `2026060901` warned about missing `NSLocationAlwaysAndWhenInUseUsageDescription`; build `2026060902` includes the fix.
+- Keep at least 8-10 GB free before iOS archive/export. Cleaning `build/ios` and stale `DerivedData/Runner-*` is safe when no build is running.
+
+## Known Limitations
+
+- App Store automation should be moved into a script that masks sensitive values and records submission IDs automatically.
+- Firestore rules emulator tests do not yet cover every places onboarding and venue media write path.
+- Studio bundle includes large PDF/XLSX chunks; watch admin performance as data grows.
+- G+ source media mapping needs a dedicated runbook covering media desk writes, sync script inputs, and Vennuzo places output.
+
+## Changelog
+
+2026-06-09:
+
+- Updated place detail events UI to show flyer-led event cards with enabled RSVP/ticket actions.
+- Added a widget regression test for place event flyer/action rendering.
+- UX/robustness hardening pass on the places/events surfaces (post-audit):
+  - Sold-out events: added `EventTicketing.isSoldOut`; place event cards and the
+    event detail bottom bar now render a disabled "Sold out" action, and
+    `_openCheckoutFlow` guards the deep-link auto-open. Settlement stock is still
+    enforced atomically server-side in `event_payments.js` (`runTransaction`).
+  - Place detail "not found" now renders an `AppBar` (back button) plus a loading
+    state instead of a dead-end bare `Text`.
+  - Added `placesLoading` / `eventsLoading` (backed by `_placesHydrated` /
+    `_eventsHydrated`, set in the stream `.listen`/`onError`) so Places, place
+    events, and place detail show spinners instead of flashing empty/not-found
+    on cold load. Mirrors the existing `_campaignsHydrated` gate.
+  - Reservations: `createPlaceReservation` is now `Future<PlaceReservation>`
+    (awaits the cloud write, throws on failure); `_reserve` gates guests behind
+    the auth prompt and shows a truthful success/failure snackbar.
+  - Place subscribe is now guest-gated with confirmation feedback via
+    `_togglePlaceSubscription` (repo no-ops silently for guests).
+  - Polish: unified RSVP/ticket CTA copy across card + bottom bar, `EventCard`
+    exposed as a button to screen readers, network flyers get a generative-art
+    loading placeholder + bounded `cacheWidth`, RSVP guest count capped at 20,
+    checkout generic-catch no longer leaks raw exception strings, redundant
+    place-tab `Semantics` removed.
+  - Added widget regression tests for the sold-out action and the not-found app bar.
+  - Gates: `flutter analyze` clean; `flutter test` 29/29 passing.

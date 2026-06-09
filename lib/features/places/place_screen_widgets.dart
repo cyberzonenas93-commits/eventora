@@ -287,3 +287,34 @@ void _openPlace(BuildContext context, PlaceProfile place) {
     ),
   );
 }
+
+/// Toggles a place subscription with guest gating and confirmation feedback.
+/// Subscribing as a guest is a silent no-op at the repository layer, so prompt
+/// for sign-in first; otherwise the tap would do nothing with no explanation.
+Future<void> _togglePlaceSubscription(
+  BuildContext context,
+  PlaceProfile place,
+  bool subscribed,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final placeName = _placeDisplayName(place);
+  if (subscribed) {
+    context.read<VennuzoRepository>().unsubscribeFromPlace(place.id);
+    messenger.showSnackBar(
+      SnackBar(content: Text('Unsubscribed from $placeName.')),
+    );
+    return;
+  }
+
+  final session = context.read<VennuzoSessionController>();
+  if (session.isGuest) {
+    final authenticated = await showAuthPromptSheet(
+      context,
+      title: 'Sign in to subscribe',
+      body: 'Subscriptions need an account.',
+    );
+    if (!context.mounted || !authenticated) return;
+  }
+  context.read<VennuzoRepository>().subscribeToPlace(place.id);
+  messenger.showSnackBar(SnackBar(content: Text('Subscribed to $placeName.')));
+}

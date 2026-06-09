@@ -29,30 +29,33 @@ class EventArtwork extends StatelessWidget {
   Widget build(BuildContext context) {
     final flyerAsset = event.flyerAsset?.trim();
     if (flyerAsset != null && flyerAsset.isNotEmpty) {
+      // Generative art doubles as the placeholder/fallback so the slot is never
+      // blank or a broken-image box while loading or on error.
+      Widget fallback() => _GeneratedEventArt(
+        event: event,
+        width: width,
+        height: height,
+        intensity: intensity,
+      );
       Widget flyer = flyerAsset.startsWith('http')
           ? Image.network(
               flyerAsset,
               fit: BoxFit.cover,
               width: width,
               height: height,
-              errorBuilder: (_, _, _) => _GeneratedEventArt(
-                event: event,
-                width: width,
-                height: height,
-                intensity: intensity,
-              ),
+              // Bound decode memory — these render inside scrollable lists.
+              cacheWidth: 1080,
+              loadingBuilder: (context, child, progress) =>
+                  progress == null ? child : fallback(),
+              errorBuilder: (_, _, _) => fallback(),
             )
           : Image.asset(
               flyerAsset,
               fit: BoxFit.cover,
               width: width,
               height: height,
-              errorBuilder: (_, _, _) => _GeneratedEventArt(
-                event: event,
-                width: width,
-                height: height,
-                intensity: intensity,
-              ),
+              cacheWidth: 1080,
+              errorBuilder: (_, _, _) => fallback(),
             );
 
       flyer = RepaintBoundary(child: flyer);

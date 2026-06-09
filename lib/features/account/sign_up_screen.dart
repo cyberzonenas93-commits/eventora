@@ -32,6 +32,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Uint8List? _selectedProfileImageBytes;
   bool _submitted = false;
   bool _submitting = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   late final TapGestureRecognizer _termsTapRecognizer;
   late final TapGestureRecognizer _privacyTapRecognizer;
 
@@ -182,9 +184,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 14),
                       TextFormField(
                         controller: _passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
                           labelText: 'Password',
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: _obscurePassword
+                                ? 'Show password'
+                                : 'Hide password',
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
                         ),
                         onChanged: (_) => _validateAfterSubmit(),
                         validator: (value) {
@@ -197,9 +212,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 14),
                       TextFormField(
                         controller: _confirmPasswordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
+                        obscureText: _obscureConfirmPassword,
+                        decoration: InputDecoration(
                           labelText: 'Confirm password',
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            tooltip: _obscureConfirmPassword
+                                ? 'Show password'
+                                : 'Hide password',
+                            onPressed: () => setState(
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                            ),
+                          ),
                         ),
                         onChanged: (_) => _validateAfterSubmit(),
                         validator: (value) {

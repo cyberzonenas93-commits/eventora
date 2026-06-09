@@ -13,6 +13,7 @@ import '../../widgets/empty_state_card.dart';
 import '../../widgets/metric_tile.dart';
 import '../../widgets/section_heading.dart';
 import '../account/auth_prompt_sheet.dart';
+import 'vennuzo_ticket_payment_status_screen.dart';
 
 class TicketsScreen extends StatelessWidget {
   const TicketsScreen({super.key});
@@ -526,6 +527,13 @@ class _OrderCardState extends State<_OrderCard> {
     final repository = context.read<VennuzoRepository>();
     final order = widget.order;
     final publicLink = repository.buildPublicTicketLink(order.id);
+    // A failed payment (or a stuck pending one that never issued tickets) needs
+    // a way back into checkout instead of looking like an in-progress order.
+    final canReopenPayment =
+        order.paymentStatus == TicketPaymentStatus.failed ||
+        ((order.paymentStatus == TicketPaymentStatus.pending ||
+                order.paymentStatus == TicketPaymentStatus.initiated) &&
+            order.tickets.isEmpty);
 
     return Card(
       child: Padding(
@@ -646,6 +654,22 @@ class _OrderCardState extends State<_OrderCard> {
                   ),
                   label: Text(_linkCopied ? 'Copied' : 'Copy order link'),
                 ),
+                if (canReopenPayment)
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => VennuzoTicketPaymentStatusScreen(
+                            orderId: order.id,
+                            initialOrder: order,
+                            checkoutUrl: '',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Reopen payment'),
+                  ),
               ],
             ),
           ],

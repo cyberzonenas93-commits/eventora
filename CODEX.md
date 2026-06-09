@@ -182,3 +182,9 @@ Additional release checks:
     Universal Links still needs native entitlements + hosted AASA/assetlinks + deploy).
   - Gates: `flutter analyze`+`flutter test` (29/29); `functions` `npm test` (69/69) +
     `npm run test:rules` (10/10); `studio` `npm run lint`+`build` clean.
+- Optional polish (formerly deferred): top-bar Account + switch-workspace buttons now have
+  >=44px tap targets (visual unchanged; verified against the small-screen overflow test);
+  password show/hide toggles on sign-in + sign-up fields; "Reopen payment" affordance on
+  failed/stuck orders in the Passes list (routes into VennuzoTicketPaymentStatusScreen).
+  Gates: `flutter analyze` clean; `flutter test` 29/29.
+- Branch `fix/places-events-ux-hardening` pushed; PR #1 opened against `main`.

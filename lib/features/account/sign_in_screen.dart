@@ -21,6 +21,7 @@ class _SignInScreenState extends State<SignInScreen> {
   late final TextEditingController _otpController;
   bool _phoneOtpSent = false;
   bool _submitting = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -90,7 +91,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         const SizedBox(height: 14),
                         TextFormField(
                           controller: _passwordController,
-                          obscureText: true,
+                          obscureText: _obscurePassword,
                           textInputAction: TextInputAction.done,
                           scrollPadding: const EdgeInsets.only(bottom: 180),
                           onFieldSubmitted: (_) {
@@ -98,8 +99,21 @@ class _SignInScreenState extends State<SignInScreen> {
                               _submit();
                             }
                           },
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                              ),
+                              tooltip: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
                           ),
                           validator: (value) {
                             if ((value ?? '').isEmpty) {

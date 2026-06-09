@@ -188,3 +188,18 @@ Additional release checks:
   failed/stuck orders in the Passes list (routes into VennuzoTicketPaymentStatusScreen).
   Gates: `flutter analyze` clean; `flutter test` 29/29.
 - Branch `fix/places-events-ux-hardening` pushed; PR #1 opened against `main`.
+- Closed the moderation/support least-privilege bypass at the rules layer: `event_reports`
+  updates now require `canModerateReports()` and `support_tickets` updates + admin support
+  messages require `canManageSupport()` (role sets mirror `functions/admin_permissions.js`;
+  superadmin aliases included). A non-write-role admin (e.g. marketing_manager, read_only)
+  can no longer bypass the console with a direct client write. Added
+  `functions/tests/rules/admin_role_rules.test.js`; `npm run test:rules` 15/15.
+  Assumption: admin `role` values are stored canonically (snake_case) — verify before
+  deploying if any legacy non-canonical role docs exist.
+- Verified-not-code / flagged: Terms page is a deploy only (`firebase deploy --only
+  hosting:pages` publishes `public-pages/terms.html` → `vennuzo-pages.web.app`; link already
+  correct). `bootstrapOwnerAdmin` left as-is by design (fail-closed + email-restricted +
+  rate-limited break-glass; an "active superadmin exists" guard would risk lockout for a LOW
+  finding) — harden operationally by unsetting/rotating the bootstrap secret post-setup.
+  Universal Links still needs Android signing SHA-256 + hosted AASA at the share domain
+  (`vennuzo.web.app`, a different hosting site than `public-pages`) + a real-device test.

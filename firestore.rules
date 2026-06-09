@@ -13,6 +13,34 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.status != 'disabled';
     }
 
+    // Admin role-based write gates. The Cloud Functions role table
+    // (functions/admin_permissions.js) is the source of truth; these mirror the
+    // write-permission sets so a non-write-role admin can't bypass them with a
+    // direct client write. Assumes admin `role` is stored canonically
+    // (snake_case); superadmin aliases included defensively.
+    function adminRole() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
+    }
+
+    function isAdminWithRole(roles) {
+      return isAdmin() && (adminRole() in roles);
+    }
+
+    function canModerateReports() {
+      return isAdminWithRole([
+        'superadmin', 'owner', 'super_admin',
+        'operations_manager', 'customer_support', 'trust_safety',
+      ]);
+    }
+
+    function canManageSupport() {
+      return isAdminWithRole([
+        'superadmin', 'owner', 'super_admin',
+        'operations_manager', 'customer_support', 'organizer_success',
+        'trust_safety',
+      ]);
+    }
+
     function isOrgOwner(organizationId) {
       return isSignedIn()
         && organizationId is string
@@ -271,7 +299,7 @@ service cloud.firestore {
     }
 
     function validAdminSupportMessageCreate() {
-      return isAdmin()
+      return canManageSupport()
         && request.resource.data.keys().hasOnly([
           'senderType',
           'senderId',
@@ -407,8 +435,8 @@ service cloud.firestore {
         // Prevent clients from writing arbitrary extra fields
         && request.resource.data.keys().hasOnly(['eventId', 'eventTitle', 'reason', 'details', 'createdAt']);
       allow read: if isAdmin();
-      // Admins (Trust & Safety moderation queue) may set review/status fields only.
-      allow update: if isAdmin()
+      // Only moderation-capable admin roles may set review/status fields.
+      allow update: if canModerateReports()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'reviewedBy', 'reviewedByEmail', 'reviewedAt', 'reviewNotes', 'updatedAt'
         ])
@@ -442,7 +470,7 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if validSupportTicketCreate();
-      allow update: if isAdmin() || validOwnSupportTicketUpdate();
+      allow update: if canManageSupport() || validOwnSupportTicketUpdate();
       allow delete: if false;
 
       match /messages/{messageId} {

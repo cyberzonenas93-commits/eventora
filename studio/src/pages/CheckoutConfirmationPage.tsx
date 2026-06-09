@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import QRCodeLib from 'qrcode'
 
 import { trackEvent } from '../lib/analytics'
 import { formatMoney } from '../lib/formatters'
@@ -74,19 +75,34 @@ async function fetchPublicTicket(orderId: string, signal?: AbortSignal): Promise
   }
 }
 
-// ── QR code via public API ─────────────────────────────────────────────────────
+// ── QR code rendered client-side ────────────────────────────────────────────────
 // The qrToken is a 32-char hex string that organizers scan with their scanner.
-// We render it as a QR code image using the free goqr.me API (no dependency needed).
+// It is an admission secret, so we render the QR locally in the browser — the
+// token never leaves the device.
 function QRCode({ value, size = 200 }: { value: string; size?: number }) {
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}&ecc=M&margin=1`
+  const [dataUrl, setDataUrl] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    QRCodeLib.toDataURL(value, { errorCorrectionLevel: 'M', margin: 1, width: size })
+      .then((url) => {
+        if (!cancelled) setDataUrl(url)
+      })
+      .catch((err) => {
+        console.error('QR code generation error:', err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [value, size])
+
   return (
     <img
-      src={url}
+      src={dataUrl}
       alt={`QR code for ticket ${value}`}
       width={size}
       height={size}
       className="ticket-card__qr"
-      loading="lazy"
     />
   )
 }

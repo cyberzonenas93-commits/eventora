@@ -374,13 +374,18 @@ class _CreativeServicesScreenState extends State<CreativeServicesScreen> {
       _showMessage('Enter at least GHS 1 to load your wallet.');
       return;
     }
+    final phone = _walletPhoneController.text.trim();
+    if (phone.isEmpty || phone.replaceAll(RegExp(r'[^0-9]'), '').length < 9) {
+      _showMessage('Enter the mobile money number to charge.');
+      return;
+    }
     setState(() => _topUpSubmitting = true);
     try {
       await VennuzoPaymentService.startWalletTopUp(
         organizationId: organizationId,
         amount: amount,
         payeeName: _walletNameController.text.trim(),
-        payeeMobileNumber: _walletPhoneController.text.trim(),
+        payeeMobileNumber: phone,
         payeeEmail: _walletEmailController.text.trim(),
       );
       _showMessage('Hubtel checkout opened. Balance updates after payment.');
@@ -1073,7 +1078,7 @@ class _BrandCard extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: logoUrl.isEmpty
                     ? const Icon(Icons.image_outlined)
-                    : Image.network(logoUrl, fit: BoxFit.cover),
+                    : _NetworkFlyerImage(url: logoUrl),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1365,7 +1370,7 @@ class _JobCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               child: AspectRatio(
                 aspectRatio: 9 / 16,
-                child: Image.network(job!.imageUrl, fit: BoxFit.cover),
+                child: _NetworkFlyerImage(url: job!.imageUrl),
               ),
             ),
             const SizedBox(height: 12),
@@ -1591,11 +1596,10 @@ class _SessionTile extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              session.imageUrl,
+            child: _NetworkFlyerImage(
+              url: session.imageUrl,
               width: 58,
               height: 82,
-              fit: BoxFit.cover,
             ),
           ),
           const SizedBox(width: 12),
@@ -1720,6 +1724,46 @@ class _SectionCard extends StatelessWidget {
           const SizedBox(height: 16),
           child,
         ],
+      ),
+    );
+  }
+}
+
+class _NetworkFlyerImage extends StatelessWidget {
+  const _NetworkFlyerImage({required this.url, this.width, this.height});
+
+  final String url;
+  final double? width;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      url,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return SizedBox(
+          width: width,
+          height: height,
+          child: const Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (_, _, _) => SizedBox(
+        width: width,
+        height: height,
+        child: const ColoredBox(
+          color: VennuzoTheme.surfaceElevated,
+          child: Icon(Icons.broken_image_outlined),
+        ),
       ),
     );
   }

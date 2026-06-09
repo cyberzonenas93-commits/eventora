@@ -261,19 +261,7 @@ class _GateEntryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      context.read<VennuzoRepository>().admitTicket(
-                        entry.order.id,
-                        entry.ticket.ticketId,
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${entry.ticket.attendeeName} admitted.',
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _admit(context),
                     child: Text(
                       entry.ticket.status == TicketStatus.unpaid
                           ? 'Collect and admit'
@@ -303,6 +291,54 @@ class _GateEntryCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _admit(BuildContext context) async {
+    // Unpaid tickets need cash collected at the gate. The plain admitTicket
+    // path records no cash, so route the operator to the scanner instead of
+    // silently admitting (and flipping status) without a payment.
+    if (entry.ticket.status == TicketStatus.unpaid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Use the scanner to collect cash for this ticket.'),
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Admit ${entry.ticket.attendeeName}?'),
+          content: Text(
+            'This admits ${entry.ticket.attendeeName} to ${entry.order.eventTitle}.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Admit'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    context.read<VennuzoRepository>().admitTicket(
+      entry.order.id,
+      entry.ticket.ticketId,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${entry.ticket.attendeeName} admitted.')),
     );
   }
 }
@@ -350,10 +386,7 @@ class _AdminOrderCard extends StatelessWidget {
               children: [
                 _StatusPill(label: order.id, color: context.palette.ink),
                 _StatusPill(label: '${order.ticketCount} tickets'),
-                _StatusPill(
-                  label: repository.buildPublicTicketLink(order.id),
-                  color: context.palette.teal,
-                ),
+                _CopyLinkPill(link: repository.buildPublicTicketLink(order.id)),
               ],
             ),
           ],
@@ -395,6 +428,56 @@ class _StatusPill extends StatelessWidget {
         style: context.text.bodyMedium?.copyWith(
           color: foreground,
           fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _CopyLinkPill extends StatelessWidget {
+  const _CopyLinkPill({required this.link});
+
+  final String link;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = context.palette.teal;
+    final foreground = accent.computeLuminance() > 0.5
+        ? const Color(0xFF09111F)
+        : Colors.white;
+    return Material(
+      color: accent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          await Clipboard.setData(ClipboardData(text: link));
+          if (!context.mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Link copied.')));
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  link,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.text.bodyMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.copy_outlined, size: 16, color: foreground),
+            ],
+          ),
         ),
       ),
     );

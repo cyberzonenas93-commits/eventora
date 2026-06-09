@@ -160,3 +160,25 @@ Additional release checks:
     Terms page publication; guest-visible Host/Passes/Reach tabs; top-bar touch-target
     sizing (small-screen overflow risk).
   - Gates: `flutter analyze` clean; `flutter test` 29/29 passing.
+- Operator surfaces + backend security + Studio hardening (third audit pass):
+  - SECURITY (firestore.rules + functions): closed a privilege-escalation hole where any
+    signed-in user could author `organizer_applications/{uid}` claiming a victim org and
+    gain event-manager rights — hardened both `ownsOrganizerApplication` (read side, also
+    neutralizes pre-existing malicious docs) and `canWriteOwnOrganizerApplication` to
+    require `org_<uid>`. `isAdmin()` now checks `status != 'disabled'` (revoked admins kept
+    client write access). `hasAdminAccess` in `gplus_sync.js`/`places_platform.js` now
+    excludes `read_only`; `assertPlaceManager` uses `hasAdminAccess` (was bare `exists`).
+    `createWebEventTicketOrder` now bounds per-tier quantity + order total (was unbounded).
+    Added `functions/tests/rules/organizer_application_rules.test.js` (escalation regression).
+  - Admin mobile: gate-admission confirmation + truthful result (no fake local admit for
+    unpaid; route to scanner cash flow); scanner admit/cash confirmations; superadmin
+    client guard on approvals; copyable order link; inert admin cards marked "Coming soon".
+  - Organizer/promotions: campaign launch try/catch + double-submit guard; payout
+    `bank-transfer` label fix; wallet top-up phone validation; business wallet error/retry
+    state (was showing GHS 0 on error); network-image error/loading builders.
+  - Studio: admission `qrToken` no longer sent to api.qrserver.com (client-side QR via
+    `qrcode`); `rel="noopener noreferrer"` on staff links; lazy chunk-load retry.
+  - Deep links: in-app parser now also accepts the `https` share-link format (full
+    Universal Links still needs native entitlements + hosted AASA/assetlinks + deploy).
+  - Gates: `flutter analyze`+`flutter test` (29/29); `functions` `npm test` (69/69) +
+    `npm run test:rules` (10/10); `studio` `npm run lint`+`build` clean.
